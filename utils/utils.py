@@ -3,6 +3,7 @@ import yaml
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import pymysql
 
 def get_config(config_path: str = None):
     ''' 读取配置文件 '''
@@ -16,6 +17,16 @@ def get_config(config_path: str = None):
     except Exception as e:
         print('配置文件加载失败：{}'.format(e))
     return None
+
+def mysql_connect():
+    ''' 创建mysql连接实例 '''
+    config = get_config()
+    conn = pymysql.connect(host=config['mysql']['host'],
+                           user=config['mysql']['user'],
+                           password=config['mysql']['password'],
+                           db=config['mysql']['db'],
+                           charset='utf8')
+    return conn
 
 def winsorize(data,  scale=3, axis=0, inclusive=True):
     '''
@@ -67,9 +78,13 @@ def winsorize(data,  scale=3, axis=0, inclusive=True):
         raise TypeError("不支持的数据类型，仅支持Series/DataFrame/ndarray")
 
 
-
-
-
+if __name__ == '__main__':
+    conn = mysql_connect()
+    sql = 'select * from valuation limit 10;'
+    with conn.cursor() as cursor:
+        cursor.execute(sql)
+        result = cursor.fetchone()
+        print(result)
 
 
 
