@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pymysql
+from sqlalchemy import create_engine
 
 def get_config(config_path: str = None):
     ''' 读取配置文件 '''
@@ -12,7 +13,7 @@ def get_config(config_path: str = None):
     try:
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
-        print('配置文件加载完成：{}'.format(config_path))
+        # print('配置文件加载完成：{}'.format(config_path))
         return config
     except Exception as e:
         print('配置文件加载失败：{}'.format(e))
@@ -27,6 +28,18 @@ def mysql_connect():
                            db=config['mysql']['db'],
                            charset='utf8')
     return conn
+
+def sql_engine():
+    ''' 创建sqlalchemy连接mysql的引擎 '''
+    config = get_config()
+    url = "mysql+pymysql://{}:{}@{}:3306/{}?charset=utf8mb4".format(
+        config['mysql']['user'],
+        config['mysql']['password'],
+        config['mysql']['host'],
+        config['mysql']['db']
+    )
+    engine = create_engine(url, echo=False)
+    return engine
 
 def winsorize(data,  scale=3, axis=0, inclusive=True):
     '''
@@ -79,12 +92,10 @@ def winsorize(data,  scale=3, axis=0, inclusive=True):
 
 
 if __name__ == '__main__':
-    conn = mysql_connect()
+    engine = sql_engine()
     sql = 'select * from valuation limit 10;'
-    with conn.cursor() as cursor:
-        cursor.execute(sql)
-        result = cursor.fetchone()
-        print(result)
+    df = pd.read_sql(sql, con=engine)
+    print(df)
 
 
 
