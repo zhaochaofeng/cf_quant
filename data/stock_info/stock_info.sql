@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS stock_info(
     act_ent_type VARCHAR(50) COMMENT '实控人企业性质',
     exchange VARCHAR(30) COMMENT '交易所代码。SSE:上交所; SZSE:深交所; BSE:北交所',
     PRIMARY KEY (id),
-    UNIQUE KEY un_code (code)
+    UNIQUE KEY un_code_day (code, day)
 ) ENGINE=InnoDB
     DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci

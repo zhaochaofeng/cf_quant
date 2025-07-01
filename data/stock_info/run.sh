@@ -1,4 +1,5 @@
 #/bin/bash
+source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
 echo ${cur_path}
