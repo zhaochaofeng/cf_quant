@@ -1,10 +1,12 @@
 
 import yaml
-from pathlib import Path
+import tushare as ts
 import numpy as np
 import pandas as pd
 import pymysql
+from pathlib import Path
 from sqlalchemy import create_engine
+from datetime import datetime
 
 def get_config(config_path: str = None):
     ''' 读取配置文件 '''
@@ -19,6 +21,10 @@ def get_config(config_path: str = None):
         print('配置文件加载失败：{}'.format(e))
     return None
 
+def tushare_pro():
+    config = get_config()
+    pro = ts.pro_api(config['tushare']['token'])
+    return pro
 def mysql_connect():
     ''' 创建mysql连接实例 '''
     config = get_config()
@@ -90,12 +96,14 @@ def winsorize(data,  scale=3, axis=0, inclusive=True):
     else:
         raise TypeError("不支持的数据类型，仅支持Series/DataFrame/ndarray")
 
+def is_trade_day(date):
+    ''' 判断是否为交易日 '''
+    pro = tushare_pro()
+    date = datetime.strptime(date, '%Y-%m-%d').strftime('%Y%m%d')
+    return True if (pro.trade_cal(start_date=date, end_date=date)['is_open'][0] == 1) else False
 
 if __name__ == '__main__':
-    engine = sql_engine()
-    sql = 'select * from valuation limit 10;'
-    df = pd.read_sql(sql, con=engine)
-    print(df)
+    print(is_trade_day('2025-06-29'))
 
 
 
