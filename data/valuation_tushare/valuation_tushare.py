@@ -41,7 +41,7 @@ def main(args):
     print('date: {}'.format(date))
     data = []
     for i, code in enumerate(ts_codes):
-        time.sleep(0.1)
+        time.sleep(0.1)  # API调用频次：1min不超过700次
         if (i+1) % 100 == 0:
             print('process: {}'.format(i+1))
         tmp = {}
@@ -51,6 +51,9 @@ def main(args):
         for f in fea_to_from.keys():
             try:
                 v = info[fea_to_from[f].lower()][0]
+                if f == 'day':
+                    # 日期格式转换
+                    v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
                 if pd.isna(v):
                     v = None
                 tmp[f] = v
@@ -83,7 +86,7 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--date', type=str, default='2025-07-01', help='取数日期')
+    parser.add_argument('--date', type=str, default='2025-07-04', help='取数日期')
     args = parser.parse_args()
     print(args)
     if not is_trade_day(args.date):
