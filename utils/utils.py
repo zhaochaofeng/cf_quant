@@ -25,6 +25,13 @@ def tushare_pro():
     config = get_config()
     pro = ts.pro_api(config['tushare']['token'])
     return pro
+
+def tushare_ts():
+    ''' 有些数据不能使用pro对象访问 '''
+    config = get_config()
+    ts.set_token(config['tushare']['token'])
+    return ts
+
 def mysql_connect():
     ''' 创建mysql连接实例 '''
     config = get_config()
@@ -117,7 +124,10 @@ def get_n_pretrade_day(date, n):
     return datetime.strptime(trade_days[-(n+1)], '%Y%m%d').strftime('%Y-%m-%d')
 
 if __name__ == '__main__':
-    print(is_trade_day('2025-06-29'))
+    ts = tushare_ts()
+    print(ts.pro_bar(ts_code='000001.SZ', start_date='2025-06-25',
+                              end_date='2025-07-01', asset='E',
+                              adj='qfq', freq='D'))
 
 
 
