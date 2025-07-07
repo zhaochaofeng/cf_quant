@@ -6,15 +6,15 @@
 import time
 import argparse
 import pandas as pd
-import tushare as ts
 from datetime import datetime, timedelta
 from utils.utils import get_config
 from utils.utils import mysql_connect
-from utils.utils import tushare_pro, is_trade_day
+from utils.utils import tushare_ts, tushare_pro, is_trade_day
 import warnings
 warnings.filterwarnings("ignore")
 
 config = get_config()
+ts = tushare_ts()
 pro = tushare_pro()
 
 fea_to_from = {
