@@ -123,6 +123,28 @@ def get_n_pretrade_day(date, n):
     trade_days.sort()
     return datetime.strptime(trade_days[-(n+1)], '%Y%m%d').strftime('%Y-%m-%d')
 
+def get_month_start_end(date_str):
+    """
+    根据输入日期字符串，返回该月的第一天和最后一天
+    参数:
+        date_str: 日期字符串，格式为 'YYYY-MM-DD'
+    返回:
+        (month_start, month_end): 元组，包含该月第一天和最后一天的日期字符串（格式为 'YYYY-MM-DD'）
+    """
+    # 将字符串转换为datetime对象
+    date = datetime.strptime(date_str, '%Y-%m-%d')
+    # 获取当月第一天
+    month_start = date.replace(day=1)
+    # 获取下个月的第一天，并减去一天得到本月的最后一天
+    if month_start.month == 12:
+        next_month = month_start.replace(year=month_start.year + 1, month=1)
+    else:
+        next_month = month_start.replace(month=month_start.month + 1)
+    month_end = next_month - timedelta(days=1)
+    # 转换为字符串格式输出
+    return month_start.strftime('%Y-%m-%d'), month_end.strftime('%Y-%m-%d')
+
+
 if __name__ == '__main__':
     ts = tushare_ts()
     print(ts.pro_bar(ts_code='000001.SZ', start_date='2025-06-25',
