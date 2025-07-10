@@ -22,16 +22,16 @@ if [ $# -eq 0 -o $# -eq 1 ]; then
 fi
 
 if [ $# -eq 0 -o $# -eq 1 ]; then
-    ${python_path} ${cur_path}/factor_ic.py --date ${dt} --n_factor 4 --period 5 --period_num 3 --is_print_case --alg_name 'factor_ic'
+    ${python_path} ${cur_path}/factor_ic.py --date ${dt} --n_factor 4 --period 5 --period_num 3 --is_print_case --alg_name 'factor_ic' --hs_300
   else
     while [[ $dt1 < $dt2 ]]
       do
         echo "dt1: "${dt1}
-        ${python_path} ${cur_path}/factor_ic.py --date ${dt1} --n_factor 4 --period 5 --period_num 3 --is_print_case --alg_name 'factor_ic'
+        ${python_path} ${cur_path}/factor_ic.py --date ${dt1} --n_factor 4 --period 5 --period_num 3 --is_print_case --alg_name 'factor_ic' --hs_300
         dt1=`date -d "+1 day $dt1" +%Y-%m-%d`
       done
     echo "dt1: "${dt1}
-    ${python_path} ${cur_path}/factor_ic.py --date ${dt1} --n_factor 4 --period 5 --period_num 3 --is_print_case --alg_name 'factor_ic'
+    ${python_path} ${cur_path}/factor_ic.py --date ${dt1} --n_factor 4 --period 5 --period_num 3 --is_print_case --alg_name 'factor_ic' --hs_300
 fi
 
 # 判断是否执行成功

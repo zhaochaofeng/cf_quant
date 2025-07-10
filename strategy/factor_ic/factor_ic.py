@@ -1,5 +1,5 @@
 ''''
-    量化策略：因子分析 + 线性回归
+    量化策略：因子分析 + IC指标
 '''
 
 import sys
@@ -8,19 +8,21 @@ import argparse
 import redis
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from jqdatasdk import *
 from statsmodels.multivariate.factor import Factor
-from jqfactor_analyzer import winsorize, standardlize
+from jqfactor_analyzer import winsorize
 
 from utils.utils import get_config
 from utils.utils import sql_engine
 from utils.utils import tushare_pro
 from utils.utils import get_n_pretrade_day, is_trade_day
+from utils.utils import get_month_start_end
 
-def get_fea_data(start_date: str, end_date: str) -> pd.DataFrame:
+def get_fea_data(start_date: str, end_date: str, hs_300=False) -> pd.DataFrame:
     """
     从MySQL获取特征数据
-    
+
     参数:
         start_date: 开始日期 (格式: 'YYYY-MM-DD')
         end_date: 结束日期 (格式: 'YYYY-MM-DD')
@@ -29,42 +31,36 @@ def get_fea_data(start_date: str, end_date: str) -> pd.DataFrame:
         DataFrame with columns: ['date', 'code', '<特征>...']
     """
     fea_list = ['turnover_rate', 'turnover_rate_f', 'volume_ratio', 'pe', 'pe_ttm',
-                  'pb', 'ps', 'ps_ttm', 'dv_ratio', 'dv_ttm', 'total_share', 'float_share',
-                  'free_share', 'total_mv', 'circ_mv'
-                  ]
+                'pb', 'ps', 'ps_ttm', 'dv_ratio', 'dv_ttm', 'total_share', 'float_share',
+                'free_share', 'total_mv', 'circ_mv'
+                ]
+    if hs_300:
+        dt_1, dt_2 = get_month_start_end(args.date)
+        dt_1 = datetime.strptime(dt_1, '%Y-%m-%d').strftime('%Y%m%d')
+        dt_2 = datetime.strptime(dt_2, '%Y-%m-%d').strftime('%Y%m%d')
+        print('dt_1: {}, dt_2: {}'.format(dt_1, dt_2))
+        hs_300_stock = pro.index_weight(index_code='000300.SH',
+                                        start_date=dt_1, end_date=dt_2)['con_code'].unique()
+        hs_300_stock = list(hs_300_stock)
+        hs_300_stock = ["'{}'".format(stock) for stock in hs_300_stock]
+        sql = '''
+                    select day as date, ts_code as code, {} from valuation_tushare 
+                    where day>='{}' AND day<='{}' and ts_code in ({}) order by day, ts_code;
+                '''.format(','.join(fea_list), start_date, end_date, ','.join(hs_300_stock))
+    else:
+        sql = '''
+            select day as date, ts_code as code, {} from valuation_tushare 
+            where day>='{}' AND day<='{}' order by day, ts_code;
+        '''.format(','.join(fea_list), start_date, end_date)
 
-    engine = sql_engine()
-
-    sql = '''
-        select day as date, ts_code as code, {} from valuation_tushare 
-        where day>='{}' AND day<='{}' order by day, ts_code;
-    '''.format(','.join(fea_list), start_date, end_date)
     print(sql)
     # 读取数据
+    engine = sql_engine()
     df = pd.read_sql(sql, engine)
 
     # 关闭连接
     engine.dispose()
-    return df
-
-def get_return_data(start_date, end_date):
-    ''' 收益率 '''
-    auth(config['joinqaunt']['username'], config['joinqaunt']['password'])
-
-    stocks_info = get_all_securities(types=['stock'], date=start_date)
-    stocks = stocks_info.index.tolist()
-    print('股票数：{}'.format(len(stocks)))
-    df = get_price(stocks, start_date=start_date, end_date=end_date, frequency='1d', fields=['close'])
-
-    def calculate_return(group):
-        # group 为DataFrame
-        group = group.sort_values("time")
-        initial_price = group["close"].iloc[0]
-        final_price = group["close"].iloc[1]
-        return (final_price - initial_price) / initial_price * 100
-    s = df.groupby("code").apply(calculate_return)
-    df = s.reset_index(name="return")
-    df.set_index(['code'], inplace=True)
+    print('df shape: {}'.format(df.shape))
     return df
 
 def get_close_data(start_date, end_date):
@@ -86,11 +82,11 @@ def fa_model(endog, n_factor, index):
     # 因子载荷矩阵
     loadings = result.loadings
     loadings = pd.DataFrame(loadings, index=index)
-    print('{}: {}'.format('因子载荷矩阵', '-'*100))
+    print('{}: {}'.format('因子载荷矩阵', '-' * 100))
     print(loadings)
     # 特征值
     eigen = np.array(result.eigenvals)
-    print('{}: {}'.format('特征值', '-'*100))
+    print('{}: {}'.format('特征值', '-' * 100))
     print(eigen)
 
     # 因子旋转
@@ -136,16 +132,7 @@ def load_to_redis(predict, day):
                 break
 
             name = pro.stock_basic(ts_code=code)['name'].iloc[0]
-            print('{}, {}, {}, {}'.format(i+1, code, name, round(score, 6)))
-
-def preprocess(data, axis=0):
-    # 去极值
-    data = winsorize(data, scale=3, axis=axis)
-    # 归一化
-    data = standardlize(data, axis=axis)
-    # 处理缺失值。自变量用0填充，因变量过滤为Nan的数据
-    data.fillna(0, inplace=True)
-    return data
+            print('{}, {}, {}, {}'.format(i + 1, code, name, round(score, 6)))
 
 def calc_ic(data, periods=(1, 5, 10), method='spearman'):
     """
@@ -219,26 +206,14 @@ def main():
 
     # 加载训练数据
     print('{} {}'.format('1、加载训练数据', '-' * 50))
-    X = get_fea_data(train_dt, train_dt)
+    X = get_fea_data(train_dt, train_dt, False)
     # 数据预处理
     X.drop(labels=['date'], axis=1, inplace=True)
     X.set_index(keys=['code'], inplace=True)
-    # X = preprocess(X, axis=0)
-    X.fillna(0, axis=0, inplace=True)
+    X.fillna(0.001, axis=0, inplace=True)
     X = winsorize(X, scale=3, axis=0)
     print(X.head())
     print("X shape: {}".format(X.shape))
-
-    # 样本分析
-    # print('-' * 100)
-    # print('{} {}'.format('样本特征', '-' * 50))
-    # code_sample = ['603886.SH', '001323.SZ', '300616.SZ', '002088.SZ', '603801.SH', '002884.SZ', '002293.SZ', '002572.SZ', '600729.SH', '002327.SZ']
-    # X_sample = X[X.index.isin(code_sample)]
-    # # 打印X_sample中所有数据，每个字段用逗号分隔
-    # print(','.join(X_sample.columns))
-    # for index, row in X_sample.iterrows():
-    #     print(index + ',' + ','.join(map(str, row.values)))
-    # print('-' * 100)
 
     # 因子分析
     print('{} {}'.format('2、因子分析模型', '-' * 50))
@@ -248,32 +223,11 @@ def main():
     results_fa = fa_model(endog=X, n_factor=args.n_factor, index=X.columns)
     factor_score = fa_predict(results_fa, X, factor_name)
 
-    # print('-' * 100)
-    # print('样本因子得分:')
-    # factor_score_sample = factor_score[factor_score.index.isin(code_sample)]
-    # print(','.join(factor_name))
-    # for index, row in factor_score_sample.iterrows():
-    #     print(index + ',' + ','.join(map(str, row.values)))
-    # print('-' * 100)
-    # print('样本因子得分（手动）:')
-    # X_sample = (X_sample - X.mean(axis=0)) / X.std(axis=0, ddof=0)
-    # B = results_fa.factor_score_params(method='bartlett')
-    # B = pd.DataFrame(data=B, index=X.columns, columns=factor_name)
-    # print(B)
-    # print('B shape: {}'.format(B.shape))
-    # print('B type：{}'.format(type(B)))
-    # print('X_sample shape: {}'.format(X_sample.shape))
-    # print(X_sample)
-    # factor_score_sample2 = X_sample.dot(B)
-    # factor_score_sample2 = pd.DataFrame(data=factor_score_sample2, index=X_sample.index, columns=factor_name)
-    # print(factor_score_sample2)
-    # print('-' * 100)
-
     # 加载多天特征数据
     print('{} {}'.format('3、多天特征数据的因子得分', '-' * 50))
-    X_new = get_fea_data(start_date, end_date)
+    X_new = get_fea_data(start_date, end_date, args.hs_300)
     X_new.set_index(keys=['date', 'code'], inplace=True)
-    X_new.fillna(0, axis=0, inplace=True)
+    X_new.fillna(0.001, axis=0, inplace=True)
     X_new = winsorize(X_new, scale=3, axis=0, inclusive=True)
     factor_score_new = fa_predict(results_fa, X_new, factor_name)
 
@@ -315,20 +269,6 @@ def main():
     print('{}{}'.format('8、预测结果加载到redis', '-' * 50))
     load_to_redis(predict, args.date)
 
-    '''
-    print('-' * 100)
-    print('top10 因子得分分布：')
-    print(factor_score.describe())
-    print(factor_score_sample.describe())
-    print('-' * 100)
-    print('top10 特征取值分布：')
-
-    for index, row in X.describe().iterrows():
-        print(index+"\t", ' '.join(map(str, row.values)))
-    for index, row in X_sample.describe().iterrows():
-        print(index + "\t", ' '.join(map(str, row.values)))
-    '''
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ALG-Factor-IC')
     parser.add_argument('--date', type=str, default='2025-07-04', help='预测日期')
@@ -337,6 +277,7 @@ if __name__ == '__main__':
     parser.add_argument('--period_num', type=int, default=1, help='计算ic平均值的周期数')
     parser.add_argument('--is_print_case', action='store_true', help='是否打印预测结果')
     parser.add_argument('--alg_name', type=str, default='factor_ic', help='算法名称')
+    parser.add_argument('--hs_300', action='store_true', help='是否使用沪深300指数计算IC')
     args = parser.parse_args()
     print(args)
     if not is_trade_day(args.date):
