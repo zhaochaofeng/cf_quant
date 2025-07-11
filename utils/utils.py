@@ -110,8 +110,9 @@ def is_trade_day(date):
     return True if (pro.trade_cal(start_date=date, end_date=date)['is_open'][0] == 1) else False
 
 def get_n_pretrade_day(date, n):
-    ''' date 前n个交易日
+    ''' date 前n个交易日。格式 YYYY-MM-DD
         若date为非交易日，则会认为date为历史最近的一个交易日
+        n=0时，返回原始日期date
     '''
     pro = tushare_pro()
     trade_days = pro.trade_cal(
