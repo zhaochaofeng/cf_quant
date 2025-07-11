@@ -117,7 +117,7 @@ def get_n_pretrade_day(date, n):
     pro = tushare_pro()
     trade_days = pro.trade_cal(
         exchange='',
-        start_date=(datetime.strptime(date, '%Y-%m-%d') - timedelta(days=(n+30))).strftime('%Y%m%d'),
+        start_date=(datetime.strptime(date, '%Y-%m-%d') - timedelta(days=(n+300))).strftime('%Y%m%d'),
         end_date=datetime.strptime(date, '%Y-%m-%d').strftime('%Y%m%d'),
         is_open='1')
     trade_days = trade_days['cal_date'].tolist()
