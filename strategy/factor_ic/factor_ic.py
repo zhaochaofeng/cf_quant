@@ -11,7 +11,7 @@ import numpy as np
 from datetime import datetime
 from jqdatasdk import *
 from statsmodels.multivariate.factor import Factor
-from jqfactor_analyzer import winsorize
+from jqfactor_analyzer import winsorize, standardlize
 
 from utils.utils import get_config
 from utils.utils import sql_engine
@@ -98,9 +98,9 @@ def fa_model(endog, n_factor, index):
 
     return result
 
-def fa_predict(result, endog, factor_name):
+def fa_predict(result, endog, factor_name, transform=True):
     # 原始特征值转化为因子值
-    factor_score = result.factor_scoring(endog=endog, transform=True)
+    factor_score = result.factor_scoring(endog=endog, transform=transform)
 
     factor_score = pd.DataFrame(factor_score)
     factor_score.columns = factor_name
@@ -130,9 +130,11 @@ def load_to_redis(predict, day):
         for i, (code, score) in enumerate(p_sorted):
             if i >= 100:
                 break
-
-            name = pro.stock_basic(ts_code=code)['name'].iloc[0]
-            print('{}, {}, {}, {}'.format(i + 1, code, name, round(score, 6)))
+            try:
+                name = pro.stock_basic(ts_code=code)['name'].iloc[0]
+                print('{}, {}, {}, {}'.format(i + 1, code, name, round(score, 6)))
+            except:
+                continue
 
 def calc_ic(data, periods=(1, 5, 10), method='spearman'):
     """
@@ -221,7 +223,7 @@ def main():
     for i in range(args.n_factor):
         factor_name.append('{}{}'.format('f', i + 1))
     results_fa = fa_model(endog=X, n_factor=args.n_factor, index=X.columns)
-    factor_score = fa_predict(results_fa, X, factor_name)
+    factor_score = fa_predict(results_fa, X, factor_name, True)
 
     # 加载多天特征数据
     print('{} {}'.format('3、多天特征数据的因子得分', '-' * 50))
@@ -229,7 +231,9 @@ def main():
     X_new.set_index(keys=['date', 'code'], inplace=True)
     X_new.fillna(0.001, axis=0, inplace=True)
     X_new = winsorize(X_new, scale=3, axis=0, inclusive=True)
-    factor_score_new = fa_predict(results_fa, X_new, factor_name)
+    if args.hs_300:
+        X_new = standardlize(X_new, axis=0)
+    factor_score_new = fa_predict(results_fa, X_new, factor_name, not args.hs_300)
 
     # 加载收盘价数据
     print('{} {}'.format('4、加载收盘价数据', '-' * 50))
@@ -259,7 +263,7 @@ def main():
         if abs(ic_list[i]) > target_ic:
             choose_ic_idx.append(i)
             ic_weight[factor_name[i]] = ic_list[i]
-    print(ic_weight)
+    print("ic_weight: {}".format(ic_weight))
 
     predict = 0
     for i in choose_ic_idx:
