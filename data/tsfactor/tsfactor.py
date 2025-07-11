@@ -118,7 +118,7 @@ def request_from_tushare(date, count=1):
     # 从tushare API获取数据
     print('-' * 100)
     print('从tushare API获取数据...')
-    end_date = datetime.strptime(args.date, '%Y-%m-%d').strftime('%Y%m%d')
+    end_date = datetime.strptime(date, '%Y-%m-%d').strftime('%Y%m%d')
     start_date = datetime.strptime(get_n_pretrade_day(date, count - 1), '%Y-%m-%d').strftime('%Y%m%d')
     print('start_date: {}, end_date: {}'.format(start_date, end_date))
 
