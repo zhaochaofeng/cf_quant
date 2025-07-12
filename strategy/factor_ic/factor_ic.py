@@ -154,7 +154,7 @@ def calc_ic(data, periods=(1, 5, 10), method='spearman'):
 
     返回:
         DataFrame。index：日期；column: period_{n}。如下：
-                    peroid_1  peroid_5  peroid_10
+                    period_1  period_5  period_10
         date
         2025-06-03 -0.055255 -0.017521  -0.061794
         2025-06-04 -0.082961 -0.029947  -0.076773
@@ -169,7 +169,7 @@ def calc_ic(data, periods=(1, 5, 10), method='spearman'):
 
     # 步骤3：因子数据预处理
     factor_series = data['factor'].copy()  # 提取因子序列
-    price_matrix = data['close'].unstack()  # 价格转换为(code×date)矩阵
+    price_matrix = data['close'].unstack()  # 价格转换为(date×code)矩阵
 
     # 步骤4：IC值计算主流程
     ic_results = {}
@@ -178,11 +178,11 @@ def calc_ic(data, periods=(1, 5, 10), method='spearman'):
         future_prices = price_matrix.shift(-period)  # 获取未来N日价格
         returns = (future_prices / price_matrix) - 1  # 收益率公式
 
-        # 4.2 数据对齐处理
+        # 4.2 数据对齐处理。严格对齐并去除缺失值
         aligned_data = pd.concat([
-            factor_series.rename('factor'),
-            returns.stack().rename(f'return_{period}d')
-        ], axis=1, join='inner').dropna()  # 严格对齐并去除缺失值
+            factor_series,
+            returns.stack(dropna=True).rename(f'return_{period}d')
+        ], axis=1, join='inner')
 
         # 4.3 按日期分组计算相关系数
         def calculate_corr(group):
@@ -192,7 +192,7 @@ def calc_ic(data, periods=(1, 5, 10), method='spearman'):
         daily_ic = aligned_data.groupby(level='date').apply(calculate_corr)
 
         # 4.5 结果存储
-        ic_results['peroid_{}'.format(period)] = daily_ic
+        ic_results['period_{}'.format(period)] = daily_ic
     return pd.DataFrame(ic_results) if len(ic_results) > 0 else None
 
 def calc_factors_ic(merged, factor_name, period):
