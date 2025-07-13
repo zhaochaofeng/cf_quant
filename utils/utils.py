@@ -4,6 +4,7 @@ import tushare as ts
 import numpy as np
 import pandas as pd
 import pymysql
+import redis
 from pathlib import Path
 from sqlalchemy import create_engine
 from datetime import datetime, timedelta
@@ -42,6 +43,13 @@ def mysql_connect():
                            charset='utf8')
     return conn
 
+def redis_connect():
+    ''' 创建redis连接实例 '''
+    config = get_config()
+    conn = redis.Redis(host=config['redis']['host'],
+                       password=config['redis']['password'])
+    return conn
+
 def sql_engine():
     ''' 创建sqlalchemy连接mysql的引擎 '''
     config = get_config()
@@ -53,6 +61,19 @@ def sql_engine():
     )
     engine = create_engine(url, echo=False)
     return engine
+
+def get_feas(config_path: str = None):
+    ''' 读取特征字段 '''
+    if config_path is None:
+        config_path = Path(__file__).parent.parent / 'features.yaml'
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        # print('配置文件加载完成：{}'.format(config_path))
+        return config
+    except Exception as e:
+        print('配置文件加载失败：{}'.format(e))
+    return None
 
 def winsorize(data,  scale=3, axis=0, inclusive=True):
     '''
@@ -147,11 +168,8 @@ def get_month_start_end(date_str):
 
 
 if __name__ == '__main__':
-    ts = tushare_ts()
-    print(ts.pro_bar(ts_code='000001.SZ', start_date='2025-06-25',
-                              end_date='2025-07-01', asset='E',
-                              adj='qfq', freq='D'))
-
+    r = redis_connect()
+    print(r.keys('*'))
 
 
 
