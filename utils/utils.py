@@ -34,7 +34,7 @@ def tushare_ts():
     ts.set_token(config['tushare']['token'])
     return ts
 
-def jq_conn():
+def jq_connect():
     config = get_config()
     auth(config['joinqaunt']['username'], config['joinqaunt']['password'])
 
