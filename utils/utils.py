@@ -8,6 +8,7 @@ import redis
 from pathlib import Path
 from sqlalchemy import create_engine
 from datetime import datetime, timedelta
+from jqdatasdk import *
 
 def get_config(config_path: str = None):
     ''' 读取配置文件 '''
@@ -32,6 +33,10 @@ def tushare_ts():
     config = get_config()
     ts.set_token(config['tushare']['token'])
     return ts
+
+def jq_conn():
+    config = get_config()
+    auth(config['joinqaunt']['username'], config['joinqaunt']['password'])
 
 def mysql_connect():
     ''' 创建mysql连接实例 '''
@@ -166,10 +171,9 @@ def get_month_start_end(date_str):
     # 转换为字符串格式输出
     return month_start.strftime('%Y-%m-%d'), month_end.strftime('%Y-%m-%d')
 
-
 if __name__ == '__main__':
-    r = redis_connect()
-    print(r.keys('*'))
+    jq_conn()
+    print(get_account_info())
 
 
 
