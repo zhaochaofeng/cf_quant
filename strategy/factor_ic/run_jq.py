@@ -69,7 +69,7 @@ def choose_stock(context):
     log.info('stocks_dic len: {}'.format(len(stocks_dic)))
 
     # 从redis中获取股票得分
-    r = redis.Redis(host='39.105.18.127')
+    r = redis.Redis(host='39.105.18.127', password='Zhao_38013984')
     dt = context.current_dt.strftime('%Y-%m-%d')
     model_name = 'factor_ic'
     key = '{}_{}'.format(model_name, dt)
