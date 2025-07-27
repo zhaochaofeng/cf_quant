@@ -1,5 +1,9 @@
 ''''
     量化策略：因子分析 + IC指标
+
+    问题1：使用[start_date, end_date-period] 数据计算IC值，加权train_dt因子得到股票score，
+    score 与 最近一个周期（period）的股票收益率大概率成负相关性
+    问题2：聚宽平台上的原始策略现在还有效果，需要找到原因 ？
 '''
 
 import sys
@@ -18,6 +22,8 @@ from utils.utils import sql_engine
 from utils.utils import tushare_pro
 from utils.utils import get_n_pretrade_day, is_trade_day
 from utils.utils import get_month_start_end
+from utils.utils import get_feas
+from utils.utils import redis_connect
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -47,12 +53,12 @@ def get_fea_data(start_date: str, end_date: str, hs_300=False) -> pd.DataFrame:
         hs_300_stock = list(hs_300_stock)
         hs_300_stock = ["'{}'".format(stock) for stock in hs_300_stock]
         sql = '''
-                    select day as date, ts_code as code, {} from valuation_tushare 
+                    select day as date, ts_code as code, {} from valuation_tushare
                     where day>='{}' AND day<='{}' and ts_code in ({}) order by day, ts_code;
                 '''.format(','.join(fea_list), start_date, end_date, ','.join(hs_300_stock))
     else:
         sql = '''
-            select day as date, ts_code as code, {} from valuation_tushare 
+            select day as date, ts_code as code, {} from valuation_tushare
             where day>='{}' AND day<='{}' order by day, ts_code;
         '''.format(','.join(fea_list), start_date, end_date)
 
@@ -65,6 +71,44 @@ def get_fea_data(start_date: str, end_date: str, hs_300=False) -> pd.DataFrame:
     engine.dispose()
     print(df.describe())
 
+    return df
+
+def get_fea_data2(start_date, end_date, table_fea={}):
+    '''
+        从MySQL获取特征数据（多表）
+        参数:
+            start_date: 开始日期 (格式: 'YYYY-MM-DD')
+            end_date: 结束日期 (格式: 'YYYY-MM-DD')
+            table_fea: {<表名>: <字段>}
+        返回：特征合并后的DataFrame
+    '''
+    t = time.time()
+    if len(table_fea) == 0:
+        print('未指定 table_fea 参数！')
+        return None
+    engine = sql_engine()
+    df = pd.DataFrame()
+    for table_name, fea_list in table_fea.items():
+        if len(fea_list) == 0:
+            continue
+        sql = '''
+            select day as date, ts_code as code, {} from {} 
+            where day>='{}' AND day<='{}';
+        '''.format(','.join(fea_list), table_name, start_date, end_date)
+        print(sql)
+        df_tmp = pd.read_sql(sql, engine)
+        print('{} 取数耗时：{}s'.format(table_name, round(time.time() - t, 4)))
+        t = time.time()
+
+        df_tmp.set_index(['date', 'code'], inplace=True)
+        df = pd.concat([df, df_tmp], axis=1, join='outer')
+        print('{} join耗时：{}s'.format(table_name, round(time.time()-t, 4)))
+        t = time.time()
+    # 按照date, code排序
+    df.reset_index(inplace=True)
+    df.sort_values(by=['date', 'code'], inplace=True)
+    print('df shape: {}'.format(df.shape))
+    print(df.describe())
     return df
 
 def get_close_data(start_date, end_date):
@@ -123,7 +167,7 @@ def fa_predict(result, endog, factor_name):
 
 def load_to_redis(predict, day):
     # 入库redis
-    r = redis.Redis(host=config['redis']['host'])
+    r = redis_connect()
     dic = {}
     codes = predict.index.tolist()
     scores = predict.values.tolist()
@@ -140,8 +184,12 @@ def load_to_redis(predict, day):
         for i, (code, score) in enumerate(p_sorted):
             if i >= 100:
                 break
-
-            name = pro.stock_basic(ts_code=code)['name'].iloc[0]
+            try:
+                name = pro.stock_basic(ts_code=code)['name'].iloc[0]
+            except Exception as e:
+                print(e)
+                print('{} 未检索到股票名称，可能已经退市！！！'.format(code))
+                continue
             print('{}, {}, {}, {}'.format(i + 1, code, name, round(score, 6)))
 
 def calc_ic(data, periods=(1, 5, 10), method='spearman'):
@@ -216,7 +264,8 @@ def main():
 
     # 加载训练数据
     print('{} {}'.format('1、加载训练数据', '-' * 50))
-    X = get_fea_data(train_dt, train_dt, False)
+    # X = get_fea_data(train_dt, train_dt, False)
+    X = get_fea_data2(train_dt, train_dt, get_feas())
     # 数据预处理
     X.drop(labels=['date'], axis=1, inplace=True)
     X.set_index(keys=['code'], inplace=True)
@@ -235,7 +284,8 @@ def main():
 
     # 加载多天特征数据
     print('{} {}'.format('3、多天特征数据的因子得分', '-' * 50))
-    X_new = get_fea_data(start_date, end_date, args.hs_300)
+    # X_new = get_fea_data(start_date, end_date, args.hs_300)
+    X_new = get_fea_data2(start_date, end_date, get_feas())
     X_new.set_index(keys=['date', 'code'], inplace=True)
     X_new.fillna(0.001, axis=0, inplace=True)
     X_new = winsorize(X_new, scale=3, axis=0, inclusive=True)
@@ -282,7 +332,7 @@ def main():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('ALG-Factor-IC')
     parser.add_argument('--date', type=str, default='2025-07-04', help='预测日期')
-    parser.add_argument('--n_factor', type=int, default=4)
+    parser.add_argument('--n_factor', type=int, default=8, help='因子个数')
     parser.add_argument('--period', type=int, default=1, help='调仓周期')
     parser.add_argument('--period_num', type=int, default=1, help='计算ic平均值的周期数')
     parser.add_argument('--is_print_case', action='store_true', help='是否打印预测结果')
