@@ -42,11 +42,20 @@ def parse_line(row, fea_to_from):
             if f == 'day':
                 # 日期格式转换
                 v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
+            if f == 'pct_chg':
+                # 处理pct_chg超出范围的情况
+                if pd.isna(v):
+                    v = None
+                elif abs(v) > 9999.99:
+                    print(f"警告: pct_chg值 {v} 超出范围，已截断为9999.99或-9999.99")
+                    print(row)
+                    v = 9999.99 if v > 0 else -9999.99
             if pd.isna(v):
                 v = None
             tmp[f] = v
         except Exception as e:
             print('except: {}'.format(e))
+            print(row)
     return tmp
 
 def request_from_tushare(ts_codes):
@@ -93,7 +102,7 @@ def request_from_tushare(ts_codes):
     else:
         # 回刷历史数据，按单个ts_code请求
         for i, code in enumerate(ts_codes):
-            # time.sleep(0.1)  # API调用频次：1min不超过？次
+            time.sleep(0.1)  # API调用频次：1min不超过1000次
             if (i + 1) % 100 == 0:
                 print('requested num: {}'.format(i + 1))
             df = pro.daily(ts_code=code, start_date=start_date, end_date=end_date)
@@ -161,8 +170,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start_date', type=str, default='2025-07-08')
-    parser.add_argument('--end_date', type=str, default='2025-07-10')
+    parser.add_argument('--start_date', type=str, default='2025-08-01')
+    parser.add_argument('--end_date', type=str, default='2025-08-01')
     args = parser.parse_args()
     print(args)
     if not is_trade_day(args.end_date):
