@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS stock_info(
     ts_code VARCHAR(30) NOT NULL COMMENT 'TS股票代码，股票代码带BJ/SH/SZ后缀',
     code VARCHAR(30) NOT NULL COMMENT '股票代码',
     day VARCHAR(10) NOT NULL COMMENT '取数日期，格式YYYY-MM-DD',
-    name VARCHAR(30) NOT NULL COMMENT '股票名称',
+    name VARCHAR(30) NOT NULL COMMENT '股票名称(包含ST标识)',
     area VARCHAR(30) COMMENT '所属地域',
     industry VARCHAR(30) COMMENT '所属行业',
     cnspell VARCHAR(30) COMMENT '拼音缩写',
