@@ -8,7 +8,7 @@ if [ $# -eq 0 ]; then
     dt1=`date +%Y-%m-%d`
     dt2=${dt1}
   elif [ $# -eq 1 ]; then
-    dt=$1
+    dt1=$1
     dt2=${dt1}
   elif [ $# -eq 2 ]; then
     dt1=$1

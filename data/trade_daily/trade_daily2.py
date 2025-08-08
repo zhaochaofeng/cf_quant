@@ -83,7 +83,7 @@ def request_from_tushare(ts_codes):
         factor = pro.adj_factor(trade_date=start_date)
         factor.set_index(keys=['ts_code', 'trade_date'], inplace=True)
 
-        print(factor.head)
+        print(factor.head())
         # 合并交易数据 和 复权因子
         merged = pd.concat([df, factor], axis=1, join='inner')
 
@@ -170,8 +170,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start_date', type=str, default='2025-08-01')
-    parser.add_argument('--end_date', type=str, default='2025-08-01')
+    parser.add_argument('--start_date', type=str, default='2025-08-08')
+    parser.add_argument('--end_date', type=str, default='2025-08-08')
     args = parser.parse_args()
     print(args)
     if not is_trade_day(args.end_date):
