@@ -1,9 +1,11 @@
 '''
     将mysql中数据处理成qlib格式数据
 '''
+
 import os
 import time
 import fire
+import shutil
 import pandas as pd
 from utils.utils import tushare_pro
 from utils.utils import sql_engine
@@ -19,11 +21,11 @@ class Processor:
                  end_date: str = None,           # 数据终止日期
                  is_offline: bool = False,       # 是否处理批量导出的离线数据
                  index_code: str = '000300.SH',  # 指数code
-                 fq: str = 'hfq',                 # 复权方式。hfq: 后复权; qfq: 前复权; None: 不复权
-                 columns = None
+                 fq: str = 'hfq',                # 复权方式。hfq: 后复权; qfq: 前复权; None: 不复权
+                 columns: list = None
                  ):
         if columns is None:
-            columns = ['ts_code', 'date', 'open', 'close', 'high', 'low', 'volume', 'amount', 'change', 'factor']
+            columns = ['ts_code', 'date', 'open', 'close', 'high', 'low', 'volume', 'amount', 'factor']
         self.provider_uri = provider_uri
         self.path_in = path_in
         self.start_date = start_date
@@ -39,14 +41,14 @@ class Processor:
             raise ValueError("When is_offline is True, path_in cannot be None")
 
     def load_data(self):
-        print('load_data ...')
         ''' 加载股票数据 '''
+        print('load_data ...')
         if self.is_offline:
             df = pd.read_csv(self.path_in, sep='\t')
         else:
             engine = sql_engine()
             sql = '''
-            select ts_code, day as date, open, close, high, low, vol, amount, `change`, adj_factor 
+            select ts_code, day as date, open, close, high, low, vol, amount, adj_factor 
             from cf_quant.trade_daily2 where day>='{}' and day<='{}';
             '''.format(self.start_date, self.end_date)
             print('{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
@@ -56,23 +58,23 @@ class Processor:
         return df
 
     def load_data_index(self):
-        print('load_data_index ...')
         ''' 加载指数数据 '''
+        print('load_data_index ...')
         start_date = datetime.strptime(self.start_date, '%Y-%m-%d').strftime('%Y%m%d')
         end_date = datetime.strptime(self.end_date, '%Y-%m-%d').strftime('%Y%m%d')
         index_df = pro.index_daily(ts_code=self.index_code, start_date=start_date, end_date=end_date)
         index_df.drop(columns=['pct_chg', 'pre_close'], inplace=True)
-        index_df.columns = ['ts_code', 'date', 'close', 'open', 'high', 'low', 'change', 'vol', 'amount']
+        index_df.columns = ['ts_code', 'date', 'close', 'open', 'high', 'low', 'vol', 'amount']
         index_df['date'] = pd.to_datetime(index_df['date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
         index_df['adj_factor'] = 1
         return index_df
 
     def trans_fq(self, df):
-        print('trans_hfq ...')
         ''' 复权计算 '''
+        print('trans_hfq ...')
         def hfq(group):
             ''' 后复权 '''
-            # 最近交易日期因子
+            # 如果股票没有最近一天的数据，则过滤
             filtered_group = group[group['date'] == self.end_date]
             if filtered_group.empty:
                 return None
@@ -81,12 +83,10 @@ class Processor:
             group['close'] = group['close'] * group['factor']
             group['high'] = group['high'] * group['factor']
             group['low'] = group['low'] * group['factor']
-            group['factor'] = group['factor']
             return group
 
         def qfq(group):
             ''' 前复权 '''
-            # 最近交易日期因子
             filtered_group = group[group['date'] == self.end_date]
             if filtered_group.empty:
                 return None
@@ -110,21 +110,21 @@ class Processor:
         """ 按股票代码分割CSV数据 """
         output_dir = os.path.join(self.provider_uri, 'out_{}_{}'.format(self.start_date, self.end_date))
         output_dir = os.path.expanduser(output_dir)
-        print(output_dir)
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir, exist_ok=True)
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+        os.makedirs(output_dir)
 
         # 按股票代码分组并保存
         for ts_code, group in df.groupby('ts_code'):
             ts_code = '{}{}'.format(ts_code.split('.')[1], ts_code.split('.')[0])
             output_file = os.path.join(output_dir, f"{ts_code}.csv")
             group.to_csv(output_file, index=False, columns=self.columns[1:])
-            print(f"生成: {output_file} ({len(group)}行)")
+            # print(f"生成: {output_file} ({len(group)}行)")
 
     def main(self):
-        if self.start_date == self.end_date and not is_trade_day(self.start_date):
-            print('not trade day, exit !')
-            exit(0)
+        dt = time.time()
+        # if not is_trade_day(self.end_date):
+        #     raise ValueError('end_date must be trade day: {}'.format(self.end_date))
 
         df = self.load_data()
         # index_df = self.load_data_index()
@@ -134,10 +134,11 @@ class Processor:
         merged = df
         merged.columns = self.columns
         merged_fq = self.trans_fq(merged)
-        merged_fq = merged_fq.round({'open': 2, 'close': 2, 'high': 2, 'low': 2, 'change': 2, 'factor': 4})
+        merged_fq = merged_fq.round({'open': 2, 'close': 2, 'high': 2, 'low': 2, 'factor': 4})
         merged_fq.to_csv(os.path.join(self.provider_uri, 'hfq_{}_{}.csv'.format(self.start_date, self.end_date)), index=False)
         merged_fq.reset_index(drop=True, inplace=True)
         self.split_stock_data(merged_fq)
+        print('耗时：{} s'.format(round(time.time() - dt, 4)))
 
 if __name__ == '__main__':
     '''
@@ -146,6 +147,4 @@ if __name__ == '__main__':
             --path_in ~/.qlib/qlib_data/custom_data_hfq_tmp/custom_2025-01-01_2025-08-01.csv
         每日更新：python process.py main --start_date 2025-08-01 --end_date 2025-08-01
     '''
-    dt = time.time()
     fire.Fire(Processor)
-    print('耗时：{} s'.format(round(time.time() - dt, 4)))
