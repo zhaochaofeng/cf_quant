@@ -37,6 +37,7 @@ class QLibModelLoader:
         self.model = None
         self.initialized = False
         self.task_config = None
+        self.recorder = None
 
     def initialize(self):
         """初始化QLib和加载模型"""
@@ -51,24 +52,27 @@ class QLibModelLoader:
             if not exp:
                 raise ValueError(f"找不到ID为{self.exp_id}的实验记录")
 
-            # 获取最新的模型记录器
-            # recorders = exp.list_recorders()
-            newest_rid = 'ce1196819a344ddf8ebabed4e9501aa8'
-            # for i, rid in enumerate(recorders.keys()):
-            #     if recorders[rid].status != 'FINISHED':
-            #         continue
-            #     if i == 0:
-            #         newest_rid = rid
-            #     elif recorders[rid].start_time > recorders[newest_rid].start_time:
-            #         newest_rid = rid
-            # if newest_rid is None:
-            #     raise ValueError(f"实验{self.exp_id}中没有找到模型记录")
-            recorder = exp.get_recorder(recorder_id=newest_rid, create=False)
+            # 获取最新的在线模型记录器
+            recorders = exp.list_recorders()
+            online_recorders = []
+            for rid, rec in recorders.items():
+                if rec.status != 'FINISHED':
+                    continue
+                tags = rec.list_tags()
+                if tags.get('online_status') == 'online':
+                    online_recorders.append(rec)
+
+            if not online_recorders:
+                raise ValueError(f"实验{self.exp_id}中没有找到在线模型记录")
+
+            # 选择最新的在线模型
+            newest_recorder = max(online_recorders, key=lambda rec: rec.start_time)
+            self.recorder = newest_recorder
 
             # 加载模型
-            self.model = recorder.load_object("params.pkl")
+            self.model = self.recorder.load_object("params.pkl")
             # 记载配置文件
-            self.task_config = recorder.load_object("task")
+            self.task_config = self.recorder.load_object("task")
             self.initialized = True
             logger.info(f"模型加载成功，实验ID: {self.exp_id}")
             return True
@@ -77,15 +81,59 @@ class QLibModelLoader:
             self.initialized = False
             return False
 
+    def reload_if_needed(self):
+        """检查是否有新的在线模型并重新加载"""
+        try:
+            if not self.recorder:
+                return self.initialize()
+
+            # 重新获取实验
+            exp_manager = MLflowExpManager(uri=self.uri, default_exp_name='default_exp')
+            exp = exp_manager.get_exp(experiment_id=self.exp_id)
+
+            # 获取当前在线模型
+            recorders = exp.list_recorders()
+            online_recorders = []
+            for rid, rec in recorders.items():
+                if rec.status != 'FINISHED':
+                    continue
+                tags = rec.list_tags()
+                if tags.get('online_status') == 'online':
+                    online_recorders.append(rec)
+
+            if not online_recorders:
+                logger.warning("没有找到在线模型")
+                return False
+
+            # 选择最新的在线模型
+            newest_recorder = max(online_recorders, key=lambda rec: rec.start_time)
+
+            # 如果是新模型，则重新加载
+            if newest_recorder.id != self.recorder.id:
+                logger.info(f"检测到新在线模型 {newest_recorder.id}，正在重新加载...")
+                self.recorder = newest_recorder
+                self.model = self.recorder.load_object("params.pkl")
+                self.task_config = self.recorder.load_object("task")
+                logger.info(f"新模型加载成功，记录器ID: {self.recorder.id}")
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"模型重新加载失败: {str(e)}")
+            return False
+
     def predict(self, stock_codes: List[str], start_date: str, end_date: Optional[str] = None) -> pd.DataFrame:
         """使用模型进行预测"""
         if not self.initialized or self.model is None:
             raise RuntimeError("模型未初始化，请先调用initialize()")
 
+        # 检查是否需要重新加载模型
+        self.reload_if_needed()
+
         dataset_config = self.task_config["dataset"]
         dataset_config['kwargs']['handler']['kwargs']['end_time'] = max(
             end_date, dataset_config['kwargs']['handler']['kwargs']['end_time'])  # 全局日期
-        dataset_config['kwargs']['handler']['kwargs']['instruments'] = stock_codes  # 修改股票集合
+        if len(stock_codes) > 0:
+            dataset_config['kwargs']['handler']['kwargs']['instruments'] = stock_codes  # 修改股票集合
         dataset_config['kwargs']['segments']['test'] = (pd.Timestamp(start_date), pd.Timestamp(end_date))  # 修改测试
 
         try:
@@ -106,7 +154,7 @@ class QLibModelLoader:
 # 请替换为你的实际实验ID
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
-exp_id = '234033808147152583'
+exp_id = '475678663686452018'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
@@ -153,6 +201,18 @@ async def predict(request: PredictionRequest):
         logger.error(f"预测请求处理失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"预测失败: {str(e)}")
 
+# 手动重新加载模型接口
+@app.post("/reload")
+async def reload_model():
+    """手动触发模型重新加载"""
+    try:
+        if model_loader.reload_if_needed():
+            return {"status": "success", "message": "模型已更新"}
+        else:
+            return {"status": "success", "message": "模型未发生变化"}
+    except Exception as e:
+        logger.error(f"模型重新加载失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"模型重新加载失败: {str(e)}")
 
 # 主函数，启动服务
 if __name__ == "__main__":
