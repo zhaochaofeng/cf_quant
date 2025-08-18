@@ -215,6 +215,14 @@ class RollingOnlineTrain:
         print(self.rolling_online_manager.get_collector()())
         print("========== signals ==========")
         signals = self.rolling_online_manager.get_signals()
+        # 处理重复的datetime索引列问题(linux中会出现2列datetime)
+        if isinstance(signals.index, pd.MultiIndex):
+            # 检查索引级别名称
+            index_names = signals.index.names
+            if len(index_names) > 1 and index_names[0] == 'datetime' and index_names[1] == 'datetime':
+                # 如果存在重复的datetime索引，只保留一个
+                signals.index = signals.index.droplevel(1)  # 删除重复的datetime级别
+                signals.index.names = ['datetime', 'instrument']  # 确保索引名称正确
         print(signals)
         print("========== backtest ==========")
         self.backtest(signals)
