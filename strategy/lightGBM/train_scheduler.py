@@ -36,7 +36,7 @@ class RollingOnlineTrain:
         add_tasks=None,
         market='all'
     ):
-        qlib.init(provider_uri=provider_uri, region=region, kernels=max(1, os.cpu_count() - 1))
+        qlib.init(provider_uri=provider_uri, region=region)
         self.market = market
 
         if tasks is None:
