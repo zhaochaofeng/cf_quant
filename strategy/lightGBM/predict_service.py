@@ -157,7 +157,7 @@ class QLibModelLoader:
 # 请替换为你的实际实验ID
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
-exp_id = '976322671101071865'
+exp_id = '991172273503603780'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
