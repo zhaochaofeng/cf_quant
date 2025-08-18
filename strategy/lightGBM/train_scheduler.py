@@ -20,8 +20,10 @@ import pandas as pd
 from pprint import pprint
 from datetime import datetime, timedelta
 
+from utils.utils import sql_engine
 from utils.utils import tushare_pro
 pro = tushare_pro()
+
 
 class RollingOnlineTrain:
     def __init__(
@@ -33,20 +35,19 @@ class RollingOnlineTrain:
         tasks=None,
         add_tasks=None,
         market='all'
-
     ):
-        qlib.init(provider_uri=provider_uri, region=region)
+        qlib.init(provider_uri=provider_uri, region=region, kernels=max(1, os.cpu_count() - 1))
         self.market = market
 
         if tasks is None:
-            # instruments = self.choose_stocks()
+            instruments = self.choose_stocks()
             data_handler_config = {
                 "start_time": "2023-08-02",
                 "end_time": "2025-08-01",
                 "fit_start_time": "2023-08-02",
                 "fit_end_time": "2025-04-01",
-                # "instruments": instruments,
-                "instruments": 'csi300',
+                "instruments": instruments,
+                # "instruments": 'csi300',
             }
             # 模型和数据的配置参数
             task = {
@@ -119,38 +120,29 @@ class RollingOnlineTrain:
         ".RollingOnlineExample"  # the OnlineManager will dump to this file, for it can be loaded when calling routine.
     )
 
+    '''
     def get_st_stocks(self):
-        '''
-        获取当前所有ST/*ST股票
-        '''
-        # 获取一年前日期
-        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y%m%d')
-        today = datetime.now().strftime('%Y%m%d')
-
-        # 获取一年内所有更名记录
+        
+        #获取30天之内为ST/*ST的股票
+        
         try:
-            name_changes = pro.namechange(start_date=start_date, end_date=today)
-            # 筛选ST相关记录
-            st_records = name_changes[
-                (name_changes['change_reason'].str.contains('ST'))
-            ]
-            # 获取当前仍处于ST状态的股票
-            current_st = st_records[
-                (st_records['start_date'] <= today) &
-                ((st_records['end_date'] >= today) | (st_records['end_date'].isna()))
-                ]
-            return set(current_st['ts_code'].tolist())
-        except Exception as e:
-            print(f"获取ST股票信息失败: {e}")
-            # 备用方案：通过股票名称判断
-            stocks_info = pro.stock_basic()
+            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
+            today = datetime.now().strftime('%Y%m%d')
+            engine = sql_engine()
+            sql = """ select ts_code, name from cf_quant.stock_info where day>={} and day<={}""".format(start_date, today)
+            print(sql)
+            stocks_info = pd.read_sql(sql, engine)
             st_stocks = stocks_info[
                 (stocks_info['name'].str.contains('ST')) |
                 (stocks_info['name'].str.contains('退'))
                 ]
             return set(st_stocks['ts_code'].tolist())
+        except Exception as e:
+            raise Exception("Get ST stock info failed: {}".format(e))
+    '''
 
     def choose_stocks(self):
+        print('choose_stocks ...')
         ''' 股票筛选  '''
         # 主板。第3-4位数字为60或00
         nameDFilter = NameDFilter(name_rule_re='^[A-Za-z]{2}(60|00)')
@@ -158,27 +150,28 @@ class RollingOnlineTrain:
             market=self.market,
             filter_pipe=[nameDFilter]
         )
-        stocks = D.list_instruments(instruments, as_list=False)
-        print('主板过滤前股票数：{}'.format(len(stocks)))
-
-        # 获取ST股票
-        st_stocks = self.get_st_stocks()
+        stocks = D.list_instruments(instruments, as_list=True)
+        print('主板总股票数：{}'.format(len(stocks)))
 
         # 获取所有股票基本信息
-        stocks_info = pro.stock_basic()
-        target_date = (datetime.now() - timedelta(days=180)).strftime('%Y%m%d')
-        print('target_date: {}'.format(target_date))
-
+        engine = sql_engine()
+        # stocks_info = pro.stock_basic()
+        start_date = (datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d')
+        today = datetime.now().strftime('%Y-%m-%d')
+        target_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+        print('start_date: {}, today: {}, target_day: {}'.format(start_date, today, target_date))
+        sql = """select ts_code, name, list_date from cf_quant.stock_info where day>='{}' and day<='{}'""".format(start_date, today)
+        stocks_info = pd.read_sql(sql, engine)
         # 过滤ST、退市和次新股
         stocks_filter = stocks_info[
-            (~stocks_info['ts_code'].isin(st_stocks)) &  # 非ST股票
-            (~stocks_info['name'].str.contains('退')) &  # 非退市股票
-            (stocks_info['list_date'] < target_date)  # 非次新股
+                (stocks_info['ts_code'].str.contains('ST')) |   # ST股票
+                (stocks_info['name'].str.contains('退')) |      # 非退市股票
+                (stocks_info['list_date'] > target_date)        # 非次新股
             ]
-
+        print('stocks_filter len: {}'.format(len(stocks_filter)))
         # 转换股票代码格式以匹配qlib格式
         stocks_filter = stocks_filter['ts_code'].apply(lambda x: '{}{}'.format(x[7:9], x[0:6])).tolist()
-        stocks = list(set(stocks) & set(stocks_filter))
+        stocks = list(set(stocks) - set(stocks_filter))
         print('过滤后股票数：{}'.format(len(stocks)))
         return stocks
 

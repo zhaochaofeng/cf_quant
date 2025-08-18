@@ -3,10 +3,13 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 import pandas as pd
 import logging
+from collections import defaultdict
 
 import qlib
 from qlib.workflow.expm import MLflowExpManager
 from qlib.utils import init_instance_by_config
+
+from utils.utils import redis_connect
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +28,7 @@ class PredictionRequest(BaseModel):
 # 定义响应数据模型
 class PredictionResponse(BaseModel):
     request_id: str
-    predictions: Dict[str, float]
+    predictions: Dict[str, Dict]    # {datetime: {instrument, score}}
     status: str = "success"
 
 # QLib模型加载器
@@ -154,7 +157,7 @@ class QLibModelLoader:
 # 请替换为你的实际实验ID
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
-exp_id = '475678663686452018'
+exp_id = '976322671101071865'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
@@ -189,9 +192,10 @@ async def predict(request: PredictionRequest):
         )
 
         # 整理预测结果
-        result = {}
+        result = defaultdict(dict)
         for index, row in predictions.reset_index().iterrows():
-            result[row['instrument']] = row['score']
+            result[row['datetime'].strftime('%Y-%m-%d')][row['instrument']] = row['score']
+
         return {
             "request_id": request_id,
             "predictions": result
@@ -213,6 +217,29 @@ async def reload_model():
     except Exception as e:
         logger.error(f"模型重新加载失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"模型重新加载失败: {str(e)}")
+
+# 将预测结果写入redis
+@app.post('/loaddown_to_redis')
+async def loaddown_to_redis(request: PredictionRequest):
+    try:
+        r = redis_connect()
+        # 调用模型进行预测
+        predictions = model_loader.predict(
+            stock_codes=request.stock_codes,
+            start_date=request.start_date,
+            end_date=request.end_date
+        )
+        # 整理预测结果
+        result = defaultdict(dict)
+        for index, row in predictions.reset_index().iterrows():
+            result[row['datetime'].strftime('%Y-%m-%d')][row['instrument']] = row['score']
+        for key, value_dic in result.items():
+            key = '{}:{}'.format('lightGBM', key)
+            print(key)
+            r.hset(key, mapping=value_dic)
+    except Exception as e:
+        logger.error(f"导入redis失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"导入redis失败: {str(e)}")
 
 # 主函数，启动服务
 if __name__ == "__main__":
