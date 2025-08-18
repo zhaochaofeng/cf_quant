@@ -1,33 +1,35 @@
 """
-    训练和更新模型
+    训练和定时更新模型
 """
 
 import os
 import fire
 import qlib
-from qlib.model.trainer import DelayTrainerR, DelayTrainerRM, TrainerR, TrainerRM, end_task_train, task_train
+from qlib.model.trainer import TrainerR, TrainerRM
 from qlib.workflow import R
 from qlib.data import D
 from qlib.data.filter import NameDFilter
 from qlib.workflow.online.strategy import RollingStrategy
 from qlib.workflow.task.gen import RollingGen
 from qlib.workflow.online.manager import OnlineManager
-from qlib.tests.config import CSI100_RECORD_XGBOOST_TASK_CONFIG_ROLLING, CSI100_RECORD_LGB_TASK_CONFIG_ROLLING
 
+from qlib.contrib.evaluate import backtest_daily, risk_analysis
+from qlib.contrib.strategy import TopkDropoutStrategy
+
+import pandas as pd
+from pprint import pprint
 from datetime import datetime, timedelta
+
 from utils.utils import tushare_pro
 pro = tushare_pro()
 
-class RollingOnlineExample:
+class RollingOnlineTrain:
     def __init__(
         self,
         provider_uri="~/.qlib/qlib_data/custom_data_hfq",
         region="cn",
-        # trainer=DelayTrainerRM(),  # you can choose from TrainerR, TrainerRM, DelayTrainerR, DelayTrainerRM
         trainer=TrainerR(),
-        # task_url="mongodb://10.0.0.4:27017/",  # not necessary when using TrainerR or DelayTrainerR
-        task_db_name="rolling_db",  # not necessary when using TrainerR or DelayTrainerR
-        rolling_step=20,
+        rolling_step=10,
         tasks=None,
         add_tasks=None,
         market='all'
@@ -219,9 +221,36 @@ class RollingOnlineExample:
         print("========== collect results ==========")
         print(self.rolling_online_manager.get_collector()())
         print("========== signals ==========")
-        print(self.rolling_online_manager.get_signals())
+        signals = self.rolling_online_manager.get_signals()
+        print(signals)
+        print("========== backtest ==========")
+        self.backtest(signals)
         print("========== dump ==========")
         self.rolling_online_manager.to_pickle(self._ROLLING_MANAGER_PATH)
+
+    def backtest(self, signals):
+        STRATEGY_CONFIG = {
+            "topk": 50,
+            "n_drop": 5,
+            "signal": signals.to_frame("score"),
+        }
+        strategy_obj = TopkDropoutStrategy(**STRATEGY_CONFIG)
+        report_normal, positions_normal = backtest_daily(
+            start_time=signals.index.get_level_values("datetime").min(),
+            end_time=signals.index.get_level_values("datetime").max() - pd.Timedelta(days=1),
+            strategy=strategy_obj,
+        )
+        print(report_normal)
+
+        analysis = dict()
+        analysis["bench"] = risk_analysis(report_normal["bench"])
+        analysis["excess_return_without_cost"] = risk_analysis(report_normal["return"] - report_normal["bench"])
+        analysis["excess_return_with_cost"] = risk_analysis(
+            report_normal["return"] - report_normal["bench"] - report_normal["cost"]
+        )
+
+        analysis_df = pd.concat(analysis)  # type: pd.DataFrame
+        pprint(analysis_df)
 
     def main(self):
         self.first_run()
@@ -236,4 +265,4 @@ if __name__ == "__main__":
 
     ####### to define your own parameters, use `--`
     # python rolling_online_management.py first_run --exp_name='your_exp_name' --rolling_step=40
-    fire.Fire(RollingOnlineExample)
+    fire.Fire(RollingOnlineTrain)
