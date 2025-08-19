@@ -150,7 +150,7 @@ class RollingOnlineTrain:
             market=self.market,
             filter_pipe=[nameDFilter]
         )
-        stocks = D.list_instruments(instruments, as_list=True)
+        stocks = D.list_instruments(instruments, as_list=True)   # 要加日期限制
         print('主板总股票数：{}'.format(len(stocks)))
 
         # 获取所有股票基本信息
@@ -164,7 +164,7 @@ class RollingOnlineTrain:
         stocks_info = pd.read_sql(sql, engine)
         # 过滤ST、退市和次新股
         stocks_filter = stocks_info[
-                (stocks_info['ts_code'].str.contains('ST')) |   # ST股票
+                (stocks_info['name'].str.contains('ST')) |      # ST股票
                 (stocks_info['name'].str.contains('退')) |      # 非退市股票
                 (stocks_info['list_date'] > target_date)        # 非次新股
             ]
