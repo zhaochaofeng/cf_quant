@@ -32,7 +32,7 @@ else
 fi
 
 # 更新数据
-python ${qlib_path}/scripts/dump_bin.py dump_update \
+${python_path} ${qlib_path}/scripts/dump_bin.py dump_update \
 --date_field_name date \
 --csv_path ${provider_uri}/out_${dt1}_${dt2} \
 --qlib_dir ${provider_uri} \
