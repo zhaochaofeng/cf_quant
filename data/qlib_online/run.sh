@@ -42,8 +42,8 @@ python ${qlib_path}/scripts/dump_bin.py dump_update \
 # 全量导入
 #python scripts/dump_bin.py dump_all \
 #--date_field_name date \
-#--csv_path /Users/chaofeng/.qlib/qlib_data/custom_data_hfq/out_2023-08-02_2024-08-01 \
-#--qlib_dir /Users/chaofeng/.qlib/qlib_data/custom_data_hfq \
+#--csv_path ~/.qlib/qlib_data/custom_data_hfq/out_2015-01-05_2025-08-18 \
+#--qlib_dir ~/.qlib/qlib_data/custom_data_hfq \
 #--include_fields open,close,high,low,volume,amount,factor
 
 
