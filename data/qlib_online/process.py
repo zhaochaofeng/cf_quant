@@ -137,9 +137,9 @@ class Processor:
         merged = pd.concat([df, index_df], axis=0, ignore_index=True)
         merged.columns = self.columns
         merged_fq = self.trans_fq(merged)
-        print(merged_fq.head())
         merged_fq = merged_fq.round({'open': 2, 'close': 2, 'high': 2, 'low': 2, 'factor': 4})
         merged_fq.to_csv(os.path.join(self.provider_uri, 'hfq_{}_{}.csv'.format(self.start_date, self.end_date)), index=False)
+
         merged_fq.reset_index(drop=True, inplace=True)
         print(merged_fq.head())
         self.split_stock_data(merged_fq)
