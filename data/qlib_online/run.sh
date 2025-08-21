@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
@@ -31,6 +31,7 @@ else
   exit 1
 fi
 
+# 更新数据
 python ${qlib_path}/scripts/dump_bin.py dump_update \
 --date_field_name date \
 --csv_path ${provider_uri}/out_${dt1}_${dt2} \
