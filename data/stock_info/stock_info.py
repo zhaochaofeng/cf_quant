@@ -11,6 +11,7 @@ import tushare as ts
 from datetime import datetime
 from utils.utils import get_config
 from utils.utils import mysql_connect
+from utils.utils import is_trade_day
 config = get_config()
 pro = ts.pro_api(config['tushare']['token'])
 
@@ -76,11 +77,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--date', type=str, default='2025-06-30', help='取数日期')
     args = parser.parse_args()
+    if not is_trade_day(args.date):
+        print('不是交易日，退出！！！')
+        exit(0)
     print(args)
     t = time.time()
     main(args)
     print('耗时：{}s'.format(round(time.time() - t, 4)))
-
-
-
 
