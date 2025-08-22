@@ -120,27 +120,6 @@ class RollingOnlineTrain:
         ".RollingOnlineExample"  # the OnlineManager will dump to this file, for it can be loaded when calling routine.
     )
 
-    '''
-    def get_st_stocks(self):
-        
-        #获取30天之内为ST/*ST的股票
-        
-        try:
-            start_date = (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
-            today = datetime.now().strftime('%Y%m%d')
-            engine = sql_engine()
-            sql = """ select ts_code, name from cf_quant.stock_info where day>={} and day<={}""".format(start_date, today)
-            print(sql)
-            stocks_info = pd.read_sql(sql, engine)
-            st_stocks = stocks_info[
-                (stocks_info['name'].str.contains('ST')) |
-                (stocks_info['name'].str.contains('退'))
-                ]
-            return set(st_stocks['ts_code'].tolist())
-        except Exception as e:
-            raise Exception("Get ST stock info failed: {}".format(e))
-    '''
-
     def choose_stocks(self):
         print('choose_stocks ...')
         ''' 股票筛选  '''
@@ -215,6 +194,7 @@ class RollingOnlineTrain:
         print(self.rolling_online_manager.get_collector()())
         print("========== signals ==========")
         signals = self.rolling_online_manager.get_signals()
+        print(signals)
         # 处理重复的datetime索引列问题(linux中会出现2列datetime)
         if isinstance(signals.index, pd.MultiIndex):
             # 检查索引级别名称
@@ -223,11 +203,12 @@ class RollingOnlineTrain:
                 # 如果存在重复的datetime索引，只保留一个
                 signals.index = signals.index.droplevel(1)  # 删除重复的datetime级别
                 signals.index.names = ['datetime', 'instrument']  # 确保索引名称正确
+        print('-' * 50)
         print(signals)
-        print("========== backtest ==========")
-        self.backtest(signals)
         print("========== dump ==========")
         self.rolling_online_manager.to_pickle(self._ROLLING_MANAGER_PATH)
+        print("========== backtest ==========")
+        self.backtest(signals)
 
     def backtest(self, signals):
         STRATEGY_CONFIG = {
