@@ -61,16 +61,36 @@ class Processor:
             df.to_csv(os.path.join(self.provider_uri, 'custom_{}_{}.csv'.format(self.start_date, self.end_date)), sep='\t', index=False)
         return df
 
-    def load_data_index(self):
+    # def load_data_index(self):
+    #     ''' 加载指数数据 '''
+    #     print('load_data_index ...')
+    #     start_date = datetime.strptime(self.start_date, '%Y-%m-%d').strftime('%Y%m%d')
+    #     end_date = datetime.strptime(self.end_date, '%Y-%m-%d').strftime('%Y%m%d')
+    #     index_df = pro.index_daily(ts_code=self.index_code, start_date=start_date, end_date=end_date)
+    #     index_df.drop(columns=['pct_chg', 'pre_close', 'change'], inplace=True)
+    #     index_df.columns = ['ts_code', 'date', 'close', 'open', 'high', 'low', 'vol', 'amount']
+    #     index_df['date'] = pd.to_datetime(index_df['date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
+    #     index_df['adj_factor'] = 1
+    #     return index_df
+
+    def load_data_index(self, codes):
         ''' 加载指数数据 '''
         print('load_data_index ...')
         start_date = datetime.strptime(self.start_date, '%Y-%m-%d').strftime('%Y%m%d')
         end_date = datetime.strptime(self.end_date, '%Y-%m-%d').strftime('%Y%m%d')
-        index_df = pro.index_daily(ts_code=self.index_code, start_date=start_date, end_date=end_date)
-        index_df.drop(columns=['pct_chg', 'pre_close', 'change'], inplace=True)
-        index_df.columns = ['ts_code', 'date', 'close', 'open', 'high', 'low', 'vol', 'amount']
-        index_df['date'] = pd.to_datetime(index_df['date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
-        index_df['adj_factor'] = 1
+
+        index_df = pd.DataFrame()
+        for code in codes:
+            try:
+                print('index code: {}'.format(code))
+                tmp_df = pro.index_daily(ts_code=code, start_date=start_date, end_date=end_date)
+                tmp_df.drop(columns=['pct_chg', 'pre_close', 'change'], inplace=True)
+                tmp_df.columns = ['ts_code', 'date', 'close', 'open', 'high', 'low', 'vol', 'amount']
+                tmp_df['date'] = pd.to_datetime(tmp_df['date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
+                tmp_df['adj_factor'] = 1
+                index_df = pd.concat([index_df, tmp_df], axis=0, ignore_index=True)
+            except Exception as e:
+                raise ValueError(f'从 tushare 中请求指数数据失败：{e}')
         return index_df
 
     def trans_fq(self, df):
@@ -131,7 +151,8 @@ class Processor:
             raise ValueError('end_date must be trade day: {}'.format(self.end_date))
 
         df = self.load_data()
-        index_df = self.load_data_index()
+        index_list = ['000300.SH', '000905.SH', '000903.SH']
+        index_df = self.load_data_index(index_list)
         if df.empty or index_df.empty:
             raise ValueError("DataFrames df and index_df cannot be empty")
         merged = pd.concat([df, index_df], axis=0, ignore_index=True)
