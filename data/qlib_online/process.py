@@ -148,7 +148,8 @@ class Processor:
     def main(self):
         dt = time.time()
         if not is_trade_day(self.end_date):
-            raise ValueError('end_date must be trade day: {}'.format(self.end_date))
+            print('end_date must be trade day: {}'.format(self.end_date))
+            return
 
         df = self.load_data()
         index_list = ['000300.SH', '000905.SH', '000903.SH']
