@@ -99,9 +99,9 @@ class Processor:
         def hfq(group):
             ''' 后复权 '''
             # 如果股票没有最近一天的数据，则过滤
-            filtered_group = group[group['date'] == self.end_date]
-            if filtered_group.empty:
-                return None
+            # filtered_group = group[group['date'] == self.end_date]
+            # if filtered_group.empty:
+            #     return None
             # 对open, close, high, low复权
             group['open'] = group['open'] * group['factor']
             group['close'] = group['close'] * group['factor']
@@ -169,7 +169,9 @@ class Processor:
 if __name__ == '__main__':
     '''
         批量离线: 
-        python process.py main --start_date 2025-01-01 --end_date 2025-08-01 \
+        python process.py main 
+            --start_date 2025-01-01 \
+            --end_date 2025-08-01 \
             --is_offline True \
             --path_in ~/.qlib/qlib_data/custom_data_hfq_tmp/custom_2025-01-01_2025-08-01.csv
 
