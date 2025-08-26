@@ -60,7 +60,7 @@ def main():
 
     start_date = '2015-01-05'
     end_date = datetime.now().strftime('%Y-%m-%d')
-    if is_trade_day(end_date):
+    if not is_trade_day(end_date):
         print('非交易日，不检查！')
         exit(0)
 
