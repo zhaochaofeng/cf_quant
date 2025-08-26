@@ -10,6 +10,12 @@ from sqlalchemy import create_engine
 from datetime import datetime, timedelta
 from jqdatasdk import *
 
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
+from email.utils import formataddr
+import traceback
+
 def get_config(config_path: str = None):
     ''' 读取配置文件 '''
     if config_path is None:
@@ -122,9 +128,40 @@ def get_month_start_end(date_str):
     # 转换为字符串格式输出
     return month_start.strftime('%Y-%m-%d'), month_end.strftime('%Y-%m-%d')
 
+def send_email(subject, body):
+    ''' 报警邮件
+        subject: 邮件主题
+        body: 邮件正文
+    '''
+    conf = get_config()['email']
+    sender = conf['sender']
+    password = conf['password']
+    smtpserver = conf['smtpserver']
+    port = conf['port']
+    receiver = conf['receiver']
+
+    # 构建邮件
+    msg = MIMEText(body, 'plain', 'utf-8')
+    msg['From'] = formataddr(("报警系统", sender))   # 发件人信息
+    msg['To'] = formataddr(("接收人", receiver))     # 收件人信息
+    msg['Subject'] = Header(subject, 'utf-8')       # 邮件主题
+
+    try:
+        smtp = smtplib.SMTP_SSL(smtpserver, port)       # 创建SMTP连接
+        smtp.login(sender, password)                    # 登录SMTP服务器
+        smtp.sendmail(sender, [receiver], msg.as_string())  # 发送邮件
+        smtp.quit()                                         # 退出SMTP连接
+        print("邮件发送成功 ！")
+    except Exception as e:
+        print("邮件发送失败:", e)
+
 if __name__ == '__main__':
-    jq_conn()
-    print(get_account_info())
+    try:
+        1 / 0
+    except Exception:
+        error_info = traceback.format_exc()
+        send_email("qlib_online", '任务执行失败')
+
 
 
 
