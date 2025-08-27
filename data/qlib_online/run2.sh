@@ -16,8 +16,8 @@ echo "时间区间为：["$dt1" - "$dt2"]"
 if [ -d "${provider_uri_tmp}" ]; then
   rm -rf "${provider_uri_tmp}"
 fi
-expanded_path="${provider_uri_tmp/#\~/$HOME}"
-mkdir -p "${expanded_path}"
+provider_uri_tmp="${provider_uri_tmp/#\~/$HOME}"
+mkdir -p "${provider_uri_tmp}"
 
 check_success() {
   if [ $? -eq 0 ]; then
