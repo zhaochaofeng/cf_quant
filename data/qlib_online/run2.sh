@@ -48,7 +48,7 @@ check_success "处理数据"
 echo "3、转化为qlib格式..."
 ${python_path} ${qlib_path}/scripts/dump_bin.py dump_all \
 --date_field_name date \
---csv_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
+--data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
 --qlib_dir ${provider_uri_tmp} \
 --include_fields open,close,high,low,volume,amount,factor
 
