@@ -28,7 +28,7 @@ def get_qlib_data(start_date, end_date):
     instruments = D.list_instruments(instruments=instruments_config, start_time=start_date, end_time=end_date, as_list=True)
     index_list = ['SH000300', 'SH000903', 'SH000905']
     instruments = list(set(instruments) - set(index_list))
-    # instruments = instruments[0:500]
+    instruments = instruments[0:500]
     qlib_df = D.features(instruments, fields, start_time=start_date, end_time=end_date)
     qlib_df.columns = ['open', 'close', 'high', 'low']
     qlib_df.sort_index(inplace=True)
@@ -64,6 +64,7 @@ def main():
         qlib_init()
 
         start_date = '2015-01-05'
+        # end_date = '2025-08-08'
         end_date = datetime.now().strftime('%Y-%m-%d')
         if not is_trade_day(end_date):
             print('非交易日，不检查！')
