@@ -7,10 +7,13 @@
 import time
 import argparse
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 from utils.utils import get_config
 from utils.utils import mysql_connect
 from utils.utils import tushare_ts, tushare_pro, is_trade_day
+from utils.utils import send_email
+import traceback
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -55,8 +58,7 @@ def parse_line(row, fea_to_from):
                 v = None
             tmp[f] = v
         except Exception as e:
-            print('except: {}'.format(e))
-            print(row)
+            raise Exception('parse_line error: {}'.format(e))
     return tmp
 
 def request_from_tushare(ts_codes):
@@ -89,17 +91,17 @@ def request_from_tushare(ts_codes):
         merged = pd.concat([df, factor], axis=1, join='inner')
 
         print(merged.head())
+        # 有些股票由于停盘等原因没有交易数据，所以df.shape[0] 可以小于 len(ts_codes)
         print('df shape: {}'.format(df.shape))
         print('factor shape: {}'.format(factor.shape))
         print('merged shape: {}'.format(merged.shape))
+        if merged.shape[0] != df.shape[0]:
+            raise Exception('merged.shape[0]({}) < df.shape[0]({})'.format(merged.shape[0], df.shape[0]))
+
         merged.reset_index(inplace=True)
         for index, row in merged.iterrows():
-            try:
-                tmp = parse_line(row, fea_to_from)
-                data.append(tmp)
-            except Exception as e:
-                print('except: {}'.format(e))
-                continue
+            tmp = parse_line(row, fea_to_from)
+            data.append(tmp)
     else:
         # 回刷历史数据，按单个ts_code请求
         for i, code in enumerate(ts_codes):
@@ -112,15 +114,18 @@ def request_from_tushare(ts_codes):
             factor.set_index(keys=['ts_code', 'trade_date'], inplace=True)
             merged = pd.concat([df, factor], axis=1, join='inner')
             merged.reset_index(inplace=True)
+
+            print('df shape: {}'.format(df.shape))
+            print('factor shape: {}'.format(factor.shape))
+            print('merged shape: {}'.format(merged.shape))
+            if merged.shape[0] != df.shape[0]:
+                raise Exception('code: {}, merged.shape[0]({}) < df.shape[0]({})'.format(code, merged.shape[0], df.shape[0]))
+
             for index, row in merged.iterrows():
-                try:
-                    tmp = parse_line(row, fea_to_from)
-                    data.append(tmp)
-                except Exception as e:
-                    print('except: {}'.format(e))
-                    print('code: {}'.format(code))
-                    continue
+                tmp = parse_line(row, fea_to_from)
+                data.append(tmp)
     return data
+
 def write_to_mysql(data):
     print('-' * 100)
     print('导入msyql ...')
@@ -143,36 +148,40 @@ def write_to_mysql(data):
                 cursor.executemany(sql, data[i * batch_size: min((i + 1) * batch_size, len(data))])
                 conn.commit()
             except Exception as e:
-                print('except: {}'.format(e))
                 conn.rollback()
-                exit(1)
+                raise Exception('write to mysql error: {}'.format(e))
     conn.close()
     print('写入完成!!!')
 
 def main(args):
-    t = time.time()
-    # 1、股票集合
-    ts_codes = pro.stock_basic()['ts_code'].values.tolist()
-    print('-' * 100)
-    print('股票数：{}'.format(len(ts_codes)))
+    try:
+        t = time.time()
+        # 1、股票集合
+        ts_codes = pro.stock_basic()['ts_code'].values.tolist()
+        print('-' * 100)
+        print('ts_codes len：{}'.format(len(ts_codes)))
+        if len(ts_codes) == 0:
+            raise Exception('没有股票数据 ！！！')
 
-    # 2、获取交易数据
-    data = request_from_tushare(ts_codes)
-    print('数据请求耗时：{}s'.format(round(time.time()-t, 4)))
-    t = time.time()
-    print('data len: {}'.format(len(data)))
-    if len(data) < 100:
-        print('tushare 数据请求失败 ！！！')
-        exit(1)
+        # 2、获取交易数据
+        data = request_from_tushare(ts_codes)
+        print('数据请求耗时：{}s'.format(round(time.time()-t, 4)))
+        t = time.time()
+        print('data len: {}'.format(len(data)))
+        if len(data) == 0:
+            raise Exception('tushare 数据请求失败 ！！！')
 
-    # 3、写入mysql
-    write_to_mysql(data)
-    print('数据写入耗时：{}s'.format(round(time.time() - t, 4)))
+        # 3、写入mysql
+        write_to_mysql(data)
+        print('数据写入耗时：{}s'.format(round(time.time() - t, 4)))
+    except:
+        error_info = traceback.format_exc()
+        send_email('Data: trade_daily', error_info)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start_date', type=str, default='2025-08-08')
-    parser.add_argument('--end_date', type=str, default='2025-08-08')
+    parser.add_argument('--start_date', type=str, default='2025-08-15')
+    parser.add_argument('--end_date', type=str, default='2025-08-15')
     args = parser.parse_args()
     print(args)
     if not is_trade_day(args.end_date):
