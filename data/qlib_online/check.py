@@ -26,11 +26,11 @@ def get_qlib_data(start_date, end_date):
     ''' qlib线上数据 '''
     print('get_qlib_data ...')
     fields = ['$open', '$close', '$high', '$low']
-    instruments = ['SZ300760']
-    # instruments_config = D.instruments(market='all')
-    # instruments = D.list_instruments(instruments=instruments_config, start_time=start_date, end_time=end_date, as_list=True)
-    # index_list = ['SH000300', 'SH000903', 'SH000905']
-    # instruments = list(set(instruments) - set(index_list))
+    # instruments = ['SZ300760']
+    instruments_config = D.instruments(market='all')
+    instruments = D.list_instruments(instruments=instruments_config, start_time=start_date, end_time=end_date, as_list=True)
+    index_list = ['SH000300', 'SH000903', 'SH000905']
+    instruments = list(set(instruments) - set(index_list))
     # instruments = instruments[0:100]
     qlib_df = D.features(instruments, fields, start_time=start_date, end_time=end_date)
     qlib_df.columns = ['open', 'close', 'high', 'low']
@@ -91,7 +91,7 @@ def get_and_update_factor(code, date, conn, pro):
                 sql = '''
                     update trade_daily2 set adj_factor=%s where day=%s and ts_code=%s
                 '''
-                print(cursor.mogrify(sql, (ts_factor, date, code)))
+                # print(cursor.mogrify(sql, (ts_factor, date, code)))
                 cursor.execute(sql, (ts_factor, date, code))
                 conn.commit()
                 print('update trade_daily2 adj_factor completed !')
