@@ -148,7 +148,8 @@ class Processor:
         merged.columns = self.columns
         merged_fq = self.trans_fq(merged)
         merged_fq = merged_fq.round({'open': 2, 'close': 2, 'high': 2, 'low': 2, 'factor': 4})
-        merged_fq.to_csv(os.path.join(self.provider_uri, 'hfq_{}_{}.csv'.format(self.start_date, self.end_date)), index=False)
+        # 保存中间数据
+        # merged_fq.to_csv(os.path.join(self.provider_uri, 'hfq_{}_{}.csv'.format(self.start_date, self.end_date)), index=False)
 
         merged_fq.reset_index(drop=True, inplace=True)
         print(merged_fq.head())

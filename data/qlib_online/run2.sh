@@ -90,13 +90,14 @@ function_set(){
 }
 
 main(){
-#  function_set
+  function_set
   ${python_path} ${cur_path}/check.py
-#  if [ $? -eq 10 ];then
-#    echo "mysql 复权因子更新，重新处理数据..."
-#    function_set
-#  fi
-#  echo "执行完成 ！！！"
+  if [ $? -eq 10 ];then
+    echo "mysql 复权因子更新，重新处理数据..."
+    function_set
+    ${python_path} ${cur_path}/check.py
+  fi
+  echo "执行完成 ！！！"
 }
 
 main
