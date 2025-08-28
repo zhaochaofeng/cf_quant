@@ -142,17 +142,16 @@ def format_email_info(qlib_df, ts_df):
     return res
 
 def main():
+    # start_date = '2015-01-05'
+    # end_date = '2025-08-08'
+    start_date = '2025-08-10'
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    if not is_trade_day(end_date):
+        print('非交易日，不检查！')
+        exit(5)
+    
     try:
         qlib_init()
-
-        # start_date = '2015-01-05'
-        # end_date = '2025-08-08'
-        start_date = '2025-08-10'
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        if not is_trade_day(end_date):
-            print('非交易日，不检查！')
-            exit(0)
-
         print('start_date: {}, end_date: {}'.format(start_date, end_date))
         qlib_df, instruments = get_qlib_data(start_date, end_date)
         print('instruments len: {}'.format(len(instruments)))
@@ -174,3 +173,7 @@ if __name__ == '__main__':
     t = time.time()
     main()
     print('耗时：{}s'.format(round(time.time()-t, 4)))
+    if is_update:
+        exit(10)
+    else:
+        exit(0)

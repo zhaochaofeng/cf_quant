@@ -61,18 +61,6 @@ class Processor:
             df.to_csv(os.path.join(self.provider_uri, 'custom_{}_{}.csv'.format(self.start_date, self.end_date)), sep='\t', index=False)
         return df
 
-    # def load_data_index(self):
-    #     ''' 加载指数数据 '''
-    #     print('load_data_index ...')
-    #     start_date = datetime.strptime(self.start_date, '%Y-%m-%d').strftime('%Y%m%d')
-    #     end_date = datetime.strptime(self.end_date, '%Y-%m-%d').strftime('%Y%m%d')
-    #     index_df = pro.index_daily(ts_code=self.index_code, start_date=start_date, end_date=end_date)
-    #     index_df.drop(columns=['pct_chg', 'pre_close', 'change'], inplace=True)
-    #     index_df.columns = ['ts_code', 'date', 'close', 'open', 'high', 'low', 'vol', 'amount']
-    #     index_df['date'] = pd.to_datetime(index_df['date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
-    #     index_df['adj_factor'] = 1
-    #     return index_df
-
     def load_data_index(self, codes):
         ''' 加载指数数据 '''
         print('load_data_index ...')
