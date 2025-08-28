@@ -107,13 +107,13 @@ def format_email_info(qlib_df, ts_df):
         ts_row = ts_df.loc[index]
 
         for f in field:
-            qlib_f.append('{}:{}'.format(f, round(qlib_row[f]), 6))
-            ts_f.append('{}:{}'.format(f, round(ts_row[f]), 6))
+            qlib_f.append('{}:{}'.format(f, str(round(qlib_row[f], 4))))
+            ts_f.append('{}:{}'.format(f, str(round(ts_row[f], 4))))
 
         res.append('{}: [qlib: {} | ts: {}]'.format(
             code + "_" + date,
-            ', '.join(map(str, qlib_f)),
-            ', '.join(map(str, ts_f))
+            ', '.join(qlib_f),
+            ', '.join(ts_f)
         ))
 
     # qlib 数据有缺失情况
