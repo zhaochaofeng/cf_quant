@@ -142,14 +142,14 @@ def format_email_info(qlib_df, ts_df):
     return res
 
 def main():
-    # start_date = '2015-01-05'
+    start_date = '2015-01-05'
     # end_date = '2025-08-08'
-    start_date = '2025-08-10'
+    # start_date = '2025-08-10'
     end_date = datetime.now().strftime('%Y-%m-%d')
     if not is_trade_day(end_date):
         print('非交易日，不检查！')
         exit(5)
-    
+
     try:
         qlib_init()
         print('start_date: {}, end_date: {}'.format(start_date, end_date))
