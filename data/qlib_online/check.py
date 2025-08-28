@@ -7,10 +7,11 @@ import qlib
 from qlib.data import D
 from datetime import datetime
 import pandas as pd
-from utils.utils import tushare_ts
+from utils.utils import tushare_ts,tushare_pro
 from utils.utils import send_email
 from utils.utils import is_trade_day
 import traceback
+from utils.utils import mysql_connect
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -27,8 +28,8 @@ def get_qlib_data(start_date, end_date):
     instruments_config = D.instruments(market='all')
     instruments = D.list_instruments(instruments=instruments_config, start_time=start_date, end_time=end_date, as_list=True)
     index_list = ['SH000300', 'SH000903', 'SH000905']
-    instruments = list(set(instruments) - set(index_list))
-    # instruments = instruments[0:500]
+    # instruments = list(set(instruments) - set(index_list))
+    instruments = instruments[0:100]
     qlib_df = D.features(instruments, fields, start_time=start_date, end_time=end_date)
     qlib_df.columns = ['open', 'close', 'high', 'low']
     qlib_df.sort_index(inplace=True)
@@ -59,12 +60,74 @@ def get_tushare_data(instruments, start_date, end_date):
     df = df[~na]
     return df
 
+def get_factor(code, date, conn, pro):
+    ts_date = datetime.strptime(date, '%Y-%m-%d').strftime('%Y%m%d')
+    try:
+        with conn.cursor() as cursor:
+            sql = '''
+                select adj_factor from trade_daily2 where day=%s and ts_code=%s
+            '''
+            # print(cursor.mogrify(sql, (date, code)))
+            cursor.execute(sql, (date, code))
+            mysql_factor = cursor.fetchone()[0]
+    except Exception as e:
+        raise Exception('mysql factor request fail: '.format(e))
+
+    try:
+        ts_factor = pro.adj_factor(ts_code=code, trade_date=ts_date)
+        ts_factor = ts_factor.iloc[0]['adj_factor']
+    except Exception as e:
+        raise Exception('tushare factor request fail: '.format(e))
+
+    return mysql_factor, ts_factor
+
+def format_email_info(qlib_df, ts_df):
+    diff = qlib_df - ts_df
+    mask_na = diff.isna().any(axis=1)
+    mask_gt = (abs(diff) > 0.1).any(axis=1)
+
+    index_gt = diff.index[mask_gt]
+    index_na = diff.index[mask_na]
+
+    res = []
+    # 值不相等的情况
+    field = ['open', 'close', 'high', 'low']
+    conn = mysql_connect()
+    pro = tushare_pro()
+    for index in index_gt:
+        qlib_f = []
+        ts_f = []
+        code = '{}.{}'.format(index[0][2:8], index[0][0:2])
+        date = index[1].strftime('%Y-%m-%d')
+        mysql_factor, ts_factor = get_factor(code, date, conn, pro)
+        qlib_f.append('factor:{}'.format(mysql_factor))
+        ts_f.append('factor: {}'.format(ts_factor))
+
+        qlib_row = qlib_df.loc[index]
+        ts_row = ts_df.loc[index]
+
+        for f in field:
+            qlib_f.append('{}:{}'.format(f, round(qlib_row[f]), 6))
+            ts_f.append('{}:{}'.format(f, round(ts_row[f]), 6))
+
+        res.append('{}: [qlib: {} | ts: {}]'.format(
+            code + "_" + date,
+            ', '.join(map(str, qlib_f)),
+            ', '.join(map(str, ts_f))
+        ))
+
+    # qlib 数据有缺失情况
+    for index in index_na:
+        res.append('{}: qlib is NaN'.format(index[0] + "_" + index[1].strftime('%Y-%m-%d')))
+    return res
+
 def main():
     try:
         qlib_init()
 
-        start_date = '2015-01-05'
+        # start_date = '2015-01-05'
         # end_date = '2025-08-08'
+        start_date = '2025-08-10'
         end_date = datetime.now().strftime('%Y-%m-%d')
         if not is_trade_day(end_date):
             print('非交易日，不检查！')
@@ -80,13 +143,8 @@ def main():
         print('-' * 100)
         print(ts_df.head())
 
-        diff = qlib_df - ts_df
-        mask = ((abs(diff) > 0.1) | diff.isna()).any(axis=1)
-        result_index = diff.index[mask]
-        res = []
-        for item in result_index.values:
-            res.append('{}:{}'.format(item[0], item[1].strftime('%Y-%m-%d')))
-        if result_index.shape[0] > 0:
+        res = format_email_info(qlib_df, ts_df)
+        if len(res) > 0:
             send_email("Data: qlib_online", '\n'.join(res))
     except Exception as e:
         print(e)
