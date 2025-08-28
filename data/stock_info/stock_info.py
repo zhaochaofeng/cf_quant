@@ -12,6 +12,8 @@ from datetime import datetime
 from utils.utils import get_config
 from utils.utils import mysql_connect
 from utils.utils import is_trade_day
+from utils.utils import send_email
+
 config = get_config()
 pro = ts.pro_api(config['tushare']['token'])
 
@@ -66,9 +68,8 @@ def main(args):
             cursor.executemany(sql, data)
             conn.commit()
         except Exception as e:
-            print('except: {}'.format(e))
             conn.rollback()  # 回滚
-            exit(1)
+            raise Exception('error in write to mysql: {}'.format(e))
         finally:
             conn.close()
     print('写入完成!!!')
@@ -82,6 +83,8 @@ if __name__ == '__main__':
         exit(0)
     print(args)
     t = time.time()
-    main(args)
+    try:
+        main(args)
+    except:
+        send_email('Data: stock_info', 'process failed !!!')
     print('耗时：{}s'.format(round(time.time() - t, 4)))
-
