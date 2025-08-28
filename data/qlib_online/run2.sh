@@ -18,7 +18,7 @@ dt1='2015-01-05'
 dt2='2025-08-30'
 echo "时间区间为：["$dt1" - "$dt2"]"
 
-${cf_quant_path}/utils/is_trade_day.py ${dt2}
+${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt2}
 if [ $? -eq 5 ];then
   echo '非交易日！！！'
   exit 0
