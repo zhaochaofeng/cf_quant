@@ -82,11 +82,11 @@ update(){
 }
 
 function_set(){
-  create_tmp_dir
-  get_data_from_mysql
-  process_data
-  trans_to_qlib
-  update_local
+#  create_tmp_dir
+#  get_data_from_mysql
+#  process_data
+#  trans_to_qlib
+  update
 }
 
 main(){
