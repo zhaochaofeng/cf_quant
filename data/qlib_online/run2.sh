@@ -13,10 +13,11 @@ dt1='2015-01-05'
 dt2=`date +%Y-%m-%d`
 echo "时间区间为：["$dt1" - "$dt2"]"
 
+provider_uri_tmp="${provider_uri_tmp/#\~/$HOME}"
 if [ -d "${provider_uri_tmp}" ]; then
   rm -rf "${provider_uri_tmp}"
 fi
-provider_uri_tmp="${provider_uri_tmp/#\~/$HOME}"
+
 mkdir -p "${provider_uri_tmp}"
 
 check_success() {
