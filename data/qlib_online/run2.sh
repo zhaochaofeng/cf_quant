@@ -78,20 +78,20 @@ update(){
 
   mv ${provider_uri} ${provider_uri_bak}
   mv ${provider_uri_tmp} ${provider_uri}
-
+  check_success "替换历史数据"
 }
 
 function_set(){
-#  create_tmp_dir
-#  get_data_from_mysql
-#  process_data
-#  trans_to_qlib
+  create_tmp_dir
+  get_data_from_mysql
+  process_data
+  trans_to_qlib
   update
 }
 
 main(){
-  function_set
-#  ${python_path} ${cur_path}/check.py
+#  function_set
+  ${python_path} ${cur_path}/check.py
 #  if [ $? -eq 10 ];then
 #    echo "mysql 复权因子更新，重新处理数据..."
 #    function_set
