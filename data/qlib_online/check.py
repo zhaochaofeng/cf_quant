@@ -16,6 +16,8 @@ from utils.utils import mysql_connect
 import warnings
 warnings.filterwarnings('ignore')
 
+is_update = False
+
 def qlib_init():
     provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
     qlib.init(provider_uri=provider_uri)
@@ -24,11 +26,11 @@ def get_qlib_data(start_date, end_date):
     ''' qlib线上数据 '''
     print('get_qlib_data ...')
     fields = ['$open', '$close', '$high', '$low']
-    # instruments = ['SH600530', 'SH600535']
-    instruments_config = D.instruments(market='all')
-    instruments = D.list_instruments(instruments=instruments_config, start_time=start_date, end_time=end_date, as_list=True)
-    index_list = ['SH000300', 'SH000903', 'SH000905']
-    instruments = list(set(instruments) - set(index_list))
+    instruments = ['SZ300760']
+    # instruments_config = D.instruments(market='all')
+    # instruments = D.list_instruments(instruments=instruments_config, start_time=start_date, end_time=end_date, as_list=True)
+    # index_list = ['SH000300', 'SH000903', 'SH000905']
+    # instruments = list(set(instruments) - set(index_list))
     # instruments = instruments[0:100]
     qlib_df = D.features(instruments, fields, start_time=start_date, end_time=end_date)
     qlib_df.columns = ['open', 'close', 'high', 'low']
@@ -61,7 +63,7 @@ def get_tushare_data(instruments, start_date, end_date):
     df = df[~na]
     return df
 
-def get_factor(code, date, conn, pro):
+def get_and_update_factor(code, date, conn, pro):
     ts_date = datetime.strptime(date, '%Y-%m-%d').strftime('%Y%m%d')
     try:
         with conn.cursor() as cursor:
@@ -70,7 +72,7 @@ def get_factor(code, date, conn, pro):
             '''
             # print(cursor.mogrify(sql, (date, code)))
             cursor.execute(sql, (date, code))
-            mysql_factor = cursor.fetchone()[0]
+            mysql_factor = float(cursor.fetchone()[0])
     except Exception as e:
         raise Exception('mysql factor request fail: '.format(e))
 
@@ -79,6 +81,23 @@ def get_factor(code, date, conn, pro):
         ts_factor = ts_factor.iloc[0]['adj_factor']
     except Exception as e:
         raise Exception('tushare factor request fail: '.format(e))
+
+    if mysql_factor != ts_factor:
+        global is_update
+        is_update = True
+        print('{} {} factor is not equal. mysql_factor: {}, ts_factor: {}'.format(code, date, mysql_factor, ts_factor))
+        try:
+            with conn.cursor() as cursor:
+                sql = '''
+                    update trade_daily2 set adj_factor=%s where day=%s and ts_code=%s
+                '''
+                print(cursor.mogrify(sql, (ts_factor, date, code)))
+                cursor.execute(sql, (ts_factor, date, code))
+                conn.commit()
+                print('update trade_daily2 adj_factor completed !')
+        except Exception as e:
+            conn.rollback()
+            raise Exception('mysql update factor fail: '.format(e))
 
     return mysql_factor, ts_factor
 
@@ -100,7 +119,7 @@ def format_email_info(qlib_df, ts_df):
         ts_f = []
         code = '{}.{}'.format(index[0][2:8], index[0][0:2])
         date = index[1].strftime('%Y-%m-%d')
-        mysql_factor, ts_factor = get_factor(code, date, conn, pro)
+        mysql_factor, ts_factor = get_and_update_factor(code, date, conn, pro)
         qlib_f.append('factor:{}'.format(mysql_factor))
         ts_f.append('factor: {}'.format(ts_factor))
 
@@ -134,7 +153,6 @@ def main():
             print('非交易日，不检查！')
             exit(0)
 
-        # end_date = '2025-08-22'
         print('start_date: {}, end_date: {}'.format(start_date, end_date))
         qlib_df, instruments = get_qlib_data(start_date, end_date)
         print('instruments len: {}'.format(len(instruments)))
