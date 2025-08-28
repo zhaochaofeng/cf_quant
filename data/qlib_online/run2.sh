@@ -14,8 +14,7 @@ provider_uri_bak="${data_path}/custom_data_hfq_bak"
 echo 'cur_path: '${cur_path}
 
 dt1='2015-01-05'
-#dt2=`date +%Y-%m-%d`
-dt2='2025-08-30'
+dt2=`date +%Y-%m-%d`
 echo "时间区间为：["$dt1" - "$dt2"]"
 
 ${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt2}
