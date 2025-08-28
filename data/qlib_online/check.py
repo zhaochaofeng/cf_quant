@@ -45,6 +45,7 @@ def get_tushare_data(instruments, start_date, end_date):
     start_date = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y%m%d')
     end_date = datetime.strptime(end_date, '%Y-%m-%d').strftime('%Y%m%d')
     for i, instrument in enumerate(instruments):
+        time.sleep(0.075)  # 每分钟只能访问800次。60/800=0.075
         if (i+1) % 100 == 0:
             print('process: {}'.format(i+1))
         instrument = '{}.{}'.format(instrument[2:8], instrument[0:2])
