@@ -94,7 +94,8 @@ def is_trade_day(date):
 
 def get_n_pretrade_day(date, n):
     ''' date 前n个交易日。格式 YYYY-MM-DD
-        若date为非交易日，则会认为date为历史最近的一个交易日
+        若date为非交易日，则会将date向前移动到最近的一个交易日。
+        如 get_n_pretrade_day('2025-08-30', 1), 2025-08-30为非交易日，最近的一个交易日为2025-08-29，则函数返回2025-08-28
         n=0时，返回原始日期date
     '''
     pro = tushare_pro()
