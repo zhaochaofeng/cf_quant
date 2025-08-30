@@ -11,6 +11,7 @@ from jqfactor import standardlize, winsorize
 from datetime import datetime, timedelta
 from jqdata import get_trade_days
 
+
 def initialize(context):
     log.info('{}\n函数运行时间（initialize）:{}'.format('-' * 50, context.current_dt.time()))
     # 设置沪深300作为基准
@@ -27,11 +28,9 @@ def initialize(context):
     ), type='stock')
 
     # 最大持仓数
-    g.stock_num = 50
-    # 每天卖出得分最低的5只股票
-    g.drop_k = 5
-    # 记录是否为第一次交易
-    g.is_first_trade = True
+    g.stock_num = 20
+    # 每天卖出得分最低股票数
+    g.drop_k = 2
     # 选股。开盘前运行
     run_daily(choose_stock, time='before_open', reference_security='000300.XSHG')
     # 交易。开盘时运行
@@ -39,46 +38,61 @@ def initialize(context):
     # 收盘后运行
     # run_daily(after_market_close, time='after_close', reference_security='000300.XSHG')
 
+
 def choose_stock(context):
     ''' 选股函数 '''
     log.info('{}\n函数运行时间（choose_stock）:{}'.format('-' * 50, context.current_dt.time()))
 
-    # 从redis中获取股票得分
-    r = redis.Redis(host='39.105.18.127', password='Zhao_38013984')
-    # dt = (context.current_dt - timedelta(days=1)).strftime('%Y-%m-%d')
     # 上一个交易日
-    dt = get_trade_days(end_date=context.current_dt, count=(1 + 1))[0].strftime('%Y-%m-%d')
-    print('dt: {}'.format(dt))
-    model_name = 'lightGBM'
+    dt = get_trade_days(end_date=context.current_dt, count=2)[0].strftime('%Y-%m-%d')
+    model_name = 'lightGBMAlpha158'
     key = '{}:{}'.format(model_name, dt)
-    log.info('key: {}{}'.format(key, '-' * 50))
-    score = r.hgetall(key)
-    if len(score) == 0:
-        log.info('未获取redis中的数据：{}'.format(key))
+    log.info('key: {}{} '.format(key, '-' * 50))
+    try:
+        # 从redis中获取股票得分
+        r = redis.Redis(host='39.105.18.127', password='Zhao_38013984')
+        score = r.hgetall(key)
+    except Exception as e:
+        log.error('redis连接失败：{}'.format(e))
+        return
+    if not score:
+        log.error('未获取redis中的数据：{}'.format(key))
         return
     score = {k.decode(): round(float(v.decode()), 6) for k, v in score.items()}
     # 转化为聚宽的股票格式
-    score = {((k[2:8]+'.XSHE') if k[0:2] == 'SZ' else (k[2:8]+'.XSHG')): v for k, v in score.items() if k[0:2] in ['SZ', 'SH']}
+    score = {((k[2:8] + '.XSHE') if k[0:2] == 'SZ' else (k[2:8] + '.XSHG')): v for k, v in score.items() if
+             k[0:2] in ['SZ', 'SH']}
     log.info("score len: {}".format(len(score)))
-    # 过滤st股
-    score = {k: v for k, v in score.items() if 'ST' not in get_security_info(k, date=context.current_dt).display_name}
+
+    # 过滤ST股、退市股和次新股
+    stock_list = list(score.keys())
+    filtered_stocks = get_filtered_stocks(context, stock_list)
+    score = {k: v for k, v in score.items() if k in filtered_stocks}
+
+    # 过滤非主板股票（只保留代码以60或00开头的股票）
+    score = {k: v for k, v in score.items() if (k.startswith('60') or k.startswith('00'))}
+
     score = dict(sorted(score.items(), key=lambda x: x[1], reverse=True))
     log.info("filter score len: {}".format(len(score)))
-    # print(score)
+    # 排序后的股票代码
     g.sorted_stocks_by_score = list(score.keys())
-    # print(g.sorted_stocks_by_score[0:10])
-    # 保存得分字典
+    # 得分字典
     g.score_dict = score
+
 
 def trade(context):
     ''' 交易函数 '''
     log.info('{}\n函数运行时间（trade）:{}'.format('-' * 50, context.current_dt.time()))
 
+    if not hasattr(g, 'sorted_stocks_by_score') or len(g.sorted_stocks_by_score) == 0:
+        log.error('无可交易的打分结果，跳过当日交易')
+        return
+
     # 获取当前持仓股票
     current_positions = list(context.portfolio.positions.keys())
 
     # 如果是第一天交易，只买入不卖出
-    if g.is_first_trade:
+    if len(current_positions) == 0:
         # 买进得分最高的g.stock_num只股票
         cash = context.portfolio.available_cash / g.stock_num
         for stock in g.sorted_stocks_by_score:
@@ -87,15 +101,11 @@ def trade(context):
             log.info('首次交易买入股票：{}({}), 购买金额：{}'.format(
                 get_security_info(stock, date=context.current_dt).display_name, stock, round(cash, 4)))
             order_value(stock, cash)
-        # 标记第一次交易已完成
-        g.is_first_trade = False
     else:
         # 非第一天交易，执行调仓操作
-
         # 确定要卖出的股票：得分最低的g.drop_k只股票
-        # 从当前持仓中筛选出得分最低的g.drop_k只股票
-        # 先给当前持仓股票按得分排序
-        current_positions_with_scores = [(stock, g.score_dict.get(stock, -float('inf'))) for stock in set(current_positions)]
+        current_positions_with_scores = [(stock, g.score_dict.get(stock, -float('inf'))) for stock in
+                                         set(current_positions)]
         current_positions_sorted = sorted(current_positions_with_scores, key=lambda x: x[1])
         sell_stocks = [stock for stock, score in current_positions_sorted[:g.drop_k]]
         print('current_positions_sorted: {}'.format(current_positions_sorted))
@@ -117,16 +127,17 @@ def trade(context):
         # 买入得分最高的g.drop_k只股票
         buy_stocks = []
         cash_for_buy = context.portfolio.available_cash
-        if len(candidate_buy_stocks) > 0 and cash_for_buy > 0:
-            cash_per_stock = cash_for_buy / g.drop_k
+        num_to_buy = min(g.drop_k, len(candidate_buy_stocks), g.stock_num - len(current_positions) + len(sell_stocks))
+        if num_to_buy > 0 and cash_for_buy > 0:
+            cash = cash_for_buy / num_to_buy
             pos_size_old = len(context.portfolio.positions)
-            pos_size_new = len(context.portfolio.positions)
             for stock in candidate_buy_stocks:
                 if len(context.portfolio.positions) == g.stock_num:
                     break
                 log.info('买入股票：{}({}), 购买金额：{}'.format(
-                    get_security_info(stock, date=context.current_dt).display_name, stock, round(cash_per_stock, 4)))
-                order_value(stock, cash_per_stock)
+                    get_security_info(stock, date=context.current_dt).display_name, stock, round(cash, 4)))
+                order_value(stock, cash)
+                # 将购买成功的股票添加到buy_stocks列表
                 pos_size_new = len(context.portfolio.positions)
                 if pos_size_new > pos_size_old:
                     buy_stocks.append(stock)
@@ -143,12 +154,15 @@ def trade(context):
     log.info('当前持仓：{}'.format(len(pos)))
     for s in pos.keys():
         log.info('code: {}, name: {}, score: {}, price: {}, 总仓位: {}, 可卖标的数: {}, 当前持仓成本: {}, 累计持仓成本: {}'.format(
-                s, get_security_info(s, date=context.current_dt).display_name,
-                g.score_dict.get(s, -float('inf')),
-                pos[s].price, pos[s].total_amount, pos[s].closeable_amount,
-                round(pos[s].avg_cost, 2), round(pos[s].acc_avg_cost, 2)
-            )
+            s,
+            get_security_info(s, date=context.current_dt).display_name,
+            g.score_dict.get(s, -float('inf')),
+            pos[s].price, pos[s].total_amount, pos[s].closeable_amount,
+            round(pos[s].avg_cost, 2), round(pos[s].acc_avg_cost, 2)
         )
+        )
+
+
 def after_market_close(context):
     log.info('{}\n函数运行时间(after_market_close)：{}'.format('-' * 50, context.current_dt.time()))
     # 得到当前所有成交记录
@@ -156,5 +170,3 @@ def after_market_close(context):
         log.info('成交记录：{}'.format(_trade))
     log.info('{} 这一天结束'.format(context.current_dt.date().strftime('%Y-%m-%d')))
     print('-' * 50)
-
-
