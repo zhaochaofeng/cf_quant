@@ -1,6 +1,7 @@
 '''
     功能：lightGBM_Alpha158策略的模型训练
 '''
+import os
 import fire
 import pandas as pd
 import qlib
@@ -20,6 +21,7 @@ class LightGBMAlpha158:
         benchmark="SH000300",
         provider_uri='~/.qlib/qlib_data/custom_data_hfq',
         experiment_name='lightGBM_Alpha158',
+        kernels=max(1, os.cpu_count()-1),
         start_wid=1,      # test_end 向前移动的天数。至少前移1天，保证回测时不出错
         test_wid=100,     # 测试集时间宽度
         valid_wid=100,    # 验证集时间宽度
@@ -32,7 +34,7 @@ class LightGBMAlpha158:
         self.test_wid = test_wid
         self.valid_wid = valid_wid
         self.train_wid = train_wid
-        qlib.init(provider_uri=provider_uri)
+        qlib.init(provider_uri=provider_uri, kernels=kernels)
 
     def choose_stocks(self, start_time, end_time):
         ''' 股票筛选  '''
