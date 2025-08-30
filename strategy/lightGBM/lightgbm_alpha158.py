@@ -189,6 +189,8 @@ class LightGBMAlpha158:
             model.fit(dataset)
             # 保存模型
             R.save_objects(**{'params.pkl': model})
+            # 保存task配置信息
+            R.save_objects(**{'task': task})
 
             recorder = R.get_recorder()
             # 预测信号
