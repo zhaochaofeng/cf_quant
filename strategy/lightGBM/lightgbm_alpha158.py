@@ -1,7 +1,7 @@
 '''
     功能：lightGBM_Alpha158策略的模型训练
 '''
-import os
+import time
 import fire
 import pandas as pd
 import qlib
@@ -204,4 +204,6 @@ class LightGBMAlpha158:
             par.generate()
 
 if __name__ == '__main__':
+    t = time.time()
     fire.Fire(LightGBMAlpha158)
+    print('耗时：{}'.format(round(time.time()-t, 4)))
