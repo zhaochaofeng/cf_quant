@@ -24,7 +24,7 @@ class LightGBMAlpha158:
         start_wid=1,      # test_end 向前移动的天数。至少前移1天，保证回测时不出错
         test_wid=100,     # 测试集时间宽度
         valid_wid=100,    # 验证集时间宽度
-        train_wid=500    # 训练集时间宽度
+        train_wid=500     # 训练集时间宽度
     ):
         self.market = market
         self.benchmark = benchmark

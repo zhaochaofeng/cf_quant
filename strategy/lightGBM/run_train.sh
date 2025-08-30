@@ -16,7 +16,7 @@ fi
 
 echo 'start_wid: '${start_wid}
 
-${python_path} ${cur_path}/lightgbm_alpha158.py main --start_wid ${start_wid}
+${python_path} ${cur_path}/lightgbm_alpha158.py main --start_wid ${start_wid} --train_wid 1000
 
 if [ $? -eq 0 ]; then
   echo "执行成功！"
