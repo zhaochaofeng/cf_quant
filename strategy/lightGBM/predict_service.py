@@ -61,9 +61,11 @@ class QLibModelLoader:
             for rid, rec in recorders.items():
                 if rec.status != 'FINISHED':
                     continue
-                tags = rec.list_tags()
-                if tags.get('online_status') == 'online':
-                    online_recorders.append(rec)
+                # 检查上线状态
+                # tags = rec.list_tags()
+                # if tags.get('online_status') == 'online':
+                #     online_recorders.append(rec)
+                online_recorders.append(rec)
 
             if not online_recorders:
                 raise ValueError(f"实验{self.exp_id}中没有找到在线模型记录")
@@ -100,9 +102,11 @@ class QLibModelLoader:
             for rid, rec in recorders.items():
                 if rec.status != 'FINISHED':
                     continue
-                tags = rec.list_tags()
-                if tags.get('online_status') == 'online':
-                    online_recorders.append(rec)
+                # 检查上线状态
+                # tags = rec.list_tags()
+                # if tags.get('online_status') == 'online':
+                #     online_recorders.append(rec)
+                online_recorders.append(rec)
 
             if not online_recorders:
                 logger.warning("没有找到在线模型")
