@@ -229,7 +229,7 @@ async def reload_model():
         raise HTTPException(status_code=500, detail=f"模型重新加载失败: {str(e)}")
 
 # 将预测结果写入redis
-@app.post('/loaddown_to_redis')
+@app.post('/download_to_redis')
 async def download_to_redis(request: PredictionRequest):
     try:
         r = redis_connect()
