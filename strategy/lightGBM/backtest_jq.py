@@ -11,7 +11,6 @@ from jqfactor import standardlize, winsorize
 from datetime import datetime, timedelta
 from jqdata import get_trade_days
 
-
 def initialize(context):
     log.info('{}\n函数运行时间（initialize）:{}'.format('-' * 50, context.current_dt.time()))
     # 设置沪深300作为基准
@@ -38,7 +37,6 @@ def initialize(context):
     # 收盘后运行
     # run_daily(after_market_close, time='after_close', reference_security='000300.XSHG')
 
-
 def choose_stock(context):
     ''' 选股函数 '''
     log.info('{}\n函数运行时间（choose_stock）:{}'.format('-' * 50, context.current_dt.time()))
@@ -60,25 +58,16 @@ def choose_stock(context):
         return
     score = {k.decode(): round(float(v.decode()), 6) for k, v in score.items()}
     # 转化为聚宽的股票格式
-    score = {((k[2:8] + '.XSHE') if k[0:2] == 'SZ' else (k[2:8] + '.XSHG')): v for k, v in score.items() if
-             k[0:2] in ['SZ', 'SH']}
+    score = {((k[2:8]+'.XSHE') if k[0:2] == 'SZ' else (k[2:8]+'.XSHG')): v for k, v in score.items() if k[0:2] in ['SZ', 'SH']}
     log.info("score len: {}".format(len(score)))
-
-    # 过滤ST股、退市股和次新股
-    stock_list = list(score.keys())
-    filtered_stocks = get_filtered_stocks(context, stock_list)
-    score = {k: v for k, v in score.items() if k in filtered_stocks}
-
-    # 过滤非主板股票（只保留代码以60或00开头的股票）
-    score = {k: v for k, v in score.items() if (k.startswith('60') or k.startswith('00'))}
-
+    # 过滤st股
+    score = {k: v for k, v in score.items() if 'ST' not in get_security_info(k, date=context.current_dt).display_name}
     score = dict(sorted(score.items(), key=lambda x: x[1], reverse=True))
     log.info("filter score len: {}".format(len(score)))
     # 排序后的股票代码
     g.sorted_stocks_by_score = list(score.keys())
     # 得分字典
     g.score_dict = score
-
 
 def trade(context):
     ''' 交易函数 '''
@@ -104,8 +93,7 @@ def trade(context):
     else:
         # 非第一天交易，执行调仓操作
         # 确定要卖出的股票：得分最低的g.drop_k只股票
-        current_positions_with_scores = [(stock, g.score_dict.get(stock, -float('inf'))) for stock in
-                                         set(current_positions)]
+        current_positions_with_scores = [(stock, g.score_dict.get(stock, -float('inf'))) for stock in set(current_positions)]
         current_positions_sorted = sorted(current_positions_with_scores, key=lambda x: x[1])
         sell_stocks = [stock for stock, score in current_positions_sorted[:g.drop_k]]
         print('current_positions_sorted: {}'.format(current_positions_sorted))
@@ -154,14 +142,13 @@ def trade(context):
     log.info('当前持仓：{}'.format(len(pos)))
     for s in pos.keys():
         log.info('code: {}, name: {}, score: {}, price: {}, 总仓位: {}, 可卖标的数: {}, 当前持仓成本: {}, 累计持仓成本: {}'.format(
-            s,
-            get_security_info(s, date=context.current_dt).display_name,
-            g.score_dict.get(s, -float('inf')),
-            pos[s].price, pos[s].total_amount, pos[s].closeable_amount,
-            round(pos[s].avg_cost, 2), round(pos[s].acc_avg_cost, 2)
+                s,
+                get_security_info(s, date=context.current_dt).display_name,
+                g.score_dict.get(s, -float('inf')),
+                pos[s].price, pos[s].total_amount, pos[s].closeable_amount,
+                round(pos[s].avg_cost, 2), round(pos[s].acc_avg_cost, 2)
+            )
         )
-        )
-
 
 def after_market_close(context):
     log.info('{}\n函数运行时间(after_market_close)：{}'.format('-' * 50, context.current_dt.time()))
@@ -170,3 +157,5 @@ def after_market_close(context):
         log.info('成交记录：{}'.format(_trade))
     log.info('{} 这一天结束'.format(context.current_dt.date().strftime('%Y-%m-%d')))
     print('-' * 50)
+
+
