@@ -21,7 +21,7 @@ app = FastAPI(title="QLib量化模型预测服务")
 # 定义请求数据模型
 class PredictionRequest(BaseModel):
     stock_codes: List[str]  # 股票代码列表，如 ["SH600000", "SZ000001"]
-    start_date: str  # 开始日期，格式如 "2023-01-01"
+    start_date: Optional[str] = None  # 开始日期，格式如 "2023-01-01"
     end_date: Optional[str] = None  # 结束日期，可选，默认为开始日期
 
 
@@ -124,7 +124,7 @@ class QLibModelLoader:
             logger.error(f"模型重新加载失败: {str(e)}")
             return False
 
-    def predict(self, stock_codes: List[str], start_date: str, end_date: Optional[str] = None) -> pd.DataFrame:
+    def predict(self, stock_codes: List[str], start_date: Optional[str] = None, end_date: Optional[str] = None) -> pd.DataFrame:
         """使用模型进行预测"""
         if not self.initialized or self.model is None:
             raise RuntimeError("模型未初始化，请先调用initialize()")
@@ -137,7 +137,12 @@ class QLibModelLoader:
             end_date, dataset_config['kwargs']['handler']['kwargs']['end_time'])  # 全局日期
         if len(stock_codes) > 0:
             dataset_config['kwargs']['handler']['kwargs']['instruments'] = stock_codes  # 修改股票集合
-        dataset_config['kwargs']['segments']['test'] = (pd.Timestamp(start_date), pd.Timestamp(end_date))  # 修改测试
+
+        # 修改测试集
+        if start_date:
+            dataset_config['kwargs']['segments']['test'][0] = pd.Timestamp(start_date)
+        if end_date:
+            dataset_config['kwargs']['segments']['test'][1] = pd.Timestamp(end_date)
 
         try:
             # 数据集
@@ -158,7 +163,7 @@ class QLibModelLoader:
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 # uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
 uri = '/root/cf_quant/strategy/lightGBM/mlruns'
-exp_id = '991172273503603780'
+exp_id = '466080690792460119'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
@@ -221,7 +226,7 @@ async def reload_model():
 
 # 将预测结果写入redis
 @app.post('/loaddown_to_redis')
-async def loaddown_to_redis(request: PredictionRequest):
+async def download_to_redis(request: PredictionRequest):
     try:
         r = redis_connect()
         # 调用模型进行预测
@@ -235,7 +240,7 @@ async def loaddown_to_redis(request: PredictionRequest):
         for index, row in predictions.reset_index().iterrows():
             result[row['datetime'].strftime('%Y-%m-%d')][row['instrument']] = row['score']
         for key, value_dic in result.items():
-            key = '{}:{}'.format('lightGBM', key)
+            key = '{}:{}'.format('lightGBMAlpha158', key)
             print(key)
             r.hset(key, mapping=value_dic)
     except Exception as e:

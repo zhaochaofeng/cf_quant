@@ -21,7 +21,7 @@ fi
 echo "时间区间为：["$dt1" - "$dt2"]"
 
 curl -X 'POST' \
-  'http://localhost:8000/loaddown_to_redis' \
+  'http://localhost:8000/download_to_redis' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d "{
