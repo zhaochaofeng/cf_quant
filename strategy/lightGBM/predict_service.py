@@ -143,10 +143,8 @@ class QLibModelLoader:
             dataset_config['kwargs']['handler']['kwargs']['instruments'] = stock_codes  # 修改股票集合
 
         # 修改测试集
-        if start_date:
-            dataset_config['kwargs']['segments']['test'][0] = pd.Timestamp(start_date)
-        if end_date:
-            dataset_config['kwargs']['segments']['test'][1] = pd.Timestamp(end_date)
+        if start_date and end_date:
+            dataset_config['kwargs']['segments']['test'] = (pd.Timestamp(start_date), pd.Timestamp(end_date))
 
         try:
             # 数据集
@@ -165,9 +163,10 @@ class QLibModelLoader:
 # 全局模型加载器实例
 # 请替换为你的实际实验ID
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
-# uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
-uri = '/root/cf_quant/strategy/lightGBM/mlruns'
-exp_id = '466080690792460119'
+uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
+# uri = '/root/cf_quant/strategy/lightGBM/mlruns'
+# exp_id = '466080690792460119'
+exp_id = '336324291885163126'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
