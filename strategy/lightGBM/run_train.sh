@@ -2,7 +2,17 @@
 source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
+cf_quant_path="/root/cf_quant"
+dt=`date +%Y-%m-%d`
+
 echo ${cur_path}
+echo "dt: "${dt}
+
+${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt}
+if [ $? -eq 5 ];then
+  echo '非交易日！！！'
+  exit 0
+fi
 
 if [ $# -eq 0 ];then
     start_wid=1

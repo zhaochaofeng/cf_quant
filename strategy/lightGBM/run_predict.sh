@@ -1,8 +1,17 @@
 #!/bin/bash
 source ~/.bashrc
 cur_path=`pwd`
+cf_quant_path="/root/cf_quant"
 python_path="/root/anaconda3/envs/python3/bin/python"
+dt=`date +%Y-%m-%d`
 echo ${cur_path}
+echo "dt: "${dt}
+
+${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt}
+if [ $? -eq 5 ];then
+  echo '非交易日！！！'
+  exit 0
+fi
 
 if [ $# -eq 0 ]; then
     dt1=`date +%Y-%m-%d`
@@ -36,5 +45,6 @@ if [ $? -eq 0 ]; then
   exit 0
  else
   echo "执行失败！！！"
+  ${python_path} ${cf_quant_path}/utils/send_email.py 'Stragegy: lightgbm_alpha158' 'run_predict fail'
   exit 1
 fi

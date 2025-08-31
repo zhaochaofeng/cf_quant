@@ -14,6 +14,8 @@ from qlib.workflow.record_temp import SignalRecord, PortAnaRecord, SigAnaRecord
 from datetime import datetime, timedelta
 from utils.utils import sql_engine
 from utils.utils import get_n_pretrade_day
+from utils.utils import send_email
+import traceback
 
 class LightGBMAlpha158:
     def __init__(self,
@@ -206,6 +208,11 @@ class LightGBMAlpha158:
             par.generate()
 
 if __name__ == '__main__':
-    t = time.time()
-    fire.Fire(LightGBMAlpha158)
-    print('耗时：{}'.format(round(time.time()-t, 4)))
+    try:
+        t = time.time()
+        fire.Fire(LightGBMAlpha158)
+        print('耗时：{}'.format(round(time.time()-t, 4)))
+    except Exception as e:
+        print('error: {}'.format(e))
+        error_info = traceback.format_exc()
+        send_email('Strategy: lightgbm_alpha158', error_info)
