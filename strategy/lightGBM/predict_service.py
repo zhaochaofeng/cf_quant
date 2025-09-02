@@ -166,8 +166,8 @@ provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 # uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
 # uri = '/root/cf_quant/strategy/lightGBM/mlruns'
 uri = './mlruns'
-# exp_id = '466080690792460119'
-exp_id = '370645192517821065'
+exp_id = '466080690792460119'
+# exp_id = '370645192517821065'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
