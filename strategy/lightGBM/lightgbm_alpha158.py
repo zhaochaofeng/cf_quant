@@ -124,7 +124,7 @@ class LightGBMAlpha158:
                     "lambda_l2": 580.9768,
                     "max_depth": 8,
                     "num_leaves": 210,
-                    "num_threads": 20,
+                    "num_threads": 10,
                 },
             },
             "dataset": {
