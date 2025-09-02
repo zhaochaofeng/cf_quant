@@ -164,9 +164,10 @@ class QLibModelLoader:
 # 请替换为你的实际实验ID
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 # uri = '/Users/chaofeng/code/cf_quant/strategy/lightGBM/mlruns'
-uri = '/root/cf_quant/strategy/lightGBM/mlruns'
-exp_id = '466080690792460119'
-# exp_id = '336324291885163126'
+# uri = '/root/cf_quant/strategy/lightGBM/mlruns'
+uri = './mlruns'
+# exp_id = '466080690792460119'
+exp_id = '370645192517821065'
 model_loader = QLibModelLoader(provider_uri, uri, exp_id)
 
 # 应用启动时加载模型
@@ -228,9 +229,12 @@ async def reload_model():
         raise HTTPException(status_code=500, detail=f"模型重新加载失败: {str(e)}")
 
 # 将预测结果写入redis
-@app.post('/download_to_redis')
+@app.post('/download_to_redis', response_model=PredictionResponse)
 async def download_to_redis(request: PredictionRequest):
     try:
+        # 生成简单的请求ID
+        request_id = f"req_{pd.Timestamp.now().strftime('%Y%m%d%H%M%S')}"
+
         r = redis_connect()
         # 调用模型进行预测
         predictions = model_loader.predict(
@@ -246,6 +250,11 @@ async def download_to_redis(request: PredictionRequest):
             key = '{}:{}'.format('lightGBMAlpha158', key)
             print(key)
             r.hset(key, mapping=value_dic)
+
+        return {
+            "request_id": request_id,
+            "predictions": result
+        }
     except Exception as e:
         logger.error(f"导入redis失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"导入redis失败: {str(e)}")
