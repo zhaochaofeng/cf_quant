@@ -39,15 +39,7 @@ fi
 #  }"
 #
 
-cmd="curl -X 'POST' \\
-  'http://localhost:8000/download_to_redis' \\
-  -H 'accept: application/json' \\
-  -H 'Content-Type: application/json' \\
-  -d '{
-  \"stock_codes\": [],
-  \"start_date\": \"${dt1}\",
-  \"end_date\": \"${dt2}\"
-}'"
+cmd="curl -X 'POST' 'http://localhost:8000/download_to_redis' -H 'accept: application/json' -H 'Content-Type: application/json' -d '{\"stock_codes\":[],\"start_date\":\"${dt1}\",\"end_date\":\"${dt2}\"}'"
 
 echo "执行命令: $cmd"
 eval $cmd
