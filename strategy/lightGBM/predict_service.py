@@ -144,11 +144,19 @@ class QLibModelLoader:
 
         # 修改测试集
         if start_date and end_date:
-            dataset_config['kwargs']['segments']['test'] = (pd.Timestamp(start_date), pd.Timestamp(end_date))
+            # dataset_config['kwargs']['segments']['test'] = (pd.Timestamp(start_date), pd.Timestamp(end_date))
+            dataset_config['kwargs']['segments']['test'] = (start_date, end_date)
+
+        print('{}\n{}\n{}'.format('-'*50, dataset_config['kwargs']['segments'], '-'*50))
 
         try:
             # 数据集
             dataset = init_instance_by_config(dataset_config)
+
+            print('-'*50)
+            print(dataset.prepare(segments="test", col_set="__all"))
+            print('-' * 50)
+
             # 预测。Series
             predictions = self.model.predict(dataset, segment='test')
             # 转化为DataFrame
