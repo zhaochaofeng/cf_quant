@@ -40,6 +40,16 @@ def tushare_ts():
     ts.set_token(config['tushare']['token'])
     return ts
 
+def bao_stock_connect():
+    import baostock as bs
+    # 登陆系统
+    lg = bs.login()
+    # 显示登陆返回信息
+    print('login respond error_code:' + lg.error_code)
+    print('login respond  error_msg:' + lg.error_msg)
+    # bs.logout()  # 登出系统
+    return bs
+
 def jq_connect():
     config = get_config()
     auth(config['joinqaunt']['username'], config['joinqaunt']['password'])
