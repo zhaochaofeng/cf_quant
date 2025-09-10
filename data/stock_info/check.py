@@ -1,7 +1,7 @@
 '''
     功能：检查stock_info_ts 与 stock_info_bao数据是否一致
 '''
-
+import time
 import fire
 from datetime import datetime
 import pandas as pd
@@ -73,6 +73,6 @@ def main(date: str=None):
         print('检查没有异常 ！！！')
 
 if __name__ == '__main__':
+    t = time.time()
     fire.Fire(main)
-
-
+    print('耗时：{}s'.format(round(time.time()-t, 4)))
