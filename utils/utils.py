@@ -118,6 +118,21 @@ def get_n_pretrade_day(date, n):
     trade_days.sort()
     return datetime.strptime(trade_days[-(n+1)], '%Y%m%d').strftime('%Y-%m-%d')
 
+def get_trade_cal_inter(start_date, end_date):
+    '''
+    返回[start_date, end_date]之间的交易日列表
+    :param start_date: 起始日期，格式YYYY-MM-DD
+    :param end_date: 终止日期，格式YYYY-MM-DD
+    :return: list
+    '''
+    pro = tushare_pro()
+    start_date = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y%m%d')
+    end_date = datetime.strptime(end_date, '%Y-%m-%d').strftime('%Y%m%d')
+    df = pro.trade_cal(start_date=start_date, end_date=end_date, is_open='1')
+    cal_list = pd.to_datetime(df['cal_date'], format='%Y%m%d').dt.strftime('%Y-%m-%d').values.tolist()
+    cal_list.sort()   # 从旧到新排序
+    return cal_list
+
 def get_month_start_end(date_str):
     """
     根据输入日期字符串，返回该月的第一天和最后一天
@@ -167,12 +182,6 @@ def send_email(subject, body):
         print("邮件发送失败:", e)
 
 if __name__ == '__main__':
-    try:
-        1 / 0
-    except Exception:
-        error_info = traceback.format_exc()
-        send_email("qlib_online", '任务执行失败')
-
-
-
+    cal_list = get_trade_cal_inter('2025-09-10', '2025-09-09')
+    print(cal_list)
 
