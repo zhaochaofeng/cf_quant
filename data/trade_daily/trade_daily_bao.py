@@ -205,7 +205,7 @@ def request_from_baostock(codes):
         df = rs.get_data()
         if df.empty:
             continue
-        df = df[df['isST'] == '0']   # BaoStock在停牌日也能请求到数据，volume/amount为'', 需要排除
+        df = df[~(df['amount'] == '')]   # BaoStock在停牌日也能请求到数据，volume/amount为'', 需要排除
         if df.empty:
             continue
         factor = get_factor(code, args.start_date, args.end_date)
