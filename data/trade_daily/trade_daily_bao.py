@@ -184,7 +184,6 @@ def get_stocks():
     print('stocks len: {}'.format(len(codes)))
     return codes
 
-
 def request_from_baostock(codes):
     # 从tushare API获取数据
     print('-' * 100)
@@ -203,12 +202,11 @@ def request_from_baostock(codes):
                                           "{}".format(','.join(fea_bao)),
                                           start_date=args.start_date, end_date=args.end_date,
                                           frequency="d", adjustflag="3")
-        # data_list = []
-        # while (rs.error_code == '0') & rs.next():
-        #     # 获取一条记录，将记录合并在一起
-        #     data_list.append(rs.get_row_data())
-        # df = pd.DataFrame(data_list, columns=rs.fields)
         df = rs.get_data()
+        df = df[~df.isna().any(axis=1)]  # 排除存在值为None的情况
+        if df.empty:
+            continue
+
         factor = get_factor(code, args.start_date, args.end_date)
         if df.empty or factor.empty:
             continue
