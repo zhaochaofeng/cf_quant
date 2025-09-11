@@ -197,18 +197,19 @@ def request_from_baostock(codes):
     for i, code in enumerate(codes):
         if (i + 1) % 100 == 0:
             print('requested num: {}'.format(i + 1))
-
         rs = bs.query_history_k_data_plus(code,
                                           "{}".format(','.join(fea_bao)),
                                           start_date=args.start_date, end_date=args.end_date,
                                           frequency="d", adjustflag="3")
+
         df = rs.get_data()
-        df = df[~df.isna().any(axis=1)]  # 排除存在值为None的情况
         if df.empty:
             continue
-
+        df = df[df['isST'] == '0']   # BaoStock在停牌日也能请求到数据，volume/amount为'', 需要排除
+        if df.empty:
+            continue
         factor = get_factor(code, args.start_date, args.end_date)
-        if df.empty or factor.empty:
+        if factor.empty:
             continue
 
         df.set_index(keys=['code', 'date'], inplace=True)
@@ -256,6 +257,7 @@ def main():
         # 1、股票集合
         codes = get_stocks()
         # codes = codes[0:10]
+        # codes = ['sz.300419']
         # 2、获取交易数据
         data = request_from_baostock(codes)
         print('数据请求耗时：{}s'.format(round(time.time()-t, 4)))
