@@ -56,7 +56,7 @@ def main(date: str=None):
     df_bao = pd.read_sql(sql_bao, engine)
 
     if df_ts.empty or df_bao.empty:
-        send_email('Check: stock_info_ts & stock_info_bao', 'df_ts.empty or df_bao.empty is None！')
+        send_email('Check: stock_info_ts & stock_info_bao', 'df_ts or df_bao is Empty！')
         exit(1)
 
     df_ts = df_ts.set_index(keys=['qlib_code']).sort_index()
