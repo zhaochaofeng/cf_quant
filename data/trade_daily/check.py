@@ -41,8 +41,9 @@ def format_email_info(df_ts, df_bao):
     return res
 
 def main(date: str=None):
+    today = datetime.now().strftime('%Y-%m-%d')
     if date == None:
-        date = datetime.now().strftime('%Y-%m-%d')
+        date = today
     if not is_trade_day(date):
         print('不是交易日！')
         exit(0)
@@ -54,7 +55,7 @@ def main(date: str=None):
         (select {} from trade_daily_ts where day='{}')b
         ON
         a.qlib = b.qlib_code;
-    '''.format(','.join(fields), date, ','.join(fields), date)
+    '''.format(','.join(fields), today, ','.join(fields), date)
 
     sql_bao = '''
         select {} from
@@ -63,7 +64,7 @@ def main(date: str=None):
         (select {} from trade_daily_bao where day='{}')b
         ON
         a.qlib = b.qlib_code;
-    '''.format(','.join(fields), date, ','.join(fields), date)
+    '''.format(','.join(fields), today, ','.join(fields), date)
 
     print('{}\n{}\n{}\n{}'.format('-' * 50, sql_ts, sql_bao, '-' * 50))
     df_ts = pd.read_sql(sql_ts, engine)
