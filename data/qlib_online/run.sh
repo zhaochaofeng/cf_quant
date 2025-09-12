@@ -43,7 +43,7 @@ check_success() {
 get_data_from_mysql(){
   echo "get_data_from_mysql ..."
   mysql -uchaofeng -pZhao_123 -e "select ts_code, day as date, open, close, high, low, vol, amount, adj_factor \
-  from cf_quant.trade_daily2 \
+  from cf_quant.trade_daily_ts \
   where day>='${dt1}' and day<='${dt2}';" > ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
   check_success "从mysql中导出数据"
 }
