@@ -148,6 +148,7 @@ class QLibModelLoader:
             dataset_config['kwargs']['segments']['test'] = (start_date, end_date)
 
         print('{}\n{}\n{}'.format('-'*50, dataset_config['kwargs']['segments'], '-'*50))
+        print('handler end_time: {}'.format(dataset_config['kwargs']['handler']['kwargs']['end_time']))
 
         try:
             # 数据集
