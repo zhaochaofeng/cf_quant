@@ -78,7 +78,7 @@ class UpdateStockData:
             raise Exception('没有股票数据！！！')
         # 获取交易数据
         data = []
-        codes = codes[0:200]
+        # codes = codes[0:200]
         print('-' * 100)
         print('get_tushare_data ...')
         for i, code in enumerate(codes):
@@ -86,7 +86,7 @@ class UpdateStockData:
                 print('{} / {}'.format(i+1, len(codes)))
             tmp = self.get_tushare_data(code)
             if len(tmp) == 0:
-                continues
+                continue
             data.append(tmp)
         print('data len: {}'.format(len(data)))
         # 存入mysql
