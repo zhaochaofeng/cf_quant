@@ -36,6 +36,7 @@ class UpdateStockData:
         symbol, exchange = code.split('.')
         exchange = Exchange.SZSE if exchange == 'SZ' else Exchange.SSE
 
+        # 代码逻辑是左右比区间[start,end]，实际请求为左开右闭(start,end]  ???
         req = HistoryRequest(
             symbol=symbol,
             exchange=exchange,
@@ -83,11 +84,14 @@ class UpdateStockData:
             tmp = self.get_tushare_data(code)
             data.extend(tmp)
         print('data len: {}'.format(len(data)))
+        if len(data) == 0:
+            raise Exception('没有数据！！！')
+        for d in data:
+            print(d.datetime)
         # 存入mysql
         self.download_to_mysql(data)
 
 if __name__ == '__main__':
-    # main('2025-09-01', '2025-09-10')
     t = time.time()
     try:
         fire.Fire(UpdateStockData)

@@ -5,11 +5,11 @@ python_path="/root/anaconda3/envs/vnpy/bin/python"
 echo ${cur_path}
 
 if [ $# -eq 0 ]; then
-    dt1=`date +%Y-%m-%d`
-    dt2=${dt1}
+    dt2=`date +%Y-%m-%d`
+    dt1=`date -d "$dt2 -1 days" +%Y-%m-%d`
   elif [ $# -eq 1 ]; then
-    dt1=$1
-    dt2=${dt1}
+    dt2=$1
+    dt1=`date -d "$dt2 -1 days" +%Y-%m-%d`
   elif [ $# -eq 2 ]; then
     dt1=$1
     dt2=$2
