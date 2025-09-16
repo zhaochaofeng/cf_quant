@@ -10,9 +10,13 @@ from vnpy.trader.object import HistoryRequest
 
 from utils.utils import tushare_pro
 from utils.utils import send_email
+from utils.utils import is_trade_day
 
 class UpdateStockData:
     def __init__(self, start_date, end_date):
+        if not is_trade_day(start_date):
+            print('{} 不是交易日！！！'.format(start_date))
+            exit(0)
         self.start_date = start_date
         self.end_date = end_date
         self.pro = tushare_pro()
