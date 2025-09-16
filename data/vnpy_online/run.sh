@@ -20,7 +20,7 @@ fi
 
 echo "时间区间为：["$dt1" - "$dt2"]"
 
-${python_path} ${cur_path}/process.py --start_date ${dt1} --end_date ${dt2}
+${python_path} ${cur_path}/process.py main --start_date ${dt1} --end_date ${dt2}
 
 # 判断是否执行成功
 if [ $? -eq 0 ]; then

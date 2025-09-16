@@ -1,6 +1,5 @@
 import time
 import fire
-import copy
 import traceback
 import pandas as pd
 from datetime import datetime
@@ -52,11 +51,8 @@ class UpdateStockData:
     def download_to_mysql(self, data):
         print('-' * 100)
         print('download_to_mysql ...')
-        for i, d in enumerate(data):
-            if (i+1) % 100 == 0:
-                print('{} / {}'.format(i+1, len(data)))
-            # d: List[BarData] 只能是单只股票
-            result = self.database.save_bar_data(d)
+        # 存入mysql
+        self.database.save_bar_data(data)
 
     def delete_mysql_data(self, code):
         print('-' * 100)
@@ -78,21 +74,20 @@ class UpdateStockData:
             raise Exception('没有股票数据！！！')
         # 获取交易数据
         data = []
-        # codes = codes[0:200]
+        codes = codes[0:10]
         print('-' * 100)
         print('get_tushare_data ...')
         for i, code in enumerate(codes):
             if (i+1) % 100 == 0:
                 print('{} / {}'.format(i+1, len(codes)))
             tmp = self.get_tushare_data(code)
-            if len(tmp) == 0:
-                continue
-            data.append(tmp)
+            data.extend(tmp)
         print('data len: {}'.format(len(data)))
         # 存入mysql
         self.download_to_mysql(data)
 
 if __name__ == '__main__':
+    # main('2025-09-01', '2025-09-10')
     t = time.time()
     try:
         fire.Fire(UpdateStockData)
