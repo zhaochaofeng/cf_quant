@@ -53,7 +53,8 @@ class UpdateStockData:
         print('-' * 100)
         print('download_to_mysql ...')
         # 存入mysql
-        self.database.save_bar_data(data)
+        for d in data:
+            res = self.database.save_bar_data(d)
 
     def delete_mysql_data(self, code):
         print('-' * 100)
@@ -75,19 +76,20 @@ class UpdateStockData:
             raise Exception('没有股票数据！！！')
         # 获取交易数据
         data = []
-        codes = codes[0:10]
+        # codes = codes[0:10]
         print('-' * 100)
         print('get_tushare_data ...')
         for i, code in enumerate(codes):
+            time.sleep(0.075)
             if (i+1) % 100 == 0:
                 print('{} / {}'.format(i+1, len(codes)))
             tmp = self.get_tushare_data(code)
-            data.extend(tmp)
+            if not tmp:
+                continue
+            data.append(tmp)
         print('data len: {}'.format(len(data)))
         if len(data) == 0:
             raise Exception('没有数据！！！')
-        for d in data:
-            print(d.datetime)
         # 存入mysql
         self.download_to_mysql(data)
 
