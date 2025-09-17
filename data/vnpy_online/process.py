@@ -14,7 +14,7 @@ from utils.utils import is_trade_day
 
 class UpdateStockData:
     def __init__(self, start_date, end_date):
-        if not is_trade_day(start_date):
+        if not is_trade_day(end_date):
             print('{} 不是交易日！！！'.format(end_date))
             exit(0)
         self.start_date = start_date
@@ -57,7 +57,9 @@ class UpdateStockData:
         print('-' * 100)
         print('download_to_mysql ...')
         # 存入mysql
-        for d in data:
+        for i, d in enumerate(data):
+            if (i+1) % 100 == 0:
+                print('{} / {}'.format(i+1, len(data)))
             res = self.database.save_bar_data(d)
 
     def delete_mysql_data(self, code):
