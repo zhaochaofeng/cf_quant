@@ -4,6 +4,7 @@
 import time
 import fire
 import pandas as pd
+from typing import Union
 import qlib
 from qlib.data import D
 from qlib.workflow import R
@@ -28,12 +29,18 @@ class LightGBMAlpha158:
         test_wid=100,       # 测试集时间宽度
         valid_wid=100,      # 验证集时间宽度
         train_wid=500,      # 训练集时间宽度
-        horizon=None   # 预测时间跨度
+        horizon=None        # 预测时间跨度
     ):
         if horizon is None:
-            horizon = [1, 5, 10]
+            horizon = [1]
         elif isinstance(horizon, str):
             horizon = [int(n) for n in horizon.split(',')]
+        elif isinstance(horizon, Union[tuple, list]):
+            horizon = [int(n) for n in horizon]
+        elif isinstance(horizon, int):
+            horizon = [horizon]
+        else:
+            raise ValueError('horizon type error。{}:{}'.format(horizon, type(horizon)))
 
         self.market = market
         self.benchmark = benchmark
@@ -157,8 +164,7 @@ class LightGBMAlpha158:
             def set_horizon(self, t: dict, hr: int):
                 # 根据Alpha158默认label的形式扩展到多周期：
                 # 默认1日: Ref($close, -2)/Ref($close, -1) - 1
-                # 周期hr: Ref($close, -(hr+1))/Ref($close, -1) - 1
-                label_expr = f"Ref($close, -{hr+1})/Ref($close, -1) - 1"
+                label_expr = f"Ref($close, -{hr})/$close - 1"
                 label_name = f"LABEL{hr}"
                 # 写入handler的label配置
                 t["dataset"]["kwargs"]["handler"]["kwargs"]["label"] = ([label_expr], [label_name])
@@ -223,6 +229,7 @@ class LightGBMAlpha158:
                 model.fit(dataset)
                 R.save_objects(**{'params.pkl': model})
                 R.save_objects(**{'task': tsk})
+                R.save_objects(**{'dataset': dataset})
 
                 recorder = R.get_recorder()
                 sr = SignalRecord(model, dataset, recorder)
