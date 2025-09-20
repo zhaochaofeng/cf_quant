@@ -118,6 +118,20 @@ def get_n_pretrade_day(date, n):
     trade_days.sort()
     return datetime.strptime(trade_days[-(n+1)], '%Y%m%d').strftime('%Y-%m-%d')
 
+def get_n_nexttrade_day(date, n):
+    ''' date 后n个交易日
+        若date为非交易日，则会将date向后移动到最近的一个交易日
+    '''
+    pro = tushare_pro()
+    trade_days = pro.trade_cal(
+        exchange='',
+        start_date=date.replace('-', ''),
+        end_date=(datetime.strptime(date, '%Y-%m-%d') + timedelta(days=(n+1000))).strftime('%Y%m%d'),
+        is_open='1')
+    trade_days = trade_days['cal_date'].tolist()
+    trade_days.sort()
+    return datetime.strptime(trade_days[n], '%Y%m%d').strftime('%Y-%m-%d')
+
 def get_trade_cal_inter(start_date, end_date):
     '''
     返回[start_date, end_date]之间的交易日列表
@@ -182,6 +196,5 @@ def send_email(subject, body):
         print("邮件发送失败:", e)
 
 if __name__ == '__main__':
-    cal_list = get_trade_cal_inter('2025-09-10', '2025-09-09')
-    print(cal_list)
+    print(get_n_nexttrade_day('2025-09-20', 1))
 
