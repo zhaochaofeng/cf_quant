@@ -108,6 +108,7 @@ class LightGBMAlpha158:
             "fit_start_time": train_inter[0],
             "fit_end_time": train_inter[1],
             "instruments": instruments,
+            "drop_raw": True
         }
 
         # 模型和数据的配置参数
@@ -193,6 +194,8 @@ class LightGBMAlpha158:
             R.save_objects(**{'params.pkl': model})
             # 保存task配置信息
             R.save_objects(**{'task': task})
+            # 保存DatesetH对象
+            R.save_objects(**{'dataset': dataset})
 
             recorder = R.get_recorder()
             # 预测信号
@@ -211,8 +214,12 @@ if __name__ == '__main__':
     try:
         t = time.time()
         fire.Fire(LightGBMAlpha158)
-        print('耗时：{}'.format(round(time.time()-t, 4)))
+        print('耗时：{}s'.format(round(time.time()-t, 4)))
     except Exception as e:
         print('error: {}'.format(e))
         error_info = traceback.format_exc()
         send_email('Strategy: lightgbm_alpha158', error_info)
+
+        '''
+        python lightgbm_alpha158.py main --start_wid 30 --train_wid 100
+        '''
