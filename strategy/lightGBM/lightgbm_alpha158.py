@@ -82,9 +82,9 @@ class LightGBMAlpha158:
         now = datetime.now().strftime('%Y-%m-%d')
         test_end = get_n_pretrade_day(now, self.start_wid)
         test_start = get_n_pretrade_day(test_end, self.test_wid)
-        valid_end = get_n_pretrade_day(test_start, 1)
+        valid_end = get_n_pretrade_day(test_start, 3)     # 防止train最后日期标签计算(Ref($close,-2)/Ref($close, -1)-1)造成的数据泄漏
         valid_start = get_n_pretrade_day(valid_end, self.valid_wid)
-        train_end = get_n_pretrade_day(valid_start, 1)
+        train_end = get_n_pretrade_day(valid_start, 3)    # 防止valid与test之间的数据泄漏
         train_start = get_n_pretrade_day(train_end, self.train_wid)
 
         train_inter = (train_start, train_end)
