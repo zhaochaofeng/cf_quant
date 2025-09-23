@@ -11,13 +11,28 @@ from qlib.workflow import R
 from qlib.data.filter import NameDFilter
 from qlib.utils import flatten_dict
 from qlib.utils import init_instance_by_config
+from qlib.data.dataset import DatasetH, DataHandler
+from qlib.data.dataset.loader import DataLoader
+from qlib.data.dataset.handler import DataHandlerLP
+from qlib.workflow.task.gen import MultiHorizonGenBase
 from qlib.workflow.record_temp import SignalRecord, PortAnaRecord, SigAnaRecord
+from qlib.utils.data import zscore
 from datetime import datetime, timedelta
 from utils.utils import sql_engine
 from utils.utils import get_n_pretrade_day
 from utils.utils import send_email
 import traceback
-from qlib.workflow.task.gen import MultiHorizonGenBase
+
+
+class Alpha158MultiHorizonGen(MultiHorizonGenBase):
+    def set_horizon(self, t: dict, hr: int):
+        t.setdefault("extra", {})["horizon"] = hr
+
+class CustomDataLoader(DataLoader):
+    def __init__(self, data):
+        self.data = data
+    def load(self, instruments, start_time=None, end_time=None):
+        return self.data
 
 class LightGBMAlpha158:
     def __init__(self,
@@ -112,6 +127,24 @@ class LightGBMAlpha158:
 
         return train_inter, valid_inter, test_inter
 
+    def dataframe_to_dataseth(self, df, segments):
+        cus_dataloader = CustomDataLoader(df)
+        data_handler = DataHandlerLP(
+            data_loader=cus_dataloader
+        )
+        return DatasetH(handler=data_handler, segments=segments)
+
+    def get_label(self, start_time, end_time, hr, instruments):
+        col_name = f'LABEL{hr}'
+        fields = [f"Ref($close, -({hr}+1)) / Ref($close, -1) - 1"]
+        df = D.features(instruments=instruments, fields=fields, start_time=start_time, end_time=end_time)
+        df.columns = pd.MultiIndex.from_tuples([('label', col_name)])
+        df.dropna(inplace=True, axis=0)
+        df = df.groupby('datetime', group_keys=False).apply(zscore)
+        df = df.swaplevel()   # 索引转化为<datetime, instrument>
+        df.sort_index(inplace=True)
+        return df
+
     def main(self):
         train_inter, valid_inter, test_inter = self.date_interval()
 
@@ -123,6 +156,8 @@ class LightGBMAlpha158:
             "fit_start_time": train_inter[0],
             "fit_end_time": train_inter[1],
             "instruments": instruments,
+            "drop_raw": True,
+            "learn_processors": []
         }
 
         # 基础任务模板（标签将由MultiHorizon生成器按周期覆盖）
@@ -159,33 +194,35 @@ class LightGBMAlpha158:
                 },
             },
         }
+        model = init_instance_by_config(task["model"])
+        dataset = init_instance_by_config(task["dataset"])
+        features = pd.concat(dataset.prepare(segments=['train', 'valid', 'test'], col_set=['feature'], data_key='learn'), axis=0)
+        # labels = pd.concat(dataset.prepare(segments=['train', 'valid', 'test'], col_set=['label'], data_key='learn'), axis=0)
 
-        class Alpha158MultiHorizonGen(MultiHorizonGenBase):
-            def set_horizon(self, t: dict, hr: int):
-                # 根据Alpha158默认label的形式扩展到多周期：
-                # 默认1日: Ref($close, -2)/Ref($close, -1) - 1
-                label_expr = f"Ref($close, -{hr})/$close - 1"
-                label_name = f"LABEL{hr}"
-                # 写入handler的label配置
-                t["dataset"]["kwargs"]["handler"]["kwargs"]["label"] = ([label_expr], [label_name])
-                # 标注任务的周期，便于下游命名
-                t.setdefault("extra", {})["horizon"] = hr
-
-        # 生成多周期任务（例如1/5/10天）
         mh_gen = Alpha158MultiHorizonGen(horizon=self.horizon, label_leak_n=2)
         tasks = mh_gen.generate(task)
 
+        assert len(tasks) == len(self.horizon)
         # 逐周期训练与回测
-        for tsk in tasks:
-            hr = tsk.get("extra", {}).get("horizon", 0)
+        for i, hr in enumerate(self.horizon):
+
             print('{}\nHorizon: {}'.format('-' * 100, hr))
 
-            # 初始化模型与数据
-            model = init_instance_by_config(tsk["model"])
-            dataset = init_instance_by_config(tsk["dataset"])
+            # label_col = "LABEL{}".format(hr)
+            # label = labels.loc[:, (slice(None), label_col)]
+            label = self.get_label(task['dataset']['kwargs']['handler']['kwargs']['start_time'],
+                                   task['dataset']['kwargs']['handler']['kwargs']['end_time'],
+                                   hr, instruments)
+
+            curr_data = pd.concat([features, label], axis=1, join='inner')
+
+            segs = tasks[i]["dataset"]["kwargs"]["segments"]
+            print("segments: {}".format(segs))
+            dataset = self.dataframe_to_dataseth(curr_data, segs)
+            print('dataset: {}'.format('-' * 100))
+            print(dataset.prepare(col_set=['feature', 'label'], segments='train'))
 
             # 使用生成器截断后的测试区间，保证与标签一致
-            segs = tsk["dataset"]["kwargs"]["segments"]
             bt_start, bt_end = segs["test"][0], segs["test"][1]
 
             port_analysis_config = {
@@ -225,10 +262,10 @@ class LightGBMAlpha158:
 
             exp_name = f"{self.experiment_name}_h{hr}"
             with R.start(experiment_name=exp_name):
-                R.log_params(**flatten_dict(tsk))
+                R.log_params(**flatten_dict(task))
                 model.fit(dataset)
                 R.save_objects(**{'params.pkl': model})
-                R.save_objects(**{'task': tsk})
+                R.save_objects(**{'task': task})
                 R.save_objects(**{'dataset': dataset})
 
                 recorder = R.get_recorder()
@@ -252,5 +289,5 @@ if __name__ == '__main__':
         send_email('Strategy: lightgbm_alpha158', error_info)
 
     '''
-        python lightgbm_alpha158_multi_horizon.py main --start_wid 2 --train_wid 500 --horizon 1,2,3
+        python lightgbm_alpha158_multi_horizon.py main --start_wid 2 --train_wid 100 --horizon 1,2,3
     '''
