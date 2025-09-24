@@ -174,5 +174,5 @@ if __name__ == '__main__':
     fire.Fire(Predict)
     print('耗时：{}s'.format(round(time.time() - t, 4)))
     '''
-        python predect.py main --start_date 2025-09-19 --end_date 2025-09-19 --horizon 1,2
+        python predict.py main --start_date 2025-09-19 --end_date 2025-09-19 --horizon 1,2
     '''
