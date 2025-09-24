@@ -32,7 +32,7 @@ ${python_path} ${cur_path}/lightgbm_alpha158_multi_horizon.py main \
 --start_wid ${start_wid} \
 --train_wid 500 \
 --uri ${uri} \
---horizon 1,2,3,4,5,6,7,8,9,10
+--horizon 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30
 
 if [ $? -eq 0 ]; then
   echo "执行成功！"
