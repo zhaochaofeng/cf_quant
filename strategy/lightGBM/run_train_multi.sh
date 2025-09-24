@@ -3,6 +3,8 @@ source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
 cf_quant_path="/root/cf_quant"
+uri='/data/cf_quant/mlruns'
+
 dt=`date +%Y-%m-%d`
 
 echo ${cur_path}
@@ -26,7 +28,11 @@ fi
 
 echo 'start_wid: '${start_wid}
 
-${python_path} ${cur_path}/lightgbm_alpha158_multi_horizon.py main --start_wid ${start_wid} --train_wid 500 --horizon 1,2,3,4,5,6,7,8,9,10
+${python_path} ${cur_path}/lightgbm_alpha158_multi_horizon.py main \
+--start_wid ${start_wid} \
+--train_wid 500 \
+--uri ${uri} \
+--horizon 1,2,3,4,5,6,7,8,9,10
 
 if [ $? -eq 0 ]; then
   echo "执行成功！"

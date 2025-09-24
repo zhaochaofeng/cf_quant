@@ -39,6 +39,7 @@ class LightGBMAlpha158:
         market='all',
         benchmark="SH000300",
         provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+        uri=None,
         experiment_name='lightGBM_Alpha158',
         start_wid=1,        # test_end 向前移动的天数。至少前移1天，保证回测时不出错
         test_wid=100,       # 测试集时间宽度
@@ -57,6 +58,9 @@ class LightGBMAlpha158:
         else:
             raise ValueError('horizon type error。{}:{}'.format(horizon, type(horizon)))
 
+        if uri is None:
+            uri = './mlruns'
+        self.uri = uri
         self.market = market
         self.benchmark = benchmark
         self.experiment_name = experiment_name
@@ -256,6 +260,7 @@ class LightGBMAlpha158:
                         "dataset": dataset_infer,
                         "topk": 20,
                         "n_drop": 2,
+                        "hold_thresh": hr
                     },
                 },
                 "backtest": {
@@ -275,7 +280,7 @@ class LightGBMAlpha158:
             }
 
             exp_name = f"{self.experiment_name}_h{hr}"
-            with R.start(experiment_name=exp_name):
+            with R.start(experiment_name=exp_name, uri=self.uri):
                 R.log_params(**flatten_dict(task))
                 model.fit(dataset_learn)
                 R.save_objects(**{'params.pkl': model})
