@@ -193,7 +193,7 @@ def request_from_baostock(codes):
     # feas = list(fea_1.values())
     fea_bao = list(fea_1.values())
     fea_bao.remove('adj_factor')
-    # 回刷历史数据，按单个code请求
+
     for i, code in enumerate(codes):
         if (i + 1) % 100 == 0:
             print('requested num: {}'.format(i + 1))
@@ -255,9 +255,9 @@ def main():
     try:
         t = time.time()
         # 1、股票集合
-        codes = get_stocks()
+        # codes = get_stocks()
         # codes = codes[0:10]
-        # codes = ['sz.300419']
+        codes = ['sh.603418']
         # 2、获取交易数据
         data = request_from_baostock(codes)
         print('数据请求耗时：{}s'.format(round(time.time()-t, 4)))
@@ -275,8 +275,8 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start_date', type=str, default='2025-09-09')
-    parser.add_argument('--end_date', type=str, default='2025-09-09')
+    parser.add_argument('--start_date', type=str, default='2025-09-23')
+    parser.add_argument('--end_date', type=str, default='2025-09-23')
     args = parser.parse_args()
     print(args)
     if not is_trade_day(args.end_date):
