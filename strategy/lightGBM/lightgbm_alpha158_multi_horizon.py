@@ -1,6 +1,7 @@
 '''
     功能：lightGBM_Alpha158 多周期策略的模型训练
 '''
+import copy
 import time
 import fire
 import pandas as pd
@@ -11,7 +12,7 @@ from qlib.workflow import R
 from qlib.data.filter import NameDFilter
 from qlib.utils import flatten_dict
 from qlib.utils import init_instance_by_config
-from qlib.data.dataset import DatasetH, DataHandler
+from qlib.data.dataset import DatasetH
 from qlib.data.dataset.loader import DataLoader
 from qlib.data.dataset.handler import DataHandlerLP
 from qlib.workflow.task.gen import MultiHorizonGenBase
@@ -22,7 +23,6 @@ from utils.utils import sql_engine
 from utils.utils import get_n_pretrade_day
 from utils.utils import send_email
 import traceback
-
 
 class Alpha158MultiHorizonGen(MultiHorizonGenBase):
     def set_horizon(self, t: dict, hr: int):
@@ -139,15 +139,19 @@ class LightGBMAlpha158:
         fields = [f"Ref($close, -({hr}+1)) / Ref($close, -1) - 1"]
         df = D.features(instruments=instruments, fields=fields, start_time=start_time, end_time=end_time)
         df.columns = pd.MultiIndex.from_tuples([('label', col_name)])
-        df.dropna(inplace=True, axis=0)
-        df = df.groupby('datetime', group_keys=False).apply(zscore)
-        df = df.swaplevel()   # 索引转化为<datetime, instrument>
+
+        df_learn = copy.deepcopy(df)   # 用于训练(learn)
+        df_learn.dropna(inplace=True, axis=0)
+        df_learn = df_learn.groupby('datetime', group_keys=False).apply(zscore)
+        df_learn = df_learn.swaplevel()   # 索引转化为<datetime, instrument>
+        df_learn.sort_index(inplace=True)
+
+        df = df.swaplevel()     # 用于推断（infer）
         df.sort_index(inplace=True)
-        return df
+        return df_learn, df
 
     def main(self):
         train_inter, valid_inter, test_inter = self.date_interval()
-
         instruments = self.choose_stocks(train_inter[0], test_inter[1])
 
         data_handler_config = {
@@ -156,7 +160,7 @@ class LightGBMAlpha158:
             "fit_start_time": train_inter[0],
             "fit_end_time": train_inter[1],
             "instruments": instruments,
-            "drop_raw": True,
+            # "drop_raw": True,
             "learn_processors": []
         }
 
@@ -194,10 +198,11 @@ class LightGBMAlpha158:
                 },
             },
         }
-        model = init_instance_by_config(task["model"])
+
         dataset = init_instance_by_config(task["dataset"])
-        features = pd.concat(dataset.prepare(segments=['train', 'valid', 'test'], col_set=['feature'], data_key='learn'), axis=0)
-        # labels = pd.concat(dataset.prepare(segments=['train', 'valid', 'test'], col_set=['label'], data_key='learn'), axis=0)
+        # dataset_config = copy.deepcopy(dataset)  # 复制实例，此时没有处理实际数据
+        features_learn = pd.concat(dataset.prepare(segments=['train', 'valid', 'test'], col_set=['feature'], data_key='learn'), axis=0)
+        features_infer = pd.concat(dataset.prepare(segments=['train', 'valid', 'test'], col_set=['feature'], data_key='infer'), axis=0)
 
         mh_gen = Alpha158MultiHorizonGen(horizon=self.horizon, label_leak_n=2)
         tasks = mh_gen.generate(task)
@@ -205,22 +210,31 @@ class LightGBMAlpha158:
         assert len(tasks) == len(self.horizon)
         # 逐周期训练与回测
         for i, hr in enumerate(self.horizon):
-
             print('{}\nHorizon: {}'.format('-' * 100, hr))
+            model = init_instance_by_config(task["model"])
 
             # label_col = "LABEL{}".format(hr)
             # label = labels.loc[:, (slice(None), label_col)]
-            label = self.get_label(task['dataset']['kwargs']['handler']['kwargs']['start_time'],
+            label_learn, label_infer = self.get_label(task['dataset']['kwargs']['handler']['kwargs']['start_time'],
                                    task['dataset']['kwargs']['handler']['kwargs']['end_time'],
                                    hr, instruments)
 
-            curr_data = pd.concat([features, label], axis=1, join='inner')
+            data_learn = pd.concat([features_learn, label_learn], axis=1, join='inner')
+            data_infer = pd.concat([features_infer, label_infer], axis=1, join='inner')
 
             segs = tasks[i]["dataset"]["kwargs"]["segments"]
             print("segments: {}".format(segs))
-            dataset = self.dataframe_to_dataseth(curr_data, segs)
-            print('dataset: {}'.format('-' * 100))
-            print(dataset.prepare(col_set=['feature', 'label'], segments='train'))
+            dataset_learn = self.dataframe_to_dataseth(data_learn, segs)
+            dataset_infer = self.dataframe_to_dataseth(data_infer, segs)
+
+            print('dataset_learn: {}'.format('-' * 100))
+            print("features_learn shape: {}".format(features_learn.shape))
+            print("label_learn shape: {}".format(label_learn.shape))
+            print(dataset_learn.prepare(col_set=['feature', 'label'], segments='train'))
+            print('dataset_infer: {}'.format('-' * 100))
+            print("features_infer shape: {}".format(features_infer.shape))
+            print("label_infer shape: {}".format(label_infer.shape))
+            print(dataset_infer.prepare(col_set=['feature', 'label'], segments='train'))
 
             # 使用生成器截断后的测试区间，保证与标签一致
             bt_start, bt_end = segs["test"][0], segs["test"][1]
@@ -239,7 +253,7 @@ class LightGBMAlpha158:
                     "module_path": "qlib.contrib.strategy.signal_strategy",
                     "kwargs": {
                         "model": model,
-                        "dataset": dataset,
+                        "dataset": dataset_infer,
                         "topk": 20,
                         "n_drop": 2,
                     },
@@ -263,13 +277,13 @@ class LightGBMAlpha158:
             exp_name = f"{self.experiment_name}_h{hr}"
             with R.start(experiment_name=exp_name):
                 R.log_params(**flatten_dict(task))
-                model.fit(dataset)
+                model.fit(dataset_learn)
                 R.save_objects(**{'params.pkl': model})
                 R.save_objects(**{'task': task})
                 R.save_objects(**{'dataset': dataset})
 
                 recorder = R.get_recorder()
-                sr = SignalRecord(model, dataset, recorder)
+                sr = SignalRecord(model, dataset_infer, recorder)
                 sr.generate()
 
                 sar = SigAnaRecord(recorder, ana_long_short=True)
