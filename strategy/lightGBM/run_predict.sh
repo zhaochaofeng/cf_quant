@@ -3,6 +3,7 @@ source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
 cf_quant_path="/root/cf_quant"
+uri='/data/cf_quant/mlruns'
 
 if [ $# -eq 0 ];then
     dt=`date +%Y-%m-%d`
@@ -22,7 +23,11 @@ if [ $? -eq 5 ];then
   exit 0
 fi
 
-${python_path} ${cur_path}/predict.py main --start_date ${dt} --end_date ${dt} --horizon 1,2,3,4,5,6,7,8,9,10
+${python_path} ${cur_path}/predict.py main \
+--start_date ${dt} \
+--end_date ${dt} \
+--uri ${uri} \
+--horizon 1,2,3,4,5,6,7,8,9,10
 
 if [ $? -eq 0 ]; then
   echo "执行成功！"

@@ -10,6 +10,8 @@ from qlib.data.dataset.handler import DataHandlerLP
 from qlib.workflow.expm import MLflowExpManager
 from utils.utils import get_n_nexttrade_day
 from utils.utils import mysql_connect
+from utils.utils import send_email
+import traceback
 
 class Predict:
     def __init__(
@@ -131,7 +133,7 @@ class Predict:
             for c in columns:
                 tmp[c] = row[c]
             data.append(tmp)
-        print('data len: '.format(len(data)))
+        print('data len: {}'.format(len(data)))
 
         conn = mysql_connect()
         columns_format = ["%({})s".format(c) for c in columns]
@@ -153,15 +155,19 @@ class Predict:
         print('写入完成!!!')
 
     def main(self):
-        # 初始化
-        self.initialize()
-        # 预测
-        self.predict(self.start_date, self.end_date)
-        print(self.preds)
-        # 合并预测结果
-        merged = self.merge_preds()
-        # 写入mysql
-        self.write_to_mysql(merged)
+        try:
+            # 初始化
+            self.initialize()
+            # 预测
+            self.predict(self.start_date, self.end_date)
+            print(self.preds)
+            # 合并预测结果
+            merged = self.merge_preds()
+            # 写入mysql
+            self.write_to_mysql(merged)
+        except Exception as e:
+            erro_info = traceback.format_exc()
+            send_email('Strategy:lightGBM:predict', erro_info)
 
 if __name__ == '__main__':
     t = time.time()
