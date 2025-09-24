@@ -108,7 +108,7 @@ class LightGBMAlpha158:
             "fit_start_time": train_inter[0],
             "fit_end_time": train_inter[1],
             "instruments": instruments,
-            "drop_raw": True
+            # "drop_raw": True
         }
 
         # 模型和数据的配置参数
