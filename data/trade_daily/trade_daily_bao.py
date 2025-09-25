@@ -255,9 +255,9 @@ def main():
     try:
         t = time.time()
         # 1、股票集合
-        # codes = get_stocks()
+        codes = get_stocks()
         # codes = codes[0:10]
-        codes = ['sh.603418']
+        # codes = ['sh.603418']
         # 2、获取交易数据
         data = request_from_baostock(codes)
         print('数据请求耗时：{}s'.format(round(time.time()-t, 4)))
