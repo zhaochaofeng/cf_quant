@@ -75,7 +75,7 @@ update(){
     if [ -d "${provider_uri_bak}" ]; then
     rm -rf "${provider_uri_bak}"
   fi
-
+  rm ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
   mv ${provider_uri} ${provider_uri_bak}
   mv ${provider_uri_tmp} ${provider_uri}
   check_success "替换历史数据"
