@@ -99,7 +99,8 @@ def request_from_tushare(ts_codes):
         print('factor shape: {}'.format(factor.shape))
         print('merged shape: {}'.format(merged.shape))
         if merged.shape[0] != df.shape[0]:
-            raise Exception('merged.shape[0]({}) < df.shape[0]({})'.format(merged.shape[0], df.shape[0]))
+            diff = list(set(df.index.get_level_values(0).values) - set(merged.index.get_level_values(0).values))
+            raise Exception('merged.shape[0]({}) < df.shape[0]({}), diff: {}'.format(merged.shape[0], df.shape[0], ','.join(diff)))
 
         merged.reset_index(inplace=True)
         for index, row in merged.iterrows():
