@@ -73,7 +73,7 @@ if __name__ == '__main__':
 
     # executemany
     # data_list = [{'day': '2025-09-03'}, {'day': '2025-09-04'}]
-    # sql = ''' insert into test (day) values (%(day)s)'''.format(data_list)
+    # sql = ''' insert into test (day) values (%(day)s)'''
     # db.executemany(sql, data_list)
 
 
