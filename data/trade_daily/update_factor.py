@@ -11,6 +11,7 @@ from utils.utils import tushare_pro
 from utils.utils import get_trade_cal_inter
 from utils.utils import send_email
 from utils.utils import mysql_connect
+from utils.utils import is_trade_day
 
 engine = sql_engine()
 pro = tushare_pro()
@@ -69,6 +70,10 @@ def main(start_date, end_date, source='ts'):
     '''
     :param source: data source. ['ts', 'bao']
     '''
+    if not is_trade_day(end_date):
+        print('非交易日，退出！！！')
+        exit(0)
+
     try:
         if source == 'ts':
             factor_old, factor_new = get_factor_ts(start_date, end_date)
