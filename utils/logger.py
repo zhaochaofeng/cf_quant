@@ -50,7 +50,7 @@ class LoggerFactory:
 
         # 默认格式
         if fmt is None:
-            fmt = "%(asctime)s : %(name)s : %(levelname)s : %(filename)s:%(lineno)d : %(message)s"
+            fmt = "%(asctime)s : %(name)s:%(lineno)d : %(levelname)s  : %(message)s"
 
         formatter = logging.Formatter(fmt)
 
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         level="DEBUG",
         max_bytes=2,   # 2B就轮转，测试
         backup_count=3,
-        fmt="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+        fmt="%(asctime)s : %(name)s : %(levelname)s : [%(filename)s:%(lineno)d] : %(message)s"
     )
     logger.info("Hello, World!")
     logger.info('If delay is true')
