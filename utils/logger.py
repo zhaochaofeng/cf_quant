@@ -50,7 +50,7 @@ class LoggerFactory:
 
         # 默认格式
         if fmt is None:
-            fmt = "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+            fmt = "%(asctime)s : %(name)s : %(levelname)s : %(filename)s:%(lineno)d : %(message)s"
 
         formatter = logging.Formatter(fmt)
 
