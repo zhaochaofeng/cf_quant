@@ -4,7 +4,9 @@
 
 import time
 import fire
+import traceback
 from utils import TSDataProcesssor
+from utils import send_email
 
 feas = {
     'ts_code': 'ts_code',
@@ -30,22 +32,26 @@ feas = {
 
 
 def main(start_date: str, end_date: str, use_trade_day: bool = True):
-    t = time.time()
-    process = TSDataProcesssor(start_date, end_date,
-                               api_func='daily_basic',
-                               feas=feas,
-                               table_name='valuation_ts',
-                               use_trade_day=use_trade_day,
-                               log_file='logs/{}.log'.format(end_date),
-                               now_date=None)
-    # 获取股票集合
-    stocks = process.get_stocks()
-    # 处理数据
-    data = process.process_data(stocks)
-    print(data[0:2])
-    # 写入数据库
-    process.write_to_mysql(data)
-    print('耗时： {}s'.format(round(time.time()-t, 4)))
+    try:
+        t = time.time()
+        process = TSDataProcesssor(start_date, end_date,
+                                   api_func='daily_basic',
+                                   feas=feas,
+                                   table_name='valuation_ts',
+                                   use_trade_day=use_trade_day,
+                                   log_file='logs/{}.log'.format(end_date),
+                                   now_date=None)
+        # 获取股票集合
+        stocks = process.get_stocks()
+        # 处理数据
+        data = process.process_data(stocks)
+        print(data[0:2])
+        # 写入数据库
+        process.write_to_mysql(data)
+        print('耗时： {}s'.format(round(time.time()-t, 4)))
+    except Exception as e:
+        error_info = traceback.format_exc()
+        send_email('Data: valuation_ts', error_info)
 
 if __name__ == '__main__':
     fire.Fire(main)
