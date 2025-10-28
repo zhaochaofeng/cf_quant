@@ -1,7 +1,7 @@
 '''
     从 tushare 导入数据到 MySQL 模版类
 '''
-
+import time
 import pandas as pd
 from typing import Optional
 from datetime import datetime
@@ -137,8 +137,12 @@ class TSDataProcesssor:
                     self.logger.error(error_msg)
                     raise Exception(error_msg)
                 batch_size = min(1000, 6000//n_days)    # 最多一次请求1000只股票，6000条数据
+                self.logger.info('batch_size: {}, loop_n: {}'.format(
+                    batch_size,
+                    len(stocks)//batch_size + (1 if len(stocks) % batch_size > 0 else 0)))
 
                 for k in range(0, len(stocks), batch_size):
+                    time.sleep(60 / 700)  # 一分钟最多访问700次
                     tmp = self.fetch_data_from_ts(
                         ts_code=','.join(stocks[k: k+batch_size]),
                         start_date=start_date,
