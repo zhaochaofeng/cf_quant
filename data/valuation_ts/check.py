@@ -23,7 +23,7 @@ def main(start_date: str, end_date: str):
             start_date=start_date,
             end_date=end_date,
             ts_api_func='daily_basic',
-            log_file='logs/{}.log'.format(end_date)
+            log_file='logs/{}_check.log'.format(end_date)
         )
 
         df_mysql = check.fetch_data_from_mysql()
