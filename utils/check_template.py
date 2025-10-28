@@ -162,7 +162,7 @@ if __name__ == '__main__':
         start_date='2025-10-23',
         end_date='2025-10-23',
         ts_api_func='daily_basic',
-        log_file='logs/test.log',
+        log_file='log/test.log',
     )
 
     df_mysql = check.fetch_data_from_mysql()

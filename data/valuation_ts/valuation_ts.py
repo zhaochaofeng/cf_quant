@@ -42,7 +42,7 @@ def main(start_date: str,
                                    feas=feas,
                                    table_name='valuation_ts',
                                    use_trade_day=use_trade_day,
-                                   log_file='logs/{}.log'.format(end_date),
+                                   log_file='log/{}.log'.format(end_date),
                                    now_date=now_date)
         # 获取股票集合
         stocks = process.get_stocks()
