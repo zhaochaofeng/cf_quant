@@ -31,7 +31,10 @@ feas = {
 }
 
 
-def main(start_date: str, end_date: str, use_trade_day: bool = True):
+def main(start_date: str,
+         end_date: str,
+         use_trade_day: bool = True,
+         now_date: str = None):
     try:
         t = time.time()
         process = TSDataProcesssor(start_date, end_date,
@@ -40,7 +43,7 @@ def main(start_date: str, end_date: str, use_trade_day: bool = True):
                                    table_name='valuation_ts',
                                    use_trade_day=use_trade_day,
                                    log_file='logs/{}.log'.format(end_date),
-                                   now_date=None)
+                                   now_date=now_date)
         # 获取股票集合
         stocks = process.get_stocks()
         # 处理数据
