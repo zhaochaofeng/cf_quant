@@ -6,7 +6,7 @@ import time
 import pandas as pd
 from typing import Optional
 from .utils import sql_engine, tushare_pro
-from .utils import get_trade_cal_inter
+from .utils import get_trade_cal_inter, is_trade_day
 from .logger import LoggerFactory
 
 
@@ -36,6 +36,10 @@ class CheckMySQLData:
         self.ts_api_func = ts_api_func
         self.logger = LoggerFactory.get_logger(__name__, log_file=log_file, level=level)
         self.pro = tushare_pro()
+        if not is_trade_day(self.end_date):
+            msg = '{} is not a trade day !!!'.format(self.end_date)
+            self.logger.warning(msg)
+            exit(0)
 
     def fetch_data_from_mysql(self):
         """
