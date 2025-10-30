@@ -8,6 +8,7 @@ from typing import Optional
 from .utils import sql_engine, tushare_pro
 from .utils import get_trade_cal_inter, is_trade_day
 from .logger import LoggerFactory
+from .db_mysql import MySQLDB
 
 
 class CheckMySQLData:
@@ -114,9 +115,11 @@ class CheckMySQLData:
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def check(self, df_mysql, df_api):
+    def check(self, df_mysql, df_api, is_repair=True):
         '''
         检查 MySQL 与 API 数据是否相同
+        Args:
+            is_repair: 当df_mysql与df_api不一致时，使用api数据修复mysql数据
         '''
         self.logger.info('\n{}\n{}'.format('=' * 100, 'check ...'))
         try:
@@ -142,6 +145,24 @@ class CheckMySQLData:
                         api_f.append('{}:{}'.format(f, api_row[f]))
                 except:
                     api_f = ['NaN']
+
+                if is_repair:
+                    # 修复mysql中的数据
+                    with MySQLDB() as db:
+                        api_row = df_api.loc[index]
+                        params = {
+                            'day': index[0],
+                            'ts_code': index[1],
+                        }
+                        for f in self.feas[2:]:
+                            v = api_row[f]
+                            if pd.isna(v):
+                                v = None
+                            params[f] = v
+                        sql = """
+                            UPDATE {} SET {} WHERE day=%(day)s AND ts_code=%(ts_code)s
+                        """.format(self.table_name, ','.join(['{}=%({})s'.format(f, f) for f in self.feas[2:]]))
+                        db.execute(sql, params)
 
                 res.append('{}: [mysql: {};  api: {}]'.format(index, ', '.join(mysql_f), ', '.join(api_f)))
             if len(res) == 0:
