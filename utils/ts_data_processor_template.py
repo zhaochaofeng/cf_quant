@@ -115,7 +115,7 @@ class TSDataProcesssor:
                 raise Exception(error_msg)
         return tmp
 
-    def process_data(self, stocks) -> list:
+    def process_data(self, stocks, batch_size=1000) -> list:
         """
         从Tushare中获取输出，处理成固定格式
         """
@@ -136,7 +136,7 @@ class TSDataProcesssor:
                     error_msg = 'no trade_date between {} and {}'.format(start_date, end_date)
                     self.logger.error(error_msg)
                     raise Exception(error_msg)
-                batch_size = min(1000, 6000//n_days)    # 最多一次请求1000只股票，6000条数据
+                batch_size = min(1000, 6000//n_days, batch_size)    # 最多一次请求1000只股票，6000条数据
                 self.logger.info('batch_size: {}, loop_n: {}'.format(
                     batch_size,
                     len(stocks)//batch_size + (1 if len(stocks) % batch_size > 0 else 0)))
