@@ -57,7 +57,7 @@ class LightGBMAlpha158:
         dt2 = datetime.now().strftime('%Y-%m-%d')
         target_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
         print('dt1: {}, dt2: {}, target_day: {}'.format(dt1, dt2, target_date))
-        sql = """select ts_code, name, list_date from cf_quant.stock_info where day>='{}' and day<='{}'""".format(dt1, dt2)
+        sql = """select ts_code, name, list_date from cf_quant.stock_info_ts where day>='{}' and day<='{}'""".format(dt1, dt2)
         stocks_info = pd.read_sql(sql, engine)
         # 过滤ST、退市和次新股
         stocks_filter = stocks_info[

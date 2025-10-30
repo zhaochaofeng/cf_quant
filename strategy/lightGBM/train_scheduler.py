@@ -33,39 +33,30 @@ class RollingOnlineTrain:
         trainer=TrainerR(),
         rolling_step=10,
         tasks=None,
-        add_tasks=None,
-        market='all'
+        market='all',
+        run_type='first_run',    # 执行方式 [first_run, routine]
     ):
         qlib.init(provider_uri=provider_uri, region=region)
         self.market = market
+        self.run_type = run_type
+        self.rolling_step = rolling_step
 
         if tasks is None:
+            start_time = "2023-08-02"
+            end_time = "2025-07-01"
+            self.start_time = start_time
+            self.end_time = end_time
             instruments = self.choose_stocks()
             data_handler_config = {
-                "start_time": "2023-08-02",
-                "end_time": "2025-08-01",
+                "start_time": start_time,
+                "end_time": end_time,
                 "fit_start_time": "2023-08-02",
-                "fit_end_time": "2025-04-01",
+                "fit_end_time": "2025-01-01",
                 "instruments": instruments,
                 # "instruments": 'csi300',
             }
             # 模型和数据的配置参数
             task = {
-                # "model": {
-                #     "class": "LGBModel",
-                #     "module_path": "qlib.contrib.model.gbdt",
-                #     "kwargs": {
-                #         "loss": "mse",
-                #         "colsample_bytree": 0.8879,
-                #         "learning_rate": 0.0421,
-                #         "subsample": 0.8789,
-                #         "lambda_l1": 205.6999,
-                #         "lambda_l2": 580.9768,
-                #         "max_depth": 8,
-                #         "num_leaves": 210,
-                #         "num_threads": 20,
-                #     },
-                # },
                 'model': {'class': 'LGBModel', 'module_path': 'qlib.contrib.model.gbdt'},
                 "dataset": {
                     "class": "DatasetH",
@@ -79,7 +70,7 @@ class RollingOnlineTrain:
                         "segments": {
                             "train": ("2023-08-02", "2025-01-01"),
                             "valid": ("2025-01-02", "2025-04-01"),
-                            "test": ("2025-04-02", "2025-06-01"),
+                            "test": ("2025-04-02", "2025-07-01"),
                         },
                     },
                 },
@@ -101,7 +92,6 @@ class RollingOnlineTrain:
             tasks = [task]
 
         self.tasks = tasks
-        self.add_tasks = add_tasks
         self.rolling_step = rolling_step
         strategies = []
         for task in tasks:
@@ -116,6 +106,14 @@ class RollingOnlineTrain:
         self.trainer = trainer
         self.rolling_online_manager = OnlineManager(strategies, trainer=self.trainer)
 
+        if self.run_type == 'first_run':
+            self.first_run()
+        elif self.run_type == 'routine':
+            self.routine()
+        else:
+            raise ValueError("run_type must be first_run or routine")
+        exit(0)
+
     _ROLLING_MANAGER_PATH = (
         ".RollingOnlineExample"  # the OnlineManager will dump to this file, for it can be loaded when calling routine.
     )
@@ -129,7 +127,18 @@ class RollingOnlineTrain:
             market=self.market,
             filter_pipe=[nameDFilter]
         )
-        stocks = D.list_instruments(instruments, as_list=True)   # 要加日期限制
+        start_time = self.start_time
+        end_time = self.end_time
+
+        # if self.run_type == 'first_run':
+        #     start_time = self.start_time
+        #     end_time = self.end_time
+        # else:
+        #     end_time = datetime.now().strftime('%Y-%m-%d')
+        #     start_time = (datetime.now() - timedelta(days=self.rolling_step)).strftime('%Y-%m-%d')
+
+        print('start_time: {}, end_time: {}'.format(start_time, end_time))
+        stocks = D.list_instruments(instruments, as_list=True, start_time=start_time, end_time=end_time)
         print('主板总股票数：{}'.format(len(stocks)))
 
         # 获取所有股票基本信息
@@ -139,17 +148,17 @@ class RollingOnlineTrain:
         today = datetime.now().strftime('%Y-%m-%d')
         target_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
         print('start_date: {}, today: {}, target_day: {}'.format(start_date, today, target_date))
-        sql = """select ts_code, name, list_date from cf_quant.stock_info where day>='{}' and day<='{}'""".format(start_date, today)
+        sql = """select ts_code, name, list_date from cf_quant.stock_info_ts where day>='{}' and day<='{}'""".format(start_date, today)
         stocks_info = pd.read_sql(sql, engine)
         # 过滤ST、退市和次新股
         stocks_filter = stocks_info[
                 (stocks_info['name'].str.contains('ST')) |      # ST股票
-                (stocks_info['name'].str.contains('退')) |      # 非退市股票
-                (stocks_info['list_date'] > target_date)        # 非次新股
+                (stocks_info['name'].str.contains('退')) |      # 退市股票
+                (stocks_info['list_date'] > target_date)        # 次新股
             ]
-        print('stocks_filter len: {}'.format(len(stocks_filter)))
         # 转换股票代码格式以匹配qlib格式
-        stocks_filter = stocks_filter['ts_code'].apply(lambda x: '{}{}'.format(x[7:9], x[0:6])).tolist()
+        stocks_filter = stocks_filter['ts_code'].apply(lambda x: '{}{}'.format(x[7:9], x[0:6])).unique().tolist()
+        print('stocks_filter len: {}'.format(len(stocks_filter)))
         stocks = list(set(stocks) - set(stocks_filter))
         print('过滤后股票数：{}'.format(len(stocks)))
         return stocks
@@ -158,7 +167,7 @@ class RollingOnlineTrain:
         # train tasks by other progress or machines for multiprocessing
         print("========== worker ==========")
         if isinstance(self.trainer, TrainerRM):
-            for task in self.tasks + self.add_tasks:
+            for task in self.tasks:
                 name_id = task["model"]["class"]
                 self.trainer.worker(experiment_name=name_id)
         else:
@@ -219,7 +228,7 @@ class RollingOnlineTrain:
         strategy_obj = TopkDropoutStrategy(**STRATEGY_CONFIG)
         report_normal, positions_normal = backtest_daily(
             start_time=signals.index.get_level_values("datetime").min(),
-            end_time=signals.index.get_level_values("datetime").max() - pd.Timedelta(days=1),
+            end_time=signals.index.get_level_values("datetime").max(),
             strategy=strategy_obj,
         )
         print(report_normal)
@@ -233,10 +242,6 @@ class RollingOnlineTrain:
 
         analysis_df = pd.concat(analysis)  # type: pd.DataFrame
         pprint(analysis_df)
-
-    def main(self):
-        self.first_run()
-        self.routine()
 
 if __name__ == "__main__":
     ####### to train the first version's models, use the command below
