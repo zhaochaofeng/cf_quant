@@ -97,7 +97,7 @@ class LightGBMAlpha158:
         stocks_filter = stocks_info[
                 (stocks_info['name'].str.contains('ST')) |      # ST股票
                 (stocks_info['name'].str.contains('退')) |      # 退市股票
-                (stocks_info['list_date'] > target_date)        # 次新股
+                (stocks_info['list_date'] > datetime.strptime(target_date, '%Y-%m-%d').date())        # 次新股
             ]
         # 转换股票代码格式以匹配qlib格式
         stocks_filter = stocks_filter['ts_code'].apply(lambda x: '{}{}'.format(x[7:9], x[0:6])).unique().tolist()
