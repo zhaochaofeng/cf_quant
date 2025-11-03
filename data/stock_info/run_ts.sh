@@ -8,7 +8,7 @@ echo 'cur_path: '${cur_path}
 dt=`date +%Y-%m-%d`
 echo "dt: "${dt}
 
-${python_path} ${cf_quant_path}/utils/is_trade_date.py ${dt}
+${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt}
 if [ $? -eq 5 ];then
   echo '非交易日，退出！'
   exit 0
