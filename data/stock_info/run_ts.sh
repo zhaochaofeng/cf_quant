@@ -14,7 +14,7 @@ if [ $? -eq 5 ];then
   exit 0
 fi
 
-${python_path} ${cur_path}/stock_info_ts2.py ${dt}
+${python_path} ${cur_path}/stock_info_ts.py ${dt}
 
 # 判断是否执行成功
 if [ $? -eq 0 ]; then
