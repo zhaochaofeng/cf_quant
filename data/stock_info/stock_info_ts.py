@@ -133,7 +133,7 @@ def main(date: str = None) -> None:
     t = time.time()
     processor = TSStockInfoProcessor(
         feas=feas,
-        table_name='stock_info_ts2',
+        table_name='stock_info_ts',
         log_file='log/{}.log'.format(datetime.now().strftime('%Y-%m-%d')),
         date=date,
     )
