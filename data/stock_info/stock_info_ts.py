@@ -1,94 +1,153 @@
 '''
-    功能：股票基本信息表（沪深京3个交易所股票）
-    数据来源：Tushare
-    表：stock_info_ts
+    股票基本上信息表：stock_info_ts
 '''
-
 import time
-import argparse
-import pandas as pd
 import traceback
 from datetime import datetime
-from utils.utils import tushare_pro
-from utils.utils import mysql_connect
-from utils.utils import is_trade_day
-from utils.utils import send_email
 
-pro = tushare_pro()
+import fire
+import pandas as pd
+from data.process_data import Base, ts_api
+from utils import tushare_pro, send_email
 
-fea_1 = ['ts_code', 'name', 'area', 'industry', 'cnspell', 'market', 'list_date', 'act_name', 'act_ent_type', 'status']
-fea_2 = ['qlib_code', 'day', 'exchange']  # 新增字段
+feas = {
+    'ts_code': 'ts_code',
+    'qlib_code': 'ts_code',
+    'day': '',
+    'name': 'name',
+    'exchange': 'ts_code',
+    'status': 'status',
+    'area': 'area',
+    'industry': 'industry',
+    'cnspell': 'cnspell',
+    'market': 'market',
+    'list_date': 'list_date',
+    'act_name': 'act_name',
+    'act_ent_type': 'act_ent_type',
+    'l1_code': 'l1_code',
+    'l1_name': 'l1_name',
+    'l2_code': 'l2_code',
+    'l2_name': 'l2_name',
+    'l3_code': 'l3_code',
+    'l3_name': 'l3_name',
+    'in_date': 'in_date',
+    'out_date': 'out_date',
+    'is_new': 'is_new'
+}
 exchange_map = {'BJ': 'BSE', 'SH': 'SSE', 'SZ': 'SZSE'}
-exclude_codes = set(['T00018.SH'])  # 噪声数据
+exclude_codes = {'T00018.SH'}  # 噪声数据
 
-def main(args):
-    try:
-        # 上市股票
-        df_l = pro.stock_basic(list_status='L')
-        df_l['status'] = 1
-        # 退市股票
-        df_d = pro.stock_basic(list_status='D')
-        df_d['status'] = 0
-        df = pd.concat([df_l, df_d], ignore_index=True)
-        print('-' * 100)
-        print(df.iloc[0])
-        print('股票数：{}'.format(len(df)))
-    except Exception as e:
-        raise Exception('error in get stock info: {}'.format(e))
 
-    conn = mysql_connect()
-    data = []
-    for index, row in df.iterrows():
-        if row['ts_code'] in exclude_codes:
-            continue
-        tmp = {}  # 单条数据
-        tmp['day'] = args.date
-        for f in fea_1:
-            v = row[f]
-            if f == 'ts_code':
-                code, suffix = v.split('.')
-                tmp['exchange'] = exchange_map[suffix]
-                tmp['qlib_code'] = '{}{}'.format(suffix, code)
-            if f in ['list_date']:
-                v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
-            if pd.isna(v):
-                v = None
-            tmp[f] = v
-        data.append(tmp)
+class TSStockInfoProcessor(Base):
+    ''' 股票信息数据 '''
 
-    print('-' * 100)
-    print("data len: {}".format(len(data)))
-    fea_merge = fea_1 + fea_2
-    fea_merge_format = ['%({})s'.format(f) for f in fea_merge]
-    sql = '''
-        INSERT INTO stock_info_ts({}) VALUES ({})
-    '''.format(','.join(fea_merge), ','.join(fea_merge_format))
-    with conn.cursor() as cursor:
+    def __init__(self,
+                 feas: dict,
+                 table_name: str,
+                 date: str = None,
+                 **kwargs
+                 ):
+        super().__init__(feas=feas, table_name=table_name, **kwargs)
+        self.date = date
+
+    def fetch_data_from_api(self):
+        ''' 股票基本信息 + 行业数据 '''
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api ...'))
         try:
-            print(cursor.mogrify(sql, data[0]))
-            cursor.executemany(sql, data)
-            conn.commit()
+            pro = tushare_pro()
+            # 基本信息
+            df_info = pd.DataFrame()
+            status = {'L': 1, 'D': 0, 'P': 2}
+            for k, v in status.items():
+                tmp = ts_api(pro, 'stock_basic', list_status=k)
+                tmp['status'] = v
+                df_info = pd.concat([df_info, tmp], ignore_index=True)
+            df_info.set_index('ts_code', inplace=True)
+            # 排除噪声数据
+            df_info = df_info[~df_info.index.isin(exclude_codes)]
+            self.logger.info('df_info shape: {}'.format(df_info.shape))
+            if df_info.empty:
+                err_msg = 'df_info is empty !'
+                self.logger.error(err_msg)
+                raise Exception(err_msg)
+
+            # 行业数据
+            df_ind = pd.DataFrame()
+            # 一级行业代码集合
+            ind_code = pro.index_classify(level='L1', src='SW2021')['index_code'].values.tolist()
+            for code in ind_code:
+                tmp = ts_api(pro, 'index_member_all', l1_code=code)
+                df_ind = pd.concat([df_ind, tmp], ignore_index=True)
+                df_ind.drop(columns='name', inplace=True)
+            df_ind.set_index('ts_code', inplace=True)
+            self.logger.info('df_ind shape: {}'.format(df_ind.shape))
+            if df_ind.empty:
+                err_msg = 'df_ind is empty !'
+                self.logger.error(err_msg)
+                raise Exception(err_msg)
+
+            df_ind = df_ind.reindex(df_info.index)
+            df_merge = pd.concat([df_info, df_ind], axis=1, join='outer')
+            df_merge.reset_index(inplace=True)
+            self.logger.info('df_merge shape: {}'.format(df_merge.shape))
+
+            return df_merge
         except Exception as e:
-            conn.rollback()  # 回滚
-            raise Exception('error in write to mysql: {}'.format(e))
-        finally:
-            conn.close()
-    print('写入完成!!!')
+            error_msg = 'error in fetch_data_from_api: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+    def parse_line(self, row) -> dict:
+        ''' 解析单条数据 '''
+        try:
+            tmp = {}
+            for f in self.feas.keys():
+                if f == 'day' and self.feas[f] == '':
+                    if self.date:
+                        v = self.date
+                    elif self.date is None:
+                        # 对于没有日期的表，用取数当天日期
+                        v = datetime.now().strftime('%Y-%m-%d')
+                else:
+                    v = row[self.feas[f]]
+                    if pd.isna(v):
+                        v = None
+                    elif f == 'qlib_code':
+                        code, suffix = v.split('.')
+                        v = '{}{}'.format(suffix.upper(), code)
+                    elif f in ['day', 'in_date']:
+                        # 日期格式转换
+                        v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
+                    elif f == 'exchange':
+                        code, suffix = v.split('.')
+                        v = exchange_map[suffix]
+                tmp[f] = v
+            return tmp
+        except Exception as e:
+            error_msg = 'parse_line error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+
+def main(date: str = None) -> None:
+    t = time.time()
+    processor = TSStockInfoProcessor(
+        feas=feas,
+        table_name='stock_info_ts2',
+        log_file='log/{}.log'.format(datetime.now().strftime('%Y-%m-%d')),
+        date=date,
+    )
+    try:
+        df = processor.fetch_data_from_api()
+        data = processor.process(df)
+        processor.write_to_mysql(data)
+        print('耗时：{}s'.format(round(time.time() - t, 4)))
+    except:
+        error_msg = traceback.format_exc()
+        processor.logger.error(error_msg)
+        send_email('Data: stock_info_ts', error_msg)
+        raise Exception(error_msg)
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--date', type=str, default='2025-09-09', help='取数日期')
-    args = parser.parse_args()
-    if not is_trade_day(args.date):
-        print('不是交易日，退出！！！')
-        exit(0)
-    print(args)
-    t = time.time()
-    try:
-        main(args)
-    except:
-        error_info = traceback.format_exc()
-        print(error_info)
-        send_email('Data: stock_info_ts', error_info)
-    print('耗时：{}s'.format(round(time.time() - t, 4)))
-
+    fire.Fire(main)
