@@ -158,7 +158,7 @@ class TSFinacialData(TSProcessData):
                 if tmp.empty:
                     continue
                 df_list.append(tmp)
-                time.sleep(60/700)  # 1min最多请求700次
+                time.sleep(60/500)  # 1min最多请求500次
             df = pd.concat(df_list, axis=0, join='outer')
             if df.empty:
                 msg = 'df is empty: {}'.format(self.now_date)
