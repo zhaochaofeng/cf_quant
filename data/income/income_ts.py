@@ -110,11 +110,14 @@ def main(
             feas=feas,
             table_name='income_ts'
         )
+        if not processor.has_financial_data:
+            return
+
         stocks = processor.get_stocks()
-        df = processor.fetch_data_from_api(stocks[0:10])
+        df = processor.fetch_data_from_api(stocks, api_fun='income')
         data = processor.process(df)
         processor.write_to_mysql(data)
-        processor.logger.info('耗时： s'.format(time.time() - t, 4))
+        processor.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
     except:
         err_msg = traceback.format_exc()
         send_email('Data: income_ts', err_msg)
