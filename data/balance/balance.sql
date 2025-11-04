@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS balance_ts(
     oth_debt_invest DECIMAL(20, 4) COMMENT '其他债权投资(元)',
     update_flag TINYINT COMMENT '更新标识',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_day_code(end_date, ts_code, f_ann_date, update_flag),
+    UNIQUE KEY uk_day_code(end_date, ts_code, ann_date, f_ann_date, update_flag),
     INDEX qlib_index(qlib_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
