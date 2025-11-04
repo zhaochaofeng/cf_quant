@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from utils import LoggerFactory
 from utils import MySQLDB
 from utils import sql_engine, tushare_pro
+from utils import get_trade_cal_inter
 
 
 def ts_api(pro, api_func, **kwargs) -> pd.DataFrame:
@@ -123,21 +124,40 @@ class TSFinacialData(TSProcessData):
         super().__init__(now_date=now_date, **kwargs)
         self.start_date = start_date
         self.end_date = end_date
+        self.has_financial_data = True
+        # [1月1日-4月30, 7月1日-8月31日，10月1日-10月31]
+        # 仅在当前的上述日期范围内才进行财务数据获取
+        inter_valid = get_trade_cal_inter(self.get_date(1, 1), self.get_date(4, 30)) + \
+                    get_trade_cal_inter(self.get_date(7, 1), self.get_date(8, 31)) + \
+                    get_trade_cal_inter(self.get_date(10, 1), self.get_date(10, 31))
+        inter_get = get_trade_cal_inter(self.start_date, self.end_date)
+        if len(set(inter_valid) & set(inter_get)) == 0:
+            self.logger.info('No finacial report released !!!')
+            self.has_financial_data = False
 
-    def fetch_data_from_api(self, stocks):
+    def get_date(self, month, day):
+        curr_year = datetime.now().year
+        return '{}-{:02d}-{:02d}'.format(curr_year, month, day)
+
+    def fetch_data_from_api(self, stocks, api_fun):
+        import warnings
+        warnings.filterwarnings("ignore")
         """ 从Tushare获取财务数据 """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
         try:
             pro = tushare_pro()
-            df = pd.DataFrame()
+            df_list = []
             start_date = self.start_date.replace('-', '')
             end_date = self.end_date.replace('-', '')
             for i, stock in enumerate(stocks):
                 if (i + 1) % 100 == 0:
                     self.logger.info('processed num: {}'.format(i + 1))
-                tmp = ts_api(pro, 'income', ts_code=stock, start_date=start_date, end_date=end_date)
-                df = pd.concat([df, tmp], axis=0, join='outer')
+                tmp = ts_api(pro, api_fun, ts_code=stock, start_date=start_date, end_date=end_date)
+                if tmp.empty:
+                    continue
+                df_list.append(tmp)
                 time.sleep(60/700)  # 1min最多请求700次
+            df = pd.concat(df_list, axis=0, join='outer')
             if df.empty:
                 msg = 'df is empty: {}'.format(self.now_date)
                 self.logger.error(msg)
