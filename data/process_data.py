@@ -60,6 +60,7 @@ class Base(ABC):
         pass
 
     def process(self, df) -> list:
+        """ 数据处理 """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'process ...'))
         try:
             data = []
@@ -141,9 +142,9 @@ class TSFinacialData(TSProcessData):
         return '{}-{:02d}-{:02d}'.format(curr_year, month, day)
 
     def fetch_data_from_api(self, stocks, api_fun):
+        """ 从Tushare获取财务数据 """
         import warnings
         warnings.filterwarnings("ignore")
-        """ 从Tushare获取财务数据 """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
         try:
             pro = tushare_pro()
