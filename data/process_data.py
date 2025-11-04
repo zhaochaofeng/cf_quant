@@ -2,10 +2,13 @@
     从TuShare/BaoStock等平台将数据导入MySQL
 '''
 
+import time
 import pandas as pd
+from datetime import datetime
 from abc import ABC, abstractmethod
 from utils import LoggerFactory
 from utils import MySQLDB
+from utils import sql_engine, tushare_pro
 
 
 def ts_api(pro, api_func, **kwargs) -> pd.DataFrame:
@@ -50,12 +53,17 @@ class Base(ABC):
         ''' 从平台获取数据 '''
         pass
 
+    @abstractmethod
+    def parse_line(self, row):
+        ''' 解析一行数据 '''
+        pass
+
     def process(self, df) -> list:
         self.logger.info('\n{}\n{}'.format('=' * 100, 'process ...'))
         try:
             data = []
             for index, row in df.iterrows():
-                tmp = self.parse_line(row)    # parse_line需要在子类中实现
+                tmp = self.parse_line(row)
                 data.append(tmp)
             self.logger.info('data len: {}'.format(len(data)))
             if len(data) == 0:
@@ -82,6 +90,85 @@ class Base(ABC):
         except Exception as e:
             error_msg = 'write_to_mysql error: {}'.format(e)
             self.logger.error(error_msg)
+
+
+class TSProcessData(Base):
+    def __init__(self, now_date: str = None, **kwargs):
+        super().__init__(**kwargs)
+        self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
+
+    def get_stocks(self):
+        """ 获取股票列表 """
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'get_stocks...'))
+        engine = sql_engine()
+        sql = '''
+                select ts_code from stock_info_ts where day='{}';
+            '''.format(self.now_date)
+        self.logger.info('\n{}\n{}\n{}'.format('-'*50, sql, '-'*50))
+        df = pd.read_sql(sql, engine)
+        if df.empty:
+            err_msg = 'table stock_info_ts has no data: {}'.format(self.now_date)
+            self.logger.info(err_msg)
+            raise Exception(err_msg)
+        codes = df['ts_code'].values.tolist()
+        self.logger.info('stocks len: {}'.format(len(codes)))
+        return codes
+
+class TSFinacialData(TSProcessData):
+    def __init__(self,
+                 start_date: str,
+                 end_date: str,
+                 now_date: str = None,
+                 **kwargs):
+        super().__init__(now_date=now_date, **kwargs)
+        self.start_date = start_date
+        self.end_date = end_date
+
+    def fetch_data_from_api(self, stocks):
+        """ 从Tushare获取财务数据 """
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
+        try:
+            pro = tushare_pro()
+            df = pd.DataFrame()
+            start_date = self.start_date.replace('-', '')
+            end_date = self.end_date.replace('-', '')
+            for i, stock in enumerate(stocks):
+                if (i + 1) % 100 == 0:
+                    self.logger.info('processed num: {}'.format(i + 1))
+                tmp = ts_api(pro, 'income', ts_code=stock, start_date=start_date, end_date=end_date)
+                df = pd.concat([df, tmp], axis=0, join='outer')
+                time.sleep(60/700)  # 1min最多请求700次
+            if df.empty:
+                msg = 'df is empty: {}'.format(self.now_date)
+                self.logger.error(msg)
+
+            return df
+        except Exception as e:
+            error_msg = 'error in fetch_data_from_api: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+
+    def parse_line(self, row):
+        ''' 解析单条数据 '''
+        try:
+            tmp = {}
+            for f in self.feas.keys():
+                v = row[self.feas[f]]
+                if pd.isna(v):
+                    v = None
+                elif f == 'qlib_code':
+                    code, suffix = v.split('.')
+                    v = '{}{}'.format(suffix.upper(), code)
+                elif f in ['ann_date', 'f_ann_date', 'end_date']:
+                    # 日期格式转换
+                    v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
+                tmp[f] = v
+            return tmp
+        except Exception as e:
+            error_msg = 'parse_line error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
 
 
 
