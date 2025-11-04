@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS income_ts(
     continued_net_profit DECIMAL(20, 4) COMMENT '持续经营净利润',
     update_flag TINYINT COMMENT '更新标识',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_day_code(end_date, ts_code, update_flag),
+    UNIQUE KEY uk_day_code(end_date, ts_code, f_ann_date, update_flag),
     INDEX qlib_index(qlib_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4

@@ -99,7 +99,7 @@ CREATE TABLE IF NOT EXISTS cashflow_ts(
     beg_bal_cash_equ DECIMAL(20, 4) COMMENT '减:现金等价物的期初余额',
     update_flag TINYINT COMMENT '更新标志(1最新）',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_day_code(end_date, ts_code, update_flag),
+    UNIQUE KEY uk_day_code(end_date, ts_code, f_ann_date, update_flag),
     INDEX qlib_index(qlib_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
