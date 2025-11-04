@@ -116,6 +116,7 @@ class TSProcessData(Base):
         return codes
 
 class TSFinacialData(TSProcessData):
+    ''' 财务数据处理类 '''
     def __init__(self,
                  start_date: str,
                  end_date: str,
