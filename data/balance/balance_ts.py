@@ -182,7 +182,7 @@ def main(
             return
 
         stocks = processor.get_stocks()
-        df = processor.fetch_data_from_api(stocks[0:10], api_fun='balancesheet')
+        df = processor.fetch_data_from_api(stocks, api_fun='balancesheet')
         data = processor.process(df)
         processor.write_to_mysql(data)
         processor.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
