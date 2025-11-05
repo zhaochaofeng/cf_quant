@@ -7,8 +7,8 @@ from datetime import datetime
 
 import fire
 import pandas as pd
-from data.process_data import Base, bao_api
-from utils import bao_stock_connect, send_email, is_trade_day
+from data.process_data import Base
+from utils import bao_stock_connect, send_email, is_trade_day, bao_api
 
 feas = {
     'code': 'code',

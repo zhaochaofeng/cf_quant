@@ -11,33 +11,7 @@ from utils import sql_engine, tushare_pro
 from utils import get_trade_cal_inter, is_trade_day
 from utils import LoggerFactory
 from utils import MySQLDB
-
-
-def ts_api(pro, api_func, **kwargs) -> pd.DataFrame:
-    """
-    通过Tushare API函数名和参数获取数据
-
-    Args:
-        api_func: tushare API函数名
-        **kwargs: 传递给API函数的参数
-
-    Returns:
-        pd.DataFrame: 获取的数据
-
-    Raises:
-        AttributeError: 当指定的API函数不存在时
-        Exception: API调用过程中的其他异常
-    """
-    try:
-        # 获取API函数
-        api_function = getattr(pro, api_func)
-        # 调用API函数并传入参数
-        df = api_function(**kwargs)
-        return df
-    except AttributeError:
-        raise AttributeError(f"Tushare API中不存在函数: {api_func}")
-    except Exception as e:
-        raise Exception(f"调用API {api_func} 时发生错误: {str(e)}")
+from utils import ts_api
 
 
 class CheckMySQLData:
