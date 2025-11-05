@@ -8,7 +8,7 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from utils import LoggerFactory
 from utils import MySQLDB
-from utils import sql_engine, tushare_pro
+from utils import sql_engine, tushare_pro, is_trade_day
 from utils import get_trade_cal_inter
 
 
@@ -45,17 +45,23 @@ class Base(ABC):
                  table_name: str,
                  log_file=None,
                  ):
+        '''
+        Args:
+            feas: mysql表字段与平台表字段映射关系。如{'day': 'trade_date'}
+            table_name: 输入插入的mysql表名。如stock_info_ts
+            log_file: 日志文件路径。如log/{}.log.format(day)
+        '''
         self.feas = feas
         self.table_name = table_name
         self.logger = LoggerFactory.get_logger(__name__, log_file=log_file)
 
     @abstractmethod
-    def fetch_data_from_api(self):
+    def fetch_data_from_api(self) -> pd.DataFrame:
         ''' 从平台获取数据 '''
         pass
 
     @abstractmethod
-    def parse_line(self, row):
+    def parse_line(self, row) -> dict:
         ''' 解析一行数据 '''
         pass
 
@@ -78,7 +84,7 @@ class Base(ABC):
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def write_to_mysql(self, data):
+    def write_to_mysql(self, data) -> None:
         """ 数据写入 MySQL """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'write_to_mysql...'))
         try:
@@ -96,16 +102,26 @@ class Base(ABC):
 
 class TSProcessData(Base):
     def __init__(self, now_date: str = None, **kwargs):
+        '''
+        Args:
+            now_date: 指定获取股票集合的日期，默认为当天
+        '''
         super().__init__(**kwargs)
         self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
 
-    def get_stocks(self):
-        """ 获取股票列表 """
+    def get_stocks(self, is_alive: bool = False):
+        """ 获取股票列表
+            Args:
+                 is_alive: 是否仅获取当前上市的股票（不包含退市）
+        """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'get_stocks...'))
         engine = sql_engine()
         sql = '''
-                select ts_code from stock_info_ts where day='{}';
+                select ts_code from stock_info_ts where day='{}'
             '''.format(self.now_date)
+        if is_alive:
+            sql += ' and status=1'
+
         self.logger.info('\n{}\n{}\n{}'.format('-'*50, sql, '-'*50))
         df = pd.read_sql(sql, engine)
         if df.empty:
@@ -117,7 +133,7 @@ class TSProcessData(Base):
         return codes
 
 class TSFinacialData(TSProcessData):
-    ''' 财务数据处理类 '''
+    ''' Tushare 财务数据处理类 '''
     def __init__(self,
                  start_date: str,
                  end_date: str,
@@ -170,8 +186,7 @@ class TSFinacialData(TSProcessData):
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-
-    def parse_line(self, row):
+    def parse_line(self, row) -> dict:
         ''' 解析单条数据 '''
         try:
             tmp = {}
@@ -193,7 +208,105 @@ class TSFinacialData(TSProcessData):
             raise Exception(error_msg)
 
 
+class TSCommonData(TSProcessData):
+    ''' Tushare 通用格式数据 '''
+    def __init__(self,
+                 start_date: str,
+                 end_date: str,
+                 now_date: str = None,
+                 use_trade_day: bool = False,
+                 **kwargs
+                 ):
+        '''
+        Args:
+            use_trade_day: 是否指定api中trade_date参数，若指定，则trade_date=end_date
+        '''
 
+        super().__init__(now_date=now_date, **kwargs)
+        self.start_date = start_date
+        self.end_date = end_date
+        self.use_trade_day = use_trade_day
+        self.is_trade_day = True   # 是否为交易日
+        if not is_trade_day(self.end_date):
+            msg = '{} is not a trade date, exit !!!'.format(self.end_date)
+            self.logger.warning(msg)
+            self.is_trade_day = False
+
+    def fetch_data_from_api(self, stocks: list, api_fun: str, batch_size: int = 1, req_per_min: int = 600):
+        ''' 从Tushare获取通用数据
+        Args:
+            batch_size: 1次请求ts_code的个数(有些API可以请求多个ts_code)
+            req_per_min: 1分钟请求的次数上界
+        '''
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
+        try:
+            pro = tushare_pro()
+            if self.use_trade_day and self.start_date == self.end_date:
+                trade_date = self.end_date.replace('-', '')
+                df = ts_api(pro, api_fun, trade_date=trade_date)
+                df = df[df['ts_code'].isin(stocks)]   # 过滤股票
+            else:
+                start_date = self.start_date.replace('-', '')
+                end_date = self.end_date.replace('-', '')
+                # 请求数据天数
+                n_days = len(get_trade_cal_inter(self.start_date, self.end_date))
+                if n_days == 0:
+                    error_msg = 'no trade_date between {} and {}'.format(start_date, end_date)
+                    self.logger.error(error_msg)
+                    raise Exception(error_msg)
+                batch_size = min(1000, 6000 // n_days, batch_size)  # 最多一次请求1000只股票，6000条数据
+                self.logger.info('batch_size: {}, loop_n: {}'.format(
+                    batch_size,
+                    len(stocks) // batch_size + (1 if len(stocks) % batch_size > 0 else 0)))
+
+                df_list = []
+                for k in range(0, len(stocks), batch_size):
+                    if (k + 1) % 100 == 0:
+                        self.logger.info('processed : {} / {}'.format(k + batch_size, len(stocks)))
+                    tmp = ts_api(pro, api_fun,
+                                 ts_code=','.join(stocks[k:k + batch_size]),
+                                 start_date=start_date, end_date=end_date)
+                    if tmp.empty:
+                        # self.logger.info('no data: {}'.format(','.join(stocks[k: k + batch_size])))
+                        continue
+                    df_list.append(tmp)
+                    time.sleep(60 / req_per_min)
+                df = pd.concat(df_list, axis=0, join='outer')
+
+            if df.empty:
+                err_msg = 'df is empty !'
+                self.logger.error(err_msg)
+                raise Exception(err_msg)
+
+            return df
+        except Exception as e:
+            error_msg = 'error in fetch_data_from_api: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+    def parse_line(self, row) -> dict:
+        ''' 解析单条数据 '''
+        try:
+            tmp = {}
+            for f in self.feas.keys():
+                if f == 'day' and self.feas[f] == '':
+                    v = self.now_date
+                else:
+                    v = row[self.feas[f]]
+                    if pd.isna(v):
+                        v = None
+                    elif f == 'qlib_code':
+                        code, suffix = v.split('.')
+                        v = '{}{}'.format(suffix.upper(), code)
+                    elif f == 'day':
+                        # 日期格式转换
+                        v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
+                tmp[f] = v
+            return tmp
+        except Exception as e:
+            error_msg = 'parse_line error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
 
 
 
