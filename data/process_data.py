@@ -66,7 +66,8 @@ class Base(ABC):
             feas_format = ['%({})s'.format(f) for f in feas]
             sql = """
                 INSERT INTO {} ({}) VALUES({})
-            """.format(self.table_name, ','.join(feas), ','.join(feas_format))
+            """.format(self.table_name, ','.join(feas).replace('change', '`change`'), ','.join(feas_format))
+
             with MySQLDB() as db:
                 db.executemany(sql, data)
         except Exception as e:
@@ -286,4 +287,96 @@ class TSCommonData(TSProcessData):
             raise Exception(error_msg)
 
 
+class TSTradeDailyData(TSCommonData):
+    ''' Tushare 日级交易数据 '''
+
+    def __init__(self,
+                 start_date: str,
+                 end_date: str,
+                 now_date: str = None,
+                 use_trade_day: bool = True,
+                 **kwargs
+                 ):
+        super().__init__(start_date, end_date, now_date, use_trade_day, **kwargs)
+
+    def fetch_data_from_api(self, stocks: list, api_fun: str, batch_size: int = 1000, req_per_min: int = 600):
+        ''' 从Tushare获取交易数据 + 赋权因子
+        Args:
+            batch_size: 1次请求ts_code的个数(有些API可以请求多个ts_code)
+            req_per_min: 1分钟请求的次数上界
+        '''
+        # import warnings
+        # warnings.filterwarnings("ignore")
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
+        try:
+            pro = tushare_pro()
+            if self.use_trade_day and self.start_date == self.end_date:
+                trade_date = self.end_date.replace('-', '')
+                df = ts_api(pro, api_fun, trade_date=trade_date)
+                df = df[df['ts_code'].isin(stocks)]   # 过滤股票
+                self.logger.info('df shape: {}'.format(df.shape))
+                df.set_index(keys=['ts_code', 'trade_date'], inplace=True)
+                # 复权因子
+                factor = pro.adj_factor(trade_date=trade_date)
+                self.logger.info('factor shape: {}'.format(factor.shape))
+                factor.set_index(keys=['ts_code', 'trade_date'], inplace=True)
+                if df.empty or factor.empty:
+                    err_msg = 'df({}) or factor({}) is empty !'.format(df.shape, factor.shape)
+                    self.logger.error(err_msg)
+                    raise Exception(err_msg)
+                # 合并 交易数据 和 复权因子
+                factor = factor.reindex(df.index)
+                merged = pd.concat([df, factor], axis=1, join='outer')
+            else:
+                start_date = self.start_date.replace('-', '')
+                end_date = self.end_date.replace('-', '')
+                # 请求数据天数
+                n_days = len(get_trade_cal_inter(self.start_date, self.end_date))
+                if n_days == 0:
+                    error_msg = 'no trade_date between {} and {}'.format(start_date, end_date)
+                    self.logger.error(error_msg)
+                    raise Exception(error_msg)
+                batch_size = min(1000, 6000 // n_days, batch_size)  # 最多一次请求1000只股票，6000条数据
+                self.logger.info('batch_size: {}, loop_n: {}'.format(
+                    batch_size,
+                    len(stocks) // batch_size + (1 if len(stocks) % batch_size > 0 else 0)))
+
+                df_list = []
+                factor_list = []
+                for k in range(0, len(stocks), batch_size):
+                    if (k + 1) % 100 == 0:
+                        self.logger.info('processed : {} / {}'.format(k + batch_size, len(stocks)))
+                    tmp = ts_api(pro, api_fun,
+                                 ts_code=','.join(stocks[k:k + batch_size]),
+                                 start_date=start_date, end_date=end_date)
+                    tmp_factor = ts_api(pro, 'adj_factor',
+                                 ts_code=','.join(stocks[k:k + batch_size]),
+                                 start_date=start_date, end_date=end_date)
+                    if not tmp.empty:
+                        df_list.append(tmp)
+                    if not tmp_factor.empty:
+                        factor_list.append(tmp_factor)
+                    time.sleep(60 / req_per_min)
+                df = pd.concat(df_list, axis=0, join='outer')
+                factor = pd.concat(factor_list, axis=0, join='outer')
+                if df.empty or factor.empty:
+                    err_msg = 'df({}) or factor({}) is empty !'.format(df.shape, factor.shape)
+                    self.logger.error(err_msg)
+                    raise Exception(err_msg)
+
+                self.logger.info('df shape: {}, factor shape: {}'.format(df.shape, factor.shape))
+                df.set_index(keys=['ts_code', 'trade_date'], inplace=True)
+                factor.set_index(keys=['ts_code', 'trade_date'], inplace=True)
+
+                # 合并 交易数据 和 复权因子
+                factor = factor.reindex(df.index)
+                merged = pd.concat([df, factor], axis=1, join='outer')
+
+            merged.reset_index(inplace=True)
+            self.logger.info('merged shape: {}'.format(merged.shape))
+            return merged
+        except Exception as e:
+            error_msg = 'error in fetch_data_from_api: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
 
