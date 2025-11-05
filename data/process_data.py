@@ -75,7 +75,7 @@ class Base(ABC):
             self.logger.error(error_msg)
 
 
-class TSProcessData(Base):
+class ProcessData(Base):
     def __init__(self, now_date: str = None, **kwargs):
         '''
         Args:
@@ -84,16 +84,17 @@ class TSProcessData(Base):
         super().__init__(**kwargs)
         self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
 
-    def get_stocks(self, is_alive: bool = False):
+    def get_stocks(self, table_name: str = 'stock_info_ts', is_alive: bool = False):
         """ 获取股票列表
             Args:
-                 is_alive: 是否仅获取当前上市的股票（不包含退市）
+                 table_name: 股票信息表名
+                 is_alive: 是否仅获取当前上市的股票（排除退市）
         """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'get_stocks...'))
         engine = sql_engine()
         sql = '''
-                select ts_code from stock_info_ts where day='{}'
-            '''.format(self.now_date)
+                select ts_code from {} where day='{}'
+            '''.format(table_name, self.now_date)
         if is_alive:
             sql += ' and status=1'
 
@@ -108,7 +109,7 @@ class TSProcessData(Base):
         return codes
 
 
-class TSFinacialData(TSProcessData):
+class TSFinacialData(ProcessData):
     ''' Tushare 财务数据处理类 '''
     def __init__(self,
                  start_date: str,
@@ -184,7 +185,7 @@ class TSFinacialData(TSProcessData):
             raise Exception(error_msg)
 
 
-class TSCommonData(TSProcessData):
+class TSCommonData(ProcessData):
     ''' Tushare 通用格式数据 '''
     def __init__(self,
                  start_date: str,
