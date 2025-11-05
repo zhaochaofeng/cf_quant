@@ -1,12 +1,11 @@
 '''
-    tushare 市值数据入库 MySQL
+    Tushare 市值数据入库MySQL
 '''
-
 import time
 import fire
 import traceback
-from utils import TSDataProcesssor
 from utils import send_email
+from data.process_data import TSCommonData
 
 feas = {
     'ts_code': 'ts_code',
@@ -30,31 +29,34 @@ feas = {
     'circ_mv': 'circ_mv'
 }
 
-
-def main(start_date: str,
-         end_date: str,
-         use_trade_day: bool = True,
-         now_date: str = None):
+def main(
+        start_date: str,
+        end_date: str,
+        now_date: str = None,
+        use_trade_day: bool = True
+        ):
     try:
         t = time.time()
-        process = TSDataProcesssor(start_date, end_date,
-                                   api_func='daily_basic',
-                                   feas=feas,
-                                   table_name='valuation_ts',
-                                   use_trade_day=use_trade_day,
-                                   log_file='log/{}.log'.format(end_date),
-                                   now_date=now_date)
-        # 获取股票集合
-        stocks = process.get_stocks()
-        # 处理数据
-        data = process.process_data(stocks)
-        print(data[0:2])
-        # 写入数据库
-        process.write_to_mysql(data)
-        print('耗时： {}s'.format(round(time.time()-t, 4)))
-    except Exception as e:
-        error_info = traceback.format_exc()
-        send_email('Data: valuation_ts', error_info)
+        processor = TSCommonData(
+            start_date,
+            end_date,
+            now_date,
+            use_trade_day=use_trade_day,
+            feas=feas,
+            table_name='valuation_ts'
+        )
+        if not processor.is_trade_day:
+            return
+
+        stocks = processor.get_stocks(is_alive=True)
+        df = processor.fetch_data_from_api(stocks, api_fun='daily_basic', batch_size=1, req_per_min=700)
+        data = processor.process(df)
+        processor.write_to_mysql(data)
+        processor.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
+    except:
+        err_msg = traceback.format_exc()
+        send_email('Data: valuation_ts', err_msg)
 
 if __name__ == '__main__':
     fire.Fire(main)
+
