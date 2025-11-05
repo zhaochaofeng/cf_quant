@@ -9,7 +9,7 @@ from utils import send_email
 from data.check_data import CheckMySQLData
 
 
-feas = ['ts_code', 'day', 'close', 'turnover_rate', 'turnover_rate_f',
+feas = ['day', 'ts_code', 'close', 'turnover_rate', 'turnover_rate_f',
         'volume_ratio', 'pe', 'pe_ttm', 'pb', 'ps', 'ps_ttm', 'dv_ratio',
         'dv_ttm', 'total_share', 'float_share', 'free_share', 'total_mv',
         'circ_mv']
