@@ -14,7 +14,7 @@ else
 fi
 echo "dt: "${dt}
 
-${python_path} ${cur_path}/check.py --date ${dt}
+${python_path} ${cur_path}/check.py --now_date ${dt}
 
 # 判断是否执行成功
 if [ $? -eq 0 ]; then

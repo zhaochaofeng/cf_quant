@@ -29,7 +29,7 @@ class CheckMySQLData:
             start_date: 开始日期，格式为'YYYY-MM-DD'
             end_date: 结束日期，格式为'YYYY-MM-DD'
             table_name: 数据库表名
-            feas: 数据库表字段。必须包含股票代码和日期字段（ts_code,day），且放在前两个位置
+            feas: 数据库表字段。必须包含股票日期和代码字段（如day, ts_code），且按照顺序放在前两个位置
             ts_api_func: Tushare API函数名。如'daily_basic'
             use_trade_day: 是否指定api中trade_date参数，若指定，则trade_date=end_date
             log_file: 日志文件名
@@ -47,24 +47,47 @@ class CheckMySQLData:
             self.logger.warning(msg)
             self.is_trade_day = False
 
-    def fetch_data_from_mysql(self):
+    def fetch_data_from_mysql(self, table_name: str = None, conditions_dict: dict = None) -> pd.DataFrame:
         """
         从 MySQL 中获取数据
         """
+        if table_name is None:
+            table_name = self.table_name
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_mysql ...'))
         try:
             engine = sql_engine()
             sql = f"""
-                SELECT {','.join(self.feas)} FROM {self.table_name} WHERE day>='{self.start_date}' AND day<='{self.end_date}'
+                SELECT {','.join(self.feas)} FROM {table_name} WHERE day>='{self.start_date}' AND day<='{self.end_date}'
             """
-            self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
-            df = pd.read_sql(sql, engine)
+
+            if conditions_dict:
+                conditions = []
+                params = {}
+                for key, value in conditions_dict.items():
+                    if ' ' in key:
+                        # 处理带操作符的条件，属性和操作之间必须带空格，如 'list_date <='
+                        # 构造成 'list_date <= %(list_date)s'
+                        field, operator = key.split(' ', 1)
+                        conditions.append(f"{field} {operator} %({field})s")
+                        params[field] = value
+                    else:
+                        # 默认等值条件
+                        conditions.append(f"{key} = %({key})s")
+                        params[key] = value
+
+                sql = sql + " AND " + " AND ".join(conditions)
+                self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
+                df = pd.read_sql(sql, engine, params=params)
+            else:
+                self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
+                df = pd.read_sql(sql, engine)
+
             self.logger.info('df shape: {}'.format(df.shape))
             if df.empty:
                 error_msg = 'df is empty !!!'
                 self.logger.error(error_msg)
                 raise Exception(error_msg)
-            df.set_index(keys=['day', 'ts_code'], inplace=True)
+            df.set_index(keys=self.feas[0:2], inplace=True)
             return df
         except Exception as e:
             error_msg = 'fetch_data_from_mysql error: {}'.format(e)
@@ -129,49 +152,49 @@ class CheckMySQLData:
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def check(self, df_mysql, df_api, is_repair=True):
+    def check(self, df_target, df_test, is_repair=True):
         '''
         检查 MySQL 与 API 数据是否相同
         Args:
-            df_mysql: mysql中的数据
-            df_api: api中请求的数据
-            is_repair: 当df_mysql与df_api不一致时，使用api数据修复mysql数据
+            df_target: 待检测数据(mysql)
+            df_test: 测试数据（api或mysql）
+            is_repair: 当df_target与df_test不一致时，可以使用test数据修复mysql数据
         '''
         self.logger.info('\n{}\n{}'.format('=' * 100, 'check ...'))
         try:
-            self.logger.info('df_mysql shape: {}, df_api shape: {}'.format(df_mysql.shape, df_api.shape))
-            diff = (df_mysql.eq(df_api)) | ((df_mysql.isna()) & (df_api.isna()))    # 值相同 ｜ 都为NaN
+            self.logger.info('df_target shape: {}, df_test shape: {}'.format(df_target.shape, df_test.shape))
+            diff = (df_target.eq(df_test)) | ((df_target.isna()) & (df_test.isna()))    # 值相同 ｜ 都为NaN
             mask_ne = (diff != True).any(axis=1)
             index_ne = diff.index[mask_ne]  # 包含不相等值的行索引
 
             res = []  # 存放错误信息
             for index in index_ne:
-                mysql_f = []
-                api_f = []
+                target_f = []
+                test_f = []
                 try:
-                    mysql_row = df_mysql.loc[index]
+                    target_row = df_target.loc[index]
                     for f in self.feas[2:]:
-                        mysql_f.append('{}:{}'.format(f, mysql_row[f]))
+                        target_f.append('{}:{}'.format(f, target_row[f]))
                 except:
-                    mysql_f = ['NaN']
+                    target_f = ['NaN']
 
                 try:
-                    api_row = df_api.loc[index]
+                    test_row = df_test.loc[index]
                     for f in self.feas[2:]:
-                        api_f.append('{}:{}'.format(f, api_row[f]))
+                        test_f.append('{}:{}'.format(f, test_row[f]))
                 except:
-                    api_f = ['NaN']
+                    test_f = ['NaN']
 
                 if is_repair:
-                    # 修复mysql中的数据
+                    # 修复数据
                     with MySQLDB() as db:
-                        api_row = df_api.loc[index]
+                        test_row = df_test.loc[index]
                         params = {
                             'day': index[0],
                             'ts_code': index[1],
                         }
                         for f in self.feas[2:]:
-                            v = api_row[f]
+                            v = test_row[f]
                             if pd.isna(v):
                                 v = None
                             params[f] = v
@@ -180,7 +203,7 @@ class CheckMySQLData:
                         """.format(self.table_name, ','.join(['{}=%({})s'.format(f, f) for f in self.feas[2:]]))
                         db.execute(sql, params)
 
-                res.append('{}: [mysql: {};  api: {}]'.format(index, ', '.join(mysql_f), ', '.join(api_f)))
+                res.append('{}: [target: {};  test: {}]'.format(index, ', '.join(target_f), ', '.join(test_f)))
             if len(res) == 0:
                 self.logger.info('检查没有异常 ！！！')
             return res
