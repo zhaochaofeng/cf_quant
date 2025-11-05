@@ -132,6 +132,7 @@ class TSProcessData(Base):
         self.logger.info('stocks len: {}'.format(len(codes)))
         return codes
 
+
 class TSFinacialData(TSProcessData):
     ''' Tushare 财务数据处理类 '''
     def __init__(self,
@@ -238,6 +239,8 @@ class TSCommonData(TSProcessData):
             batch_size: 1次请求ts_code的个数(有些API可以请求多个ts_code)
             req_per_min: 1分钟请求的次数上界
         '''
+        import warnings
+        warnings.filterwarnings("ignore")
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
         try:
             pro = tushare_pro()
