@@ -11,6 +11,28 @@ from utils import MySQLDB
 from utils import sql_engine, tushare_pro, is_trade_day
 from utils import get_trade_cal_inter
 
+def bao_api(bs, api_func, **kwargs) -> pd.DataFrame:
+    """
+    通过BaoStock API函数名和参数获取数据
+
+    Args:
+        api_func: baostock API函数名
+        **kwargs: 传递给API函数的参数
+
+    Returns:
+        pd.DataFrame: 获取的数据
+    """
+    try:
+        # 获取API函数
+        api_function = getattr(bs, api_func)
+        # 调用API函数并传入参数
+        df = api_function(**kwargs).get_data()
+        return df
+    except AttributeError:
+        raise AttributeError(f"BaoStock API中不存在函数: {api_func}")
+    except Exception as e:
+        raise Exception(f"调用API {api_func} 时发生错误: {str(e)}")
+
 
 def ts_api(pro, api_func, **kwargs) -> pd.DataFrame:
     """
