@@ -195,6 +195,56 @@ def send_email(subject, body):
     except Exception as e:
         print("邮件发送失败:", e)
 
+def bao_api(bs, api_func, **kwargs) -> pd.DataFrame:
+    """
+    通过BaoStock API函数名和参数获取数据
+
+    Args:
+        api_func: baostock API函数名
+        **kwargs: 传递给API函数的参数
+
+    Returns:
+        pd.DataFrame: 获取的数据
+    """
+    try:
+        # 获取API函数
+        api_function = getattr(bs, api_func)
+        # 调用API函数并传入参数
+        df = api_function(**kwargs).get_data()
+        return df
+    except AttributeError:
+        raise AttributeError(f"BaoStock API中不存在函数: {api_func}")
+    except Exception as e:
+        raise Exception(f"调用API {api_func} 时发生错误: {str(e)}")
+
+
+def ts_api(pro, api_func, **kwargs) -> pd.DataFrame:
+    """
+    通过Tushare API函数名和参数获取数据
+
+    Args:
+        api_func: tushare API函数名
+        **kwargs: 传递给API函数的参数
+
+    Returns:
+        pd.DataFrame: 获取的数据
+
+    Raises:
+        AttributeError: 当指定的API函数不存在时
+        Exception: API调用过程中的其他异常
+    """
+    try:
+        # 获取API函数
+        api_function = getattr(pro, api_func)
+        # 调用API函数并传入参数
+        df = api_function(**kwargs)
+        return df
+    except AttributeError:
+        raise AttributeError(f"Tushare API中不存在函数: {api_func}")
+    except Exception as e:
+        raise Exception(f"调用API {api_func} 时发生错误: {str(e)}")
+
+
 if __name__ == '__main__':
     print(get_n_nexttrade_day('2025-09-20', 1))
 
