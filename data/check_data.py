@@ -55,7 +55,7 @@ class CheckMySQLData:
             start_date: 开始日期，格式为'YYYY-MM-DD'
             end_date: 结束日期，格式为'YYYY-MM-DD'
             table_name: 数据库表名
-            feas: 数据库表字段。必须包含股票代码和日期字段（如ts_code,day），且放在前两个位置
+            feas: 数据库表字段。必须包含股票代码和日期字段（ts_code,day），且放在前两个位置
             ts_api_func: Tushare API函数名。如'daily_basic'
             use_trade_day: 是否指定api中trade_date参数，若指定，则trade_date=end_date
             log_file: 日志文件名
