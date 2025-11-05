@@ -8,7 +8,7 @@ from datetime import datetime
 import fire
 import pandas as pd
 from data.process_data import Base, ts_api
-from utils import tushare_pro, send_email
+from utils import tushare_pro, send_email, is_trade_day
 
 feas = {
     'ts_code': 'ts_code',
@@ -42,13 +42,16 @@ class TSStockInfoProcessor(Base):
     ''' 股票信息数据 '''
 
     def __init__(self,
-                 feas: dict,
-                 table_name: str,
-                 date: str = None,
+                 feas: dict = feas,
+                 table_name: str = 'stock_info_ts',
+                 now_date: str = None,
                  **kwargs
                  ):
         super().__init__(feas=feas, table_name=table_name, **kwargs)
-        self.date = date
+        self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
+        if not is_trade_day(self.now_date):
+            self.logger.info('非交易日，不处理')
+            exit(0)
 
     def fetch_data_from_api(self):
         ''' 股票基本信息 + 行业数据 '''
@@ -103,11 +106,7 @@ class TSStockInfoProcessor(Base):
             tmp = {}
             for f in self.feas.keys():
                 if f == 'day' and self.feas[f] == '':
-                    if self.date:
-                        v = self.date
-                    elif self.date is None:
-                        # 对于没有日期的表，用取数当天日期
-                        v = datetime.now().strftime('%Y-%m-%d')
+                    v = self.now_date
                 else:
                     v = row[self.feas[f]]
                     if pd.isna(v):
@@ -128,26 +127,22 @@ class TSStockInfoProcessor(Base):
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-
-def main(date: str = None) -> None:
-    t = time.time()
-    processor = TSStockInfoProcessor(
-        feas=feas,
-        table_name='stock_info_ts',
-        log_file='log/{}.log'.format(datetime.now().strftime('%Y-%m-%d')),
-        date=date,
-    )
-    try:
-        df = processor.fetch_data_from_api()
-        data = processor.process(df)
-        processor.write_to_mysql(data)
-        print('耗时：{}s'.format(round(time.time() - t, 4)))
-    except:
-        error_msg = traceback.format_exc()
-        processor.logger.error(error_msg)
-        send_email('Data: stock_info_ts', error_msg)
-        raise Exception(error_msg)
+    def main(self) -> None:
+        t = time.time()
+        try:
+            df = self.fetch_data_from_api()
+            data = self.process(df)
+            self.write_to_mysql(data)
+            print('耗时：{}s'.format(round(time.time() - t, 4)))
+        except:
+            error_msg = traceback.format_exc()
+            self.logger.error(error_msg)
+            send_email('Data: stock_info_ts', error_msg)
+            raise Exception(error_msg)
 
 
 if __name__ == '__main__':
-    fire.Fire(main)
+    fire.Fire(TSStockInfoProcessor)
+    '''
+        python stock_info_ts.py --now_date 2025-11-02 main
+    '''
