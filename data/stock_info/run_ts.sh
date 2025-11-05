@@ -8,7 +8,7 @@ echo 'cur_path: '${cur_path}
 dt=`date +%Y-%m-%d`
 echo "dt: "${dt}
 
-${python_path} ${cur_path}/stock_info_ts.py --now_date ${dt}
+${python_path} ${cur_path}/stock_info_ts.py --now_date ${dt} main
 
 # 判断是否执行成功
 if [ $? -eq 0 ]; then
