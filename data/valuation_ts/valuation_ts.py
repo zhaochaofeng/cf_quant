@@ -33,7 +33,8 @@ def main(
         start_date: str,
         end_date: str,
         now_date: str = None,
-        use_trade_day: bool = True
+        use_trade_day: bool = True,
+        is_alive: bool = True
         ):
     try:
         t = time.time()
@@ -48,7 +49,7 @@ def main(
         if not processor.is_trade_day:
             return
 
-        stocks = processor.get_stocks(is_alive=True)
+        stocks = processor.get_stocks(is_alive=is_alive)
         df = processor.fetch_data_from_api(stocks, api_fun='daily_basic', batch_size=1, req_per_min=700)
         data = processor.process(df)
         processor.write_to_mysql(data)
