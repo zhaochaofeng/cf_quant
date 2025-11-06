@@ -47,40 +47,48 @@ class CheckMySQLData:
             self.logger.warning(msg)
             self.is_trade_day = False
 
-    def fetch_data_from_mysql(self, table_name: str = None, conditions_dict: dict = None) -> pd.DataFrame:
+    def fetch_data_from_mysql(self, table_name: str = None, conditions_dict: dict = None, sql_str: str = None) -> pd.DataFrame:
         """
         从 MySQL 中获取数据
+        Args:
+            conditions_dict: 在基础sql上加条件
+            sql_str: 外部直接输入SQL
         """
         if table_name is None:
             table_name = self.table_name
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_mysql ...'))
         try:
             engine = sql_engine()
-            sql = f"""
-                SELECT {','.join(self.feas)} FROM {table_name} WHERE day>='{self.start_date}' AND day<='{self.end_date}'
-            """
-
-            if conditions_dict:
-                conditions = []
-                params = {}
-                for key, value in conditions_dict.items():
-                    if ' ' in key:
-                        # 处理带操作符的条件，属性和操作之间必须带空格，如 'list_date <='
-                        # 构造成 'list_date <= %(list_date)s'
-                        field, operator = key.split(' ', 1)
-                        conditions.append(f"{field} {operator} %({field})s")
-                        params[field] = value
-                    else:
-                        # 默认等值条件
-                        conditions.append(f"{key} = %({key})s")
-                        params[key] = value
-
-                sql = sql + " AND " + " AND ".join(conditions)
-                self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
-                df = pd.read_sql(sql, engine, params=params)
-            else:
+            if sql_str:
+                sql = sql_str
                 self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
                 df = pd.read_sql(sql, engine)
+            else:
+                sql = f"""
+                    SELECT {','.join(self.feas)} FROM {table_name} WHERE day>='{self.start_date}' AND day<='{self.end_date}'
+                """
+
+                if conditions_dict:
+                    conditions = []
+                    params = {}
+                    for key, value in conditions_dict.items():
+                        if ' ' in key:
+                            # 处理带操作符的条件，属性和操作之间必须带空格，如 'list_date <='
+                            # 构造成 'list_date <= %(list_date)s'
+                            field, operator = key.split(' ', 1)
+                            conditions.append(f"{field} {operator} %({field})s")
+                            params[field] = value
+                        else:
+                            # 默认等值条件
+                            conditions.append(f"{key} = %({key})s")
+                            params[key] = value
+
+                    sql = sql + " AND " + " AND ".join(conditions)
+                    self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
+                    df = pd.read_sql(sql, engine, params=params)
+                else:
+                    self.logger.info('\n{}\n{}\n{}'.format('-' * 50, sql, '-' * 50))
+                    df = pd.read_sql(sql, engine)
 
             self.logger.info('df shape: {}'.format(df.shape))
             if df.empty:
