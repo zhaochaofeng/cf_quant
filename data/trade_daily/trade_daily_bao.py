@@ -57,7 +57,7 @@ def main(
             return
 
         stocks = processor.get_stocks(table_name='stock_info_bao', code_name='code')
-        df = processor.fetch_data_from_api(stocks[0:10], api_fun='query_history_k_data_plus', round_dic=round_dic)
+        df = processor.fetch_data_from_api(stocks, api_fun='query_history_k_data_plus', round_dic=round_dic)
         data = processor.process(df)
         processor.write_to_mysql(data)
         processor.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
