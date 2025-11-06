@@ -84,7 +84,7 @@ class ProcessData(Base):
         super().__init__(**kwargs)
         self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
 
-    def get_stocks(self, table_name: str = 'stock_info_ts', is_alive: bool = False):
+    def get_stocks(self, table_name: str = 'stock_info_ts', code_name: str='ts_code', is_alive: bool = False):
         """ 获取股票列表
             Args:
                  table_name: 股票信息表名
@@ -93,18 +93,18 @@ class ProcessData(Base):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'get_stocks...'))
         engine = sql_engine()
         sql = '''
-                select ts_code from {} where day='{}'
-            '''.format(table_name, self.now_date)
+                select {} from {} where day='{}'
+            '''.format(code_name, table_name, self.now_date)
         if is_alive:
             sql += ' and status=1'
 
         self.logger.info('\n{}\n{}\n{}'.format('-'*50, sql, '-'*50))
         df = pd.read_sql(sql, engine)
         if df.empty:
-            err_msg = 'table stock_info_ts has no data: {}'.format(self.now_date)
+            err_msg = 'table {} has no data: {}'.format(table_name, self.now_date)
             self.logger.info(err_msg)
             raise Exception(err_msg)
-        codes = df['ts_code'].values.tolist()
+        codes = df[code_name].values.tolist()
         self.logger.info('stocks len: {}'.format(len(codes)))
         return codes
 
@@ -446,28 +446,24 @@ class BaoTradeDailyData(BaoCommonData):
                  **kwargs
                  ):
         super().__init__(start_date, end_date, now_date, **kwargs)
-        self.start_date = start_date
-        self.end_date = end_date
-        self.now_date = now_date
         self.bs = bao_stock_connect()
 
-    def fetch_data_from_api(self, stocks: list, api_fun: str, round_dic: dict) -> pd.DataFrame:
+    def fetch_data_from_api(self, stocks: list, api_fun: str, round_dic: dict = None) -> pd.DataFrame:
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
         try:
             fea_bao = list(self.feas.values())
-            [fea_bao.remove(f) for f in ['qlib_code', 'adj_factor'] if f in fea_bao]
+            [fea_bao.remove(f) for f in ['code', 'adj_factor'] if f in fea_bao]
 
             df_list = []
             factor_list = []
             for i, stock in enumerate(stocks):
                 if (i + 1) % 100 == 0:
                     self.logger.info('processed : {} / {}'.format(i + 1, len(stocks)))
-                rs = bao_api(self.bs, api_fun,
+                df = bao_api(self.bs, api_fun,
                               code=stock, fields="{}".format(','.join(fea_bao)),
                               start_date=self.start_date, end_date=self.end_date,
                               frequency="d", adjustflag="3"
                              )
-                df = rs.get_data()
                 if df.empty:
                     continue
                 df = df[~(df['amount'] == '')]  # BaoStock在停牌日也能请求到数据，volume/amount为'', 需要排除
@@ -494,13 +490,11 @@ class BaoTradeDailyData(BaoCommonData):
             merged = pd.concat([df, factor], axis=1, join='outer')
             self.logger.info('merged shape: {}'.format(merged.shape))
 
-            print(merged.head())
-
             for f in merged.columns:
                 merged[f] = pd.to_numeric(merged[f], errors='coerce')
             merged.reset_index(inplace=True)
-            merged = merged.round(round_dic)
-            print(merged.head())
+            if round_dic:
+                merged = merged.round(round_dic)
             return merged
         except Exception as e:
             error_msg = 'fetch_data_from_api error: {}'.format(e)
@@ -519,7 +513,6 @@ class BaoTradeDailyData(BaoCommonData):
         返回:
         pd.DataFrame: 包含code, date, adj_factor字段的DataFrame，包含日期范围内每一天的数据
         """
-        self.logger.info('\n{}\n{}'.format('=' * 100, 'get_factor...'))
         try:
             # 查询指定股票的除权除息数据（包含后复权因子）
             rs = self.bs.query_adjust_factor(
