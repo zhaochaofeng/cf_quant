@@ -8,9 +8,9 @@ from datetime import datetime
 from abc import ABC, abstractmethod
 from utils import LoggerFactory
 from utils import MySQLDB
-from utils import sql_engine, tushare_pro, is_trade_day
-from utils import get_trade_cal_inter
-from utils import ts_api
+from utils import sql_engine, tushare_pro, bao_stock_connect
+from utils import get_trade_cal_inter, is_trade_day
+from utils import ts_api, bao_api
 
 
 class Base(ABC):
@@ -66,7 +66,7 @@ class Base(ABC):
             feas_format = ['%({})s'.format(f) for f in feas]
             sql = """
                 INSERT INTO {} ({}) VALUES({})
-            """.format(self.table_name, ','.join(feas).replace('change', '`change`'), ','.join(feas_format))
+            """.format(self.table_name, ','.join(feas).replace(',change', ',`change`'), ','.join(feas_format))
 
             with MySQLDB() as db:
                 db.executemany(sql, data)
@@ -381,3 +381,222 @@ class TSTradeDailyData(TSCommonData):
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
+class BaoCommonData(ProcessData):
+    ''' BaoStack 通用格式数据 '''
+    def __init__(self,
+                 start_date: str,
+                 end_date: str,
+                 now_date: str = None,
+                 **kwargs
+                 ):
+
+        super().__init__(now_date=now_date, **kwargs)
+        self.start_date = start_date
+        self.end_date = end_date
+        self.is_trade_day = True   # 是否为交易日
+        if not is_trade_day(self.end_date):
+            msg = '{} is not a trade date, exit !!!'.format(self.end_date)
+            self.logger.warning(msg)
+            self.is_trade_day = False
+
+    def fetch_data_from_api(self, stocks: list, api_fun: str) -> pd.DataFrame:
+        ''' 从BaoStock获取通用数据
+        Args:
+            batch_size: 1次请求ts_code的个数(有些API可以请求多个ts_code)
+            req_per_min: 1分钟请求的次数上界
+        '''
+        pass
+
+    def parse_line(self, row) -> dict:
+        ''' 解析单条数据 '''
+        try:
+            tmp = {}
+            for f in self.feas.keys():
+                if f == 'day' and self.feas[f] == '':
+                    v = self.now_date
+                else:
+                    v = row[self.feas[f]]
+                    if pd.isna(v):
+                        v = None
+                    elif f == 'qlib_code':
+                        suffix, code = v.split('.')
+                        v = '{}{}'.format(suffix.upper(), code)
+                    elif f == 'pct_chg':
+                        if abs(v) > 9999.99:
+                            self.logger.warning(f"警告: pct_chg值 {v} 超出范围，已截断为9999.99或-9999.99")
+                            self.logger.warning(row)
+                            v = 9999.99 if v > 0 else -9999.99
+                    elif f == 'vol':
+                        v = v / 100  # 股转化为手
+                    elif f == 'amount':
+                        v = v / 1000  # 元转为千元
+                tmp[f] = v
+            return tmp
+        except Exception as e:
+            error_msg = 'parse_line error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+class BaoTradeDailyData(BaoCommonData):
+    ''' BaoStock 日级交易数据 '''
+    def __init__(self,
+                 start_date: str,
+                 end_date: str,
+                 now_date: str = None,
+                 **kwargs
+                 ):
+        super().__init__(start_date, end_date, now_date, **kwargs)
+        self.start_date = start_date
+        self.end_date = end_date
+        self.now_date = now_date
+        self.bs = bao_stock_connect()
+
+    def fetch_data_from_api(self, stocks: list, api_fun: str, round_dic: dict) -> pd.DataFrame:
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api...'))
+        try:
+            fea_bao = list(self.feas.values())
+            [fea_bao.remove(f) for f in ['qlib_code', 'adj_factor'] if f in fea_bao]
+
+            df_list = []
+            factor_list = []
+            for i, stock in enumerate(stocks):
+                if (i + 1) % 100 == 0:
+                    self.logger.info('processed : {} / {}'.format(i + 1, len(stocks)))
+                rs = bao_api(self.bs, api_fun,
+                              code=stock, fields="{}".format(','.join(fea_bao)),
+                              start_date=self.start_date, end_date=self.end_date,
+                              frequency="d", adjustflag="3"
+                             )
+                df = rs.get_data()
+                if df.empty:
+                    continue
+                df = df[~(df['amount'] == '')]  # BaoStock在停牌日也能请求到数据，volume/amount为'', 需要排除
+                if df.empty:
+                    continue
+                factor = self.get_factor(stock, self.start_date, self.end_date)
+                if factor.empty:
+                    continue
+
+                df_list.append(df)
+                factor_list.append(factor)
+
+            df = pd.concat(df_list, axis=0, join='outer')
+            factor = pd.concat(factor_list, axis=0, join='outer')
+            if df.empty or factor.empty:
+                err_msg = 'df({}) or factor({}) is empty !'.format(df.shape, factor.shape)
+                self.logger.error(err_msg)
+                raise Exception(err_msg)
+            self.logger.info('df shape: {}'.format(df.shape))
+            self.logger.info('factor shape: {}'.format(factor.shape))
+            df.set_index(keys=['code', 'date'], inplace=True)
+            factor.set_index(keys=['code', 'date'], inplace=True)
+            factor = factor.reindex(df.index)
+            merged = pd.concat([df, factor], axis=1, join='outer')
+            self.logger.info('merged shape: {}'.format(merged.shape))
+
+            print(merged.head())
+
+            for f in merged.columns:
+                merged[f] = pd.to_numeric(merged[f], errors='coerce')
+            merged.reset_index(inplace=True)
+            merged = merged.round(round_dic)
+            print(merged.head())
+            return merged
+        except Exception as e:
+            error_msg = 'fetch_data_from_api error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+    def get_factor(self, code, start_date, end_date):
+        """
+        获取指定股票在指定日期范围内每天的后复权因子
+
+        参数:
+        code (str): 股票代码，格式如"sh.600000"
+        start_date (str): 起始日期，格式为"YYYY-MM-DD"
+        end_date (str): 终止日期，格式为"YYYY-MM-DD"
+
+        返回:
+        pd.DataFrame: 包含code, date, adj_factor字段的DataFrame，包含日期范围内每一天的数据
+        """
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'get_factor...'))
+        try:
+            # 查询指定股票的除权除息数据（包含后复权因子）
+            rs = self.bs.query_adjust_factor(
+                code=code,
+                start_date="1990-01-01",  # 从较早日期开始查询
+                end_date=end_date
+            )
+
+            if rs.error_code != '0':
+                raise Exception(f"获取{code}复权因子失败: {rs.error_msg}")
+
+            # 生成指定日期范围内的所有日期
+            date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+            full_dates = pd.DataFrame({'date': date_range})
+
+            # 获取除权除息日数据
+            df = rs.get_data()
+            if df.empty:
+                self.logger.warning(f"未获取到{code}的除权除息数据")
+                result_df = full_dates.copy()
+                result_df['code'] = code
+                result_df['adj_factor'] = 1.0
+                return result_df[['code', 'date', 'adj_factor']]
+
+            # print(df[['code', 'dividOperateDate', 'backAdjustFactor']])
+
+            # 筛选出需要的后复权因子列并重命名
+            df = df[['code', 'dividOperateDate', 'backAdjustFactor']].rename(
+                columns={'dividOperateDate': 'date', 'backAdjustFactor': 'adj_factor'}
+            )
+
+            # 转换日期为datetime类型，因子为数值类型
+            df['date'] = pd.to_datetime(df['date'], format='%Y-%m-%d')
+            df['adj_factor'] = pd.to_numeric(df['adj_factor'], errors='coerce')
+
+            # 关键修复：找到起始日期前最近的除权除息日因子值
+            start_dt = pd.to_datetime(start_date)
+            # start_date这一天不是除权除息日
+            if df[df['date'] == start_dt].empty:
+                # 筛选出在起始日期之前的factor
+                before_start = df[df['date'] < start_dt]
+                if not before_start.empty:
+                    # 取起始日期前最近的一个因子值
+                    latest_before_start = before_start.sort_values('date', ascending=False).iloc[0]
+                    # 将该因子值添加到合并数据中
+                    pre_start_row = pd.DataFrame({
+                        'date': [start_dt],
+                        'adj_factor': [latest_before_start['adj_factor']]
+                    })
+                else:
+                    pre_start_row = pd.DataFrame({
+                        'date': [start_dt],
+                        'adj_factor': [1.0]
+                    })
+                    # 合并到原始除权除息数据中
+                df = pd.concat([df, pre_start_row], ignore_index=True)
+
+            # 将除权除息日数据与完整日期序列合并
+            merged_df = pd.merge(full_dates, df[['date', 'adj_factor']], on='date', how='left')
+
+            # 调试：检查合并后的数据
+            # print(f"合并后的数据样本:")
+            # print(merged_df[merged_df['adj_factor'].notna()])
+
+            # 向前填充因子值（关键修复点：确保填充逻辑正确）
+            merged_df['adj_factor'] = merged_df['adj_factor'].ffill()
+
+            # 添加股票代码列
+            merged_df['code'] = code
+
+            # 调整列顺序并转换日期为字符串格式
+            result_df = merged_df[['code', 'date', 'adj_factor']]
+            result_df['date'] = result_df['date'].dt.strftime('%Y-%m-%d')
+
+            return result_df
+
+        except Exception as e:
+            error_msg = f"获取{code}的复权因子失败: {str(e)}"
+            self.logger.error(error_msg)
+            raise Exception(f"发生异常: {str(e)}")
