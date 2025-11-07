@@ -113,9 +113,19 @@ class CheckMySQLData:
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_ts...'))
         try:
             pro = tushare_pro()
-            if self.use_trade_day and self.start_date == self.end_date:
-                trade_date = self.end_date.replace('-', '')
-                df = ts_api(pro, api_fun, trade_date=trade_date)
+            # if self.use_trade_day and self.start_date == self.end_date:
+            #     trade_date = self.end_date.replace('-', '')
+            #     df = ts_api(pro, api_fun, trade_date=trade_date)
+            #     df = df[df['ts_code'].isin(stocks)]  # 过滤股票
+            if self.use_trade_day:
+                date_inter = get_trade_cal_inter(self.start_date, self.end_date)
+                print(date_inter)
+                df_list = []
+                for date in date_inter:
+                    date = date.replace('-', '')
+                    tmp = ts_api(pro, api_fun, trade_date=date)
+                    df_list.append(tmp)
+                df = pd.concat(df_list, axis=0, join='outer')
                 df = df[df['ts_code'].isin(stocks)]  # 过滤股票
             else:
                 start_date = self.start_date.replace('-', '')
@@ -153,7 +163,7 @@ class CheckMySQLData:
             df['day'] = pd.to_datetime(df['trade_date']).dt.date
             df = df[self.feas]
             self.logger.info('df shape: {}'.format(df.shape))
-            df.set_index(keys=['day', 'ts_code'], inplace=True)
+            df.set_index(keys=self.feas[0:2], inplace=True)
             return df
         except Exception as e:
             error_msg = 'error in fetch_data_from_api: {}'.format(e)
