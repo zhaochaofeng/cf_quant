@@ -15,7 +15,7 @@ feas = ['day', 'ts_code', 'close', 'turnover_rate', 'turnover_rate_f',
         'circ_mv']
 
 
-def main(start_date: str, end_date: str, use_trade_day: bool = False):
+def main(start_date: str, end_date: str, use_trade_day: bool = True):
     try:
         t = time.time()
         check = CheckMySQLData(

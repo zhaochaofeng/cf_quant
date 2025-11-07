@@ -119,7 +119,6 @@ class CheckMySQLData:
             #     df = df[df['ts_code'].isin(stocks)]  # 过滤股票
             if self.use_trade_day:
                 date_inter = get_trade_cal_inter(self.start_date, self.end_date)
-                print(date_inter)
                 df_list = []
                 for date in date_inter:
                     date = date.replace('-', '')
