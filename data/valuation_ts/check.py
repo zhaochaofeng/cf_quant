@@ -26,6 +26,9 @@ def main(start_date: str, end_date: str, use_trade_day: bool = True):
             use_trade_day=use_trade_day
         )
 
+        if check.is_trade_day:
+            return
+
         df_mysql = check.fetch_data_from_mysql()
         stocks = df_mysql.index.get_level_values('ts_code').unique().tolist()
         df_ts = check.fetch_data_from_ts(stocks, api_fun='daily_basic', batch_size=1, req_per_min=700)
