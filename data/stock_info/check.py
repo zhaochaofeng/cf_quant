@@ -21,6 +21,9 @@ def main(now_date: str):
             feas=feas
         )
 
+        if not check.is_trade_day:
+            return
+
         conditions_dict = {
             'list_date <=': now_date,
             'exchange IN': ('SSE', 'SZSE')
