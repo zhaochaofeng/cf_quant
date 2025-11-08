@@ -26,7 +26,7 @@ def main(start_date: str, end_date: str, use_trade_day: bool = True):
             use_trade_day=use_trade_day
         )
 
-        if check.is_trade_day:
+        if not check.is_trade_day:
             return
 
         df_mysql = check.fetch_data_from_mysql()
