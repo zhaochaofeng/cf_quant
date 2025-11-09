@@ -24,6 +24,10 @@ def main(start_date: str,
             table_name='trade_daily_ts',
             feas=feas
         )
+
+        if not check.is_trade_day:
+            return
+
         now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
 
         sql_ts = '''
