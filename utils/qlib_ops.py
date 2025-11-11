@@ -1,9 +1,8 @@
 '''
     自定义 qlib 操作算子
-    注：需要在qlib.init()之后注册。
-        如：
-        qlib.init()
-        Operators.register([LastValue])
+    注：在qlib.init()初始化时注册，如：
+        _setup_kwargs = {'custom_ops': [CMean]}
+        qlib.init(provider_uri=provider_uri, **_setup_kwargs)
 '''
 
 import sys
