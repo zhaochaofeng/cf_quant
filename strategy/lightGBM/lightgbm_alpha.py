@@ -221,5 +221,5 @@ if __name__ == '__main__':
         send_email('Strategy: lightgbm_alpha158', error_info)
 
         '''
-        python lightgbm_alpha158.py main --start_wid 30 --train_wid 100
+        python lightgbm.py main --start_wid 30 --train_wid 100
         '''

@@ -12,3 +12,9 @@ from .utils import (
 from .db_mysql import MySQLDB
 from .logger import LoggerFactory
 from .ts_data_processor_template import TSDataProcesssor
+
+# 自定义 qlib 操作
+from .qlib_ops import (
+    LastValue, standardize, winsorize, CMean, CStd
+)
+
