@@ -7,19 +7,21 @@
 import time
 import pandas as pd
 from typing import Optional
-from utils import sql_engine, tushare_pro
-from utils import get_trade_cal_inter, is_trade_day
-from utils import LoggerFactory
-from utils import MySQLDB
-from utils import ts_api
+import qlib
+from qlib.data import D
+from utils import (
+    sql_engine, tushare_pro, tushare_ts,
+    get_trade_cal_inter, is_trade_day, LoggerFactory,
+    MySQLDB, ts_api
+)
 
 
 class CheckMySQLData:
     def __init__(self,
                  start_date: str,
                  end_date: str,
-                 table_name: str,
-                 feas: list,
+                 table_name: str = None,
+                 feas: list = None,
                  use_trade_day: bool = False,
                  log_file: Optional[str] = None,
                  level: str = "INFO",
@@ -47,7 +49,8 @@ class CheckMySQLData:
             self.logger.warning(msg)
             self.is_trade_day = False
 
-    def fetch_data_from_mysql(self, table_name: str = None, conditions_dict: dict = None, sql_str: str = None) -> pd.DataFrame:
+    def fetch_data_from_mysql(self, table_name: str = None, conditions_dict: dict = None,
+                              sql_str: str = None) -> pd.DataFrame:
         """
         从 MySQL 中获取数据
         Args:
@@ -102,21 +105,34 @@ class CheckMySQLData:
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def fetch_data_from_ts(self, stocks: list, api_fun: str, batch_size: int = 1, req_per_min: int = 600):
+    def fetch_data_from_ts(self,
+                           stocks: list,
+                           api_fun: str,
+                           batch_size: int = 1,
+                           req_per_min: int = 600,
+                           ts_type: str = None,
+                           code_type: str = None,
+                           feas: list = None,
+                           **kwargs
+                           ):
         ''' 从Tushare获取通用数据
             Args:
                 batch_size: 1次请求ts_code的个数(有些API可以请求多个ts_code)
                 req_per_min: 1分钟请求的次数上界
+                ts_type: tushare 接口类型。pro(默认): tushare_pro; ts: tushare_ts;
+                code_type: 股票code类型。ts(默认): 000001.SZ; qlib: 如SZ000001; bao: 如：sh.000001
+                feas: 取数字段
         '''
         import warnings
         warnings.filterwarnings("ignore")
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_ts...'))
         try:
-            pro = tushare_pro()
-            # if self.use_trade_day and self.start_date == self.end_date:
-            #     trade_date = self.end_date.replace('-', '')
-            #     df = ts_api(pro, api_fun, trade_date=trade_date)
-            #     df = df[df['ts_code'].isin(stocks)]  # 过滤股票
+            if ts_type == 'ts':
+                pro = tushare_ts()
+            else:
+                pro = tushare_pro()
+            if feas is None:
+                feas = self.feas
             if self.use_trade_day:
                 date_inter = get_trade_cal_inter(self.start_date, self.end_date)
                 df_list = []
@@ -146,7 +162,7 @@ class CheckMySQLData:
                         self.logger.info('processed : {} / {}'.format(k + batch_size, len(stocks)))
                     tmp = ts_api(pro, api_fun,
                                  ts_code=','.join(stocks[k:k + batch_size]),
-                                 start_date=start_date, end_date=end_date)
+                                 start_date=start_date, end_date=end_date, **kwargs)
                     if tmp.empty:
                         # self.logger.info('no data: {}'.format(','.join(stocks[k: k + batch_size])))
                         continue
@@ -160,28 +176,66 @@ class CheckMySQLData:
                 raise Exception(err_msg)
 
             df['day'] = pd.to_datetime(df['trade_date']).dt.date
-            df = df[self.feas]
+            if code_type == 'qlib':
+                df['qlib_code'] = df['ts_code'].apply(lambda x: '{}{}'.format(x[7:9], x[0:6]))
+            elif code_type == 'bao':
+                df['code'] = df['ts_code'].apply(lambda x: '{}.{}'.format(x[7:9].lower(), x[0:6]))
+            df = df[feas]
             self.logger.info('df shape: {}'.format(df.shape))
-            df.set_index(keys=self.feas[0:2], inplace=True)
+            df.set_index(keys=feas[0:2], inplace=True)
             return df
         except Exception as e:
             error_msg = 'error in fetch_data_from_api: {}'.format(e)
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def check(self, df_target, df_test, is_repair=True):
+    def fetch_data_from_qlib(self, provider_uri='~/.qlib/qlib_data/custom_data_hfq'):
+        """ 从qlib文件系统读取数据 """
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_qlib...'))
+        qlib.init(provider_uri=provider_uri)
+        fields = ['${}'.format(f) for f in self.feas[2:]]
+        # instruments = ['SZ300760']
+        config = D.instruments(market='all')
+        instruments = D.list_instruments(instruments=config, start_time=self.start_date, end_time=self.end_date,
+                                         as_list=True)
+        index_list = ['SH000300', 'SH000903', 'SH000905']
+        # instruments = instruments[0:20]
+        stocks = list(set(instruments) - set(index_list))
+        df = D.features(instruments, fields, start_time=self.start_date, end_time=self.end_date)
+        if df.empty:
+            error_msg = 'df is empty !'
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+        df.columns = self.feas[2:]
+        df.reset_index(inplace=True)
+        df['day'] = pd.to_datetime(df['datetime']).dt.date
+        df.rename(columns={'instrument': 'qlib_code'}, inplace=True)
+        df = df[self.feas]
+        self.logger.info('df shape: {}'.format(df.shape))
+        self.logger.info('stocks len: {}'.format(len(stocks)))
+        df.set_index(keys=self.feas[0:2], inplace=True)
+        return df, stocks
+
+    def check(self, df_target, df_test, is_repair=True, compare_type: str = 'eq'):
         '''
         检查 MySQL 与 API 数据是否相同
         Args:
             df_target: 待检测数据(mysql)
             df_test: 测试数据（api或mysql）
             is_repair: 当df_target与df_test不一致时，可以使用test数据修复mysql数据
+            compare_type: 比较类型。eq(默认): 值相等；round: 设置误差范围
         '''
         self.logger.info('\n{}\n{}'.format('=' * 100, 'check ...'))
         try:
             self.logger.info('df_target shape: {}, df_test shape: {}'.format(df_target.shape, df_test.shape))
-            diff = (df_target.eq(df_test)) | ((df_target.isna()) & (df_test.isna()))    # 值相同 ｜ 都为NaN
-            mask_ne = (diff != True).any(axis=1)
+            if compare_type == 'eq':
+                diff = (df_target.eq(df_test)) | ((df_target.isna()) & (df_test.isna()))  # 值相同 ｜ 都为NaN
+            elif compare_type == 'round':
+                diff = (abs((df_target - df_test) / df_test) < 0.00001) | ((df_target.isna()) & (df_test.isna()))
+            else:
+                raise Exception('compare_type error')
+
+            mask_ne = (diff.ne(True)).any(axis=1)
             index_ne = diff.index[mask_ne]  # 包含不相等值的行索引
 
             res = []  # 存放错误信息
