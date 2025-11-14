@@ -214,7 +214,7 @@ class CheckMySQLData:
         df.rename(columns={'instrument': 'qlib_code'}, inplace=True)
         df = df[self.feas]
         self.logger.info('df shape: {}'.format(df.shape))
-        self.logger.info('stocks len: {}'.format(len(stocks)))
+        self.logger.info('instruments len: {}'.format(len(instruments)))
         df.set_index(keys=self.feas[0:2], inplace=True)
         return df, instruments
 
