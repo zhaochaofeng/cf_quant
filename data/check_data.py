@@ -200,8 +200,10 @@ class CheckMySQLData:
                                          as_list=True)
         index_list = ['SH000300', 'SH000903', 'SH000905']
         # instruments = instruments[0:20]
-        stocks = list(set(instruments) - set(index_list))
+        instruments = list(set(instruments) - set(index_list))
         df = D.features(instruments, fields, start_time=self.start_date, end_time=self.end_date)
+        na = df.isna().all(axis=1)
+        df = df[~na]  # 停牌等原因没有交易数据，字段全为NaN
         if df.empty:
             error_msg = 'df is empty !'
             self.logger.error(error_msg)
@@ -214,9 +216,9 @@ class CheckMySQLData:
         self.logger.info('df shape: {}'.format(df.shape))
         self.logger.info('stocks len: {}'.format(len(stocks)))
         df.set_index(keys=self.feas[0:2], inplace=True)
-        return df, stocks
+        return df, instruments
 
-    def check(self, df_target, df_test, is_repair=True, compare_type: str = 'eq'):
+    def check(self, df_target, df_test, is_repair=True, compare_type: str = 'eq', epsilon: float = 0.0001):
         '''
         检查 MySQL 与 API 数据是否相同
         Args:
@@ -224,6 +226,7 @@ class CheckMySQLData:
             df_test: 测试数据（api或mysql）
             is_repair: 当df_target与df_test不一致时，可以使用test数据修复mysql数据
             compare_type: 比较类型。eq(默认): 值相等；round: 设置误差范围
+            epsilon: 误差大小
         '''
         self.logger.info('\n{}\n{}'.format('=' * 100, 'check ...'))
         try:
@@ -231,7 +234,7 @@ class CheckMySQLData:
             if compare_type == 'eq':
                 diff = (df_target.eq(df_test)) | ((df_target.isna()) & (df_test.isna()))  # 值相同 ｜ 都为NaN
             elif compare_type == 'round':
-                diff = (abs((df_target - df_test) / df_test) < 0.00001) | ((df_target.isna()) & (df_test.isna()))
+                diff = (abs((df_target - df_test) / df_test) < epsilon) | ((df_target.isna()) & (df_test.isna()))
             else:
                 raise Exception('compare_type error')
 

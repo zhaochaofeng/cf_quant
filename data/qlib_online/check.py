@@ -23,7 +23,8 @@ feas = {
 
 def main(start_date: str,
          end_date: str,
-         provider_uri: str = '~/.qlib/qlib_data/custom_data_hfq'
+         provider_uri: str = '~/.qlib/qlib_data/custom_data_hfq',
+         epsilon: float = 0.001
          ):
     t = time.time()
     check = CheckMySQLData(
@@ -50,9 +51,9 @@ def main(start_date: str,
         df_ts.sort_index(inplace=True)
         df_ts['amount'] = df_ts['amount'] * 1000
 
-        res = check.check(df_qlib, df_ts, is_repair=False, compare_type='round')
+        res = check.check(df_qlib, df_ts, is_repair=False, compare_type='round', epsilon=epsilon)
         if len(res) != 0:
-            send_email('Data:Check:valuation_ts(Auto Repair)', '\n'.join(res))
+            send_email('Data:Check:qlib_online', '\n'.join(res))
         check.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
     except Exception as e:
         error_msg = traceback.format_exc()
