@@ -91,7 +91,6 @@ trans_to_qlib(){
   echo "trans_to_qlib..."
   ${python_path} ${qlib_path}/scripts/dump_bin.py dump_all \
   --date_field_name date \
-  --symbol_field_name ts_code \
   --data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
   --qlib_dir ${provider_uri_tmp} \
   --include_fields open,close,high,low,volume,amount,factor,change
@@ -104,7 +103,9 @@ update(){
     rm -rf "${provider_uri_bak}"
   fi
   rm ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
-  mv ${provider_uri} ${provider_uri_bak}
+  if [ -d "${provider_uri}" ];then
+    mv ${provider_uri} ${provider_uri_bak}
+  fi
   mv ${provider_uri_tmp} ${provider_uri}
   check_success "替换历史数据"
 }
@@ -113,8 +114,8 @@ function_set(){
   create_tmp_dir
   get_data_from_mysql
   process_data
-#  trans_to_qlib
-#  update
+  trans_to_qlib
+  update
 }
 
 main(){
