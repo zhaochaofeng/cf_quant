@@ -150,7 +150,7 @@ class Processor:
         for i, (ts_code, group) in enumerate(df.groupby('ts_code')):
             code = '{}{}'.format(ts_code.split('.')[1], ts_code.split('.')[0])
             output_file = os.path.join(output_dir, f"{code}.csv")
-            group.to_csv(output_file, index=False, columns=self.columns)
+            group.to_csv(output_file, index=False, columns=self.columns[1:])
             if (i+1) % 100 == 0:
                 self.logger.info(f"processed : {i+1} ")
                 # self.logger.info(f"生成: {output_file} ({len(group)}行)")
