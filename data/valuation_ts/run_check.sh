@@ -3,7 +3,7 @@
 source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
-echo ${cur_path}
+echo "cur_path: "${cur_path}
 
 if [ $# -eq 0 ]; then
     dt2=`date +%Y-%m-%d`
@@ -18,6 +18,8 @@ if [ $# -eq 0 ]; then
     echo "参数错误"
     exit 1
 fi
+
+echo "[${dt1} - ${dt2}]"
 
 ${python_path} ${cur_path}/check.py --start_date ${dt1} --end_date ${dt2}
 
