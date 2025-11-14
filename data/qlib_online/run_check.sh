@@ -19,7 +19,7 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
-echo "[dt1: ${dt1} - dt2: ${dt2}]"
+echo "[${dt1} - ${dt2}]"
 
 ${python_path} ${cur_path}/check.py --start_date ${dt1} --end_date ${dt2}
 
