@@ -21,7 +21,7 @@ fi
 
 echo "[${dt1} - ${dt2}]"
 
-${python_path} ${cur_path}/check.py --start_date ${dt1} --end_date ${dt2}
+${python_path} ${cur_path}/check.py --start_date ${dt1} --end_date ${dt2} --epsilon 0.005
 
 # 判断是否执行成功
 if [ $? -eq 0 ]; then
