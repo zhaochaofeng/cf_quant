@@ -13,8 +13,19 @@ provider_uri_bak="${data_path}/custom_data_hfq_bak"
 
 echo 'cur_path: '${cur_path}
 
-dt1='2015-01-05'
-dt2=`date +%Y-%m-%d`
+if [ $# -eq 0 ]; then
+    dt1='2015-01-05'
+    dt2=`date +%Y-%m-%d`
+  elif [ $# -eq 1 ]; then
+    dt1=$1
+    dt2=`date +%Y-%m-%d`
+  elif [ $# -eq 2 ]; then
+    dt1=$1
+    dt2=$2
+  else
+    echo "参数错误！！！"
+    exit 1
+fi
 echo "时间区间为：["$dt1" - "$dt2"]"
 
 ${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt2}
@@ -31,7 +42,7 @@ create_tmp_dir(){
   mkdir -p "${provider_uri_tmp}"
 }
 
-check_success() {
+check_success(){
   if [ $? -eq 0 ]; then
     echo "$1 执行成功！！！"
   else
@@ -42,9 +53,24 @@ check_success() {
 
 get_data_from_mysql(){
   echo "get_data_from_mysql ..."
-  mysql -uchaofeng -pZhao_123 -e "select ts_code, day as date, open, close, high, low, vol, amount, adj_factor \
-  from cf_quant.trade_daily_ts \
-  where day>='${dt1}' and day<='${dt2}';" > ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
+
+  sql=$(cat <<-EOF
+    select a.ts_code, date, open, close, high, low, vol, amount, adj_factor, ind_one, ind_two, ind_three
+    FROM
+      (select ts_code, day as date, open, close, high, low, vol, amount, adj_factor
+      from cf_quant.trade_daily_ts
+      where day >= '${dt1}' and day <= '${dt2}'
+      )a
+    JOIN
+      (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three
+      from cf_quant.stock_info_ts where day='${dt2}'
+      )b
+    ON
+      a.ts_code=b.ts_code;
+EOF
+)
+  echo "${sql}"
+  mysql -uchaofeng -pZhao_123 -e "${sql}" > ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
   check_success "从mysql中导出数据"
 }
 
@@ -55,9 +81,10 @@ process_data(){
   --start_date ${dt1} \
   --end_date ${dt2} \
   --is_offline True \
-  --path_in ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
-
-  return $?
+  --path_in ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv \
+  --columns "['ts_code', 'date', 'open', 'close', 'high', 'low', 'volume', 'amount', 'factor', 'change', \
+  'ind_one', 'ind_two', 'ind_three']"
+  check_success "复权等数据处理"
 }
 
 trans_to_qlib(){
@@ -66,7 +93,7 @@ trans_to_qlib(){
   --date_field_name date \
   --data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
   --qlib_dir ${provider_uri_tmp} \
-  --include_fields open,close,high,low,volume,amount,factor,change
+  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three
   check_success "转化为qlib格式"
 }
 
@@ -75,8 +102,10 @@ update(){
     if [ -d "${provider_uri_bak}" ]; then
     rm -rf "${provider_uri_bak}"
   fi
-  rm ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
-  mv ${provider_uri} ${provider_uri_bak}
+  rm -rf ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
+  if [ -d "${provider_uri}" ];then
+    mv ${provider_uri} ${provider_uri_bak}
+  fi
   mv ${provider_uri_tmp} ${provider_uri}
   check_success "替换历史数据"
 }
@@ -91,12 +120,6 @@ function_set(){
 
 main(){
   function_set
-#  ${python_path} ${cur_path}/check.py
-#  if [ $? -eq 10 ];then
-#    echo "mysql 复权因子更新，重新处理数据..."
-#    function_set
-#    ${python_path} ${cur_path}/check.py
-#  fi
   if [ $? -eq 0 ];then
       echo "执行完成 ！！！"
     else
