@@ -103,6 +103,9 @@ update(){
     rm -rf "${provider_uri_bak}"
   fi
   rm -rf ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
+  rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}.csv
+  rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}
+  rm -rf ${provider_uri_tmp}/pit_normalized_${dt1}_${dt2}
   if [ -d "${provider_uri}" ];then
     mv ${provider_uri} ${provider_uri_bak}
   fi
@@ -110,16 +113,23 @@ update(){
   check_success "替换历史数据"
 }
 
+process_pit(){
+  echo "process_pit ..."
+  sh "${cur_path}/run_pit.sh ${dt1} ${dt2} ${provider_uri_tmp}"
+  check_success "处理 PIT 数据"
+}
+
 function_set(){
   create_tmp_dir
   get_data_from_mysql
   process_data
   trans_to_qlib
-  update
 }
 
 main(){
   function_set
+  process_pit
+  update
   if [ $? -eq 0 ];then
       echo "执行完成 ！！！"
     else
