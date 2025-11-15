@@ -1,16 +1,16 @@
 #!/bin/bash
 source ~/.bashrc
-cur_path=`pwd`
+cur_path=$(pwd)
 python_path="/root/anaconda3/envs/python3/bin/python"
 cf_quant_path="/root/cf_quant"
 uri='/data/cf_quant/mlruns'
 
-dt=`date +%Y-%m-%d`
+dt=$(date +%Y-%m-%d)
 
-echo ${cur_path}
-echo "dt: "${dt}
+echo "${cur_path}"
+echo "dt: ${dt}"
 
-${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt}
+${python_path} ${cf_quant_path}/utils/is_trade_day.py "${dt}"
 if [ $? -eq 5 ];then
   echo '非交易日！！！'
   exit 0
@@ -29,14 +29,22 @@ fi
 echo 'start_wid: '${start_wid}
 
 ${python_path} ${cur_path}/lightgbm_alpha158_multi_horizon.py main \
---start_wid ${start_wid} \
+--start_wid "${start_wid}" \
 --train_wid 500 \
 --uri ${uri} \
 --horizon 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30
 
-if [ $? -eq 0 ]; then
-  echo "执行成功！"
-else
-  echo "执行失败！"
-  exit 1
+exit_code=$?
+
+if [ ${exit_code} -eq 0 ]; then
+    echo "执行成功！"
+  elif [ ${exit_code} -eq 137 ];then
+    msg="程序被kill(可能是OOM), exit_code: ${exit_code}"
+    echo "${msg}"
+    ${python_path} ${cf_quant_path}/utils/send_email.py "Strategy: ligthGBM: train_multi" "${msg}"
+  else
+    msg="执行失败！"
+    echo ${msg}
+    ${python_path} ${cf_quant_path}/utils/send_email.py "Strategy: ligthGBM: train_multi" "${msg}"
+    exit 1
 fi
