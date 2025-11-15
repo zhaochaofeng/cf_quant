@@ -1,10 +1,12 @@
+--- 注意：存在少量 update_flag=0 & ann_date!=f_ann_date的数据。可能是tushare记录误差
+
 CREATE TABLE IF NOT EXISTS income_ts(
     id INT NOT NULL AUTO_INCREMENT,
     ts_code VARCHAR(10) NOT NULL COMMENT 'TS股票代码，股票代码带BJ/SH/SZ后缀',
     qlib_code VARCHAR(10) NOT NULL COMMENT 'Qlib股票代码, 如 SZ000001',
-    ann_date DATE COMMENT '公告日期',
-    f_ann_date DATE COMMENT '实际公告日期',
-    end_date DATE COMMENT '报告期',
+    ann_date DATE COMMENT '公告日期（首次发布报告日期）',
+    f_ann_date DATE COMMENT '实际公告日期（修改后报告发布日期）',
+    end_date DATE COMMENT '报告期（会计计算周期终止日期，如半年报为每年6月30）',
     report_type TINYINT COMMENT '报告类型 见底部表',
     comp_type TINYINT COMMENT '公司类型(1一般工商业2银行3保险4证券)',
     end_type TINYINT COMMENT '报告期类型',
