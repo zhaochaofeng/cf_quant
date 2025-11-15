@@ -115,7 +115,7 @@ update(){
 
 process_pit(){
   echo "process_pit ..."
-  sh "${cur_path}/run_pit.sh ${dt1} ${dt2} ${provider_uri_tmp}"
+  sh "${cur_path}/run_pit.sh" "${dt1}" "${dt2}" "${provider_uri_tmp}"
   check_success "处理 PIT 数据"
 }
 
@@ -127,7 +127,7 @@ function_set(){
 }
 
 main(){
-  function_set
+#  function_set
   process_pit
   update
   if [ $? -eq 0 ];then
