@@ -127,7 +127,7 @@ function_set(){
 }
 
 main(){
-#  function_set
+  function_set
   process_pit
   update
   if [ $? -eq 0 ];then
