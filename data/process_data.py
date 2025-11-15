@@ -122,13 +122,13 @@ class TSFinacialData(ProcessData):
         self.has_financial_data = True
         # [1月1日-4月30, 7月1日-8月31日，10月1日-10月31]
         # 仅在当前的上述日期范围内才进行财务数据获取
-        inter_valid = get_trade_cal_inter(self.get_date(1, 1), self.get_date(4, 30)) + \
-                    get_trade_cal_inter(self.get_date(7, 1), self.get_date(8, 31)) + \
-                    get_trade_cal_inter(self.get_date(10, 1), self.get_date(10, 31))
-        inter_get = get_trade_cal_inter(self.start_date, self.end_date)
-        if len(set(inter_valid) & set(inter_get)) == 0:
-            self.logger.info('No finacial report released !!!')
-            self.has_financial_data = False
+        # inter_valid = get_trade_cal_inter(self.get_date(1, 1), self.get_date(4, 30)) + \
+        #             get_trade_cal_inter(self.get_date(7, 1), self.get_date(8, 31)) + \
+        #             get_trade_cal_inter(self.get_date(10, 1), self.get_date(10, 31))
+        # inter_get = get_trade_cal_inter(self.start_date, self.end_date)
+        # if len(set(inter_valid) & set(inter_get)) == 0:
+        #     self.logger.info('No finacial report released !!!')
+        #     self.has_financial_data = False
 
     def get_date(self, month, day):
         curr_year = datetime.now().year
