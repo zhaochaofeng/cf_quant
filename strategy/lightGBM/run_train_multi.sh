@@ -7,8 +7,22 @@ uri='/data/cf_quant/mlruns'
 
 dt=$(date +%Y-%m-%d)
 
+if [ $# -eq 1 ]; then
+    start_wid=1
+  elif [ $# -eq 1 ]; then
+    start_wid=$1
+  elif [ $# -eq 2 ]; then
+    start_wid=$1
+    dt=$2
+  else
+    echo "参数错误"
+    exit 1
+fi
+
 echo "${cur_path}"
+echo "start_wid: ${start_wid}"
 echo "dt: ${dt}"
+
 
 ${python_path} ${cf_quant_path}/utils/is_trade_day.py "${dt}"
 if [ $? -eq 5 ];then
@@ -16,17 +30,7 @@ if [ $? -eq 5 ];then
   exit 0
 fi
 
-if [ $# -eq 0 ];then
-    start_wid=1
-  elif
-    [ $# -eq 1 ];then
-    start_wid=$1
-  else
-    echo "参数错误"
-    exit 1
-fi
 
-echo 'start_wid: '${start_wid}
 
 ${python_path} ${cur_path}/lightgbm_alpha158_multi_horizon.py main \
 --start_wid "${start_wid}" \
