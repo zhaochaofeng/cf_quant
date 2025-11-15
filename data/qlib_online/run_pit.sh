@@ -125,7 +125,6 @@ function_set(){
   split_stock
   format
   trans_to_qlib
-  update
 }
 
 main(){
