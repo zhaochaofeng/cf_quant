@@ -7,7 +7,7 @@ uri='/data/cf_quant/mlruns'
 
 dt=$(date +%Y-%m-%d)
 
-if [ $# -eq 1 ]; then
+if [ $# -eq 0 ]; then
     start_wid=1
   elif [ $# -eq 1 ]; then
     start_wid=$1
