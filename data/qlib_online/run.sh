@@ -64,7 +64,7 @@ get_data_from_mysql(){
     JOIN
       (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three
       from cf_quant.stock_info_ts where day='${dt2}'
-      and exchange in ('SSE', 'SZSE') and market='主板'
+      and exchange in ('SSE', 'SZSE')
       )b
     ON
       a.ts_code=b.ts_code;
