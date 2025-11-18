@@ -297,6 +297,17 @@ class LightGBMAlpha158:
                 par = PortAnaRecord(recorder, config=port_analysis_config, risk_analysis_freq='day')
                 par.generate()
 
+        del label_learn, label_infer
+        del data_learn, data_infer
+        # 先删除持有 dataset_infer 引用的对象
+        del par  # par 持有 port_analysis_config，port_analysis_config 持有 dataset_infer
+        del sr   # sr 直接持有 dataset_infer
+        del port_analysis_config  # 删除包含 dataset_infer 引用的配置字典
+        # 再删除 dataset_infer 变量名（此时如果没有其他引用，对象才会被释放）
+        del dataset_learn, dataset_infer
+        del model, sar
+
+
 if __name__ == '__main__':
     try:
         t = time.time()
