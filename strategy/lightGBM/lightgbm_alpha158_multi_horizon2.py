@@ -302,8 +302,8 @@ class LightGBMAlpha158:
                 par = PortAnaRecord(recorder, config=port_analysis_config, risk_analysis_freq='day')
                 par.generate()
 
-            self.features_learn.drop(columns=label_learn.columns)
-            self.features_infer.drop(columns=label_infer.columns)
+            self.features_learn.drop(columns=label_learn.columns, inplace=True)
+            self.features_infer.drop(columns=label_infer.columns, inplace=True)
 
             # 显式清理本次循环中的大对象，释放内存
             # 注意：features_learn 和 features_infer 在循环外，需要保留
