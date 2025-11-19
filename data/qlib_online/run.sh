@@ -130,7 +130,7 @@ function_set(){
 
 main(){
   function_set
-  process_pit
+#  process_pit
   update
   if [ $? -eq 0 ];then
       echo "执行完成 ！！！"
