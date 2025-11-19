@@ -104,6 +104,7 @@ update(){
     rm -rf "${provider_uri_bak}"
   fi
   rm -rf ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
+  rm -rf ${provider_uri_tmp}/out_${dt1}_${dt2}
   rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}.csv
   rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}
   rm -rf ${provider_uri_tmp}/pit_normalized_${dt1}_${dt2}
