@@ -14,7 +14,7 @@ provider_uri_bak="${data_path}/custom_data_hfq_bak"
 echo 'cur_path: '${cur_path}
 
 if [ $# -eq 0 ]; then
-    dt1='2015-01-05'
+    dt1='2008-01-02'
     dt2=`date +%Y-%m-%d`
   elif [ $# -eq 1 ]; then
     dt1=$1
