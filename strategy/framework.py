@@ -2,175 +2,32 @@
     功能：模型训练框架
 '''
 import copy
-from typing import List, Tuple
-
 import time
+
 import fire
-import lightgbm as lgb
-import numpy as np
-import pandas as pd
 import qlib
-from qlib.contrib.data.handler import Alpha158
-from qlib.contrib.model import LGBModel
 from qlib.data.dataset import DatasetH
-from qlib.data.dataset.handler import DataHandlerLP
-from qlib.data.dataset.weight import Reweighter
 from qlib.utils import init_instance_by_config
 from qlib.workflow import R
 from qlib.workflow.record_temp import SignalRecord, PortAnaRecord, SigAnaRecord
 
-from data.factor.factor_func import (
-    MACD, BOLL, KDJ, WR, BIAS_Multi, CCI, ROC
-)
+from strategy.dataset import ExpAlpha158, Alpha360
+from strategy.model import LGBModel2, TransformerModel2
 from utils import (
-    standardize, winsorize, CMean, CStd,
+    CMean, CStd,
     get_trade_cal_inter, LoggerFactory
 )
-import torch
-from qlib.contrib.model.pytorch_transformer import TransformerModel
-
-class TransformerModel2(TransformerModel):
-    def __init__(self, GPU=0, d_feat=157, seed=0):
-        super().__init__(GPU=GPU, d_feat=d_feat, seed=seed)
-        self.device = self.get_device(GPU)
-        self.model.to(self.device)
-
-    def get_device(self, GPU=0, return_str=False):
-        """
-        Get the appropriate device (CUDA, MPS, or CPU) based on availability.
-        Parameters
-        ----------
-        GPU : int
-            the GPU ID used for training. If >= 0 and CUDA is available, use CUDA.
-        return_str : bool
-            if True, return device as string; if False, return torch.device object.
-        Returns
-        -------
-        torch.device or str
-            The device to use for computation.
-        """
-        USE_CUDA = torch.cuda.is_available() and GPU >= 0
-        USE_MPS = torch.backends.mps.is_available()
-
-        # Default to CPU, then check for GPU availability
-        device_str = 'cpu'
-        if USE_CUDA:
-            device_str = f'cuda:{GPU}'
-        elif USE_MPS:
-            device_str = 'mps'
-
-        if return_str:
-            return device_str
-        else:
-            return torch.device(device_str)
-
-class ExpAlpha158(Alpha158):
-    def __init__(self,
-                 use_expand_feas: bool = False,
-                 is_win: bool = False,
-                 is_std: bool = False,
-                 **kwargs
-                 ):
-        """
-        Args:
-            use_expand_feas: 是否使用扩展特征
-            is_win: 是否取极值
-            is_std: 是否标准化
-        """
-        self.use_expand_feas = use_expand_feas
-        self.is_win = is_win
-        self.is_std = is_std
-        super().__init__(**kwargs)
-
-    def get_feature_config(self):
-        # 获取原始Alpha158特征配置
-        fields, names = super().get_feature_config()
-        # 添加自定义特征
-        if self.use_expand_feas:
-            factors = [MACD(), BOLL(), KDJ(), WR(), BIAS_Multi(), CCI(), ROC()]
-            for factor in factors:
-                for name, info in factor.items():
-                    fields.append(info["exp"])
-                    names.append(name)
-        if self.is_win:
-            fields = [winsorize(f, 3) for f in fields]
-        if self.is_std:
-            fields = [standardize(f) for f in fields]
-        # 删除 VWAP0 列
-        # idx = names.index("VWAP0")
-        # fields.pop(idx)
-        # names.pop(idx)
-        return fields, names
-
-
-class LGBModel2(LGBModel):
-    def _prepare_data_finetune(self, dataset: DatasetH, reweighter=None) -> List[Tuple[lgb.Dataset, str]]:
-        """
-        Prepare data for finetune
-        """
-        ds_l = []
-        assert "train" in dataset.segments
-        # for key in ["train", ["valid", "test"]]:
-        for key in [["valid", "test"]]:
-            # if key in dataset.segments:
-            df = dataset.prepare(key, col_set=["feature", "label"], data_key=DataHandlerLP.DK_L)
-            if isinstance(df, list):  # 合并 valid 和 test
-                df = pd.concat(df, axis=0, join="outer")
-            if df.empty:
-                raise ValueError("Empty data from dataset, please check your dataset config.")
-            x, y = df["feature"], df["label"]
-
-            # Lightgbm need 1D array as its label
-            if y.values.ndim == 2 and y.values.shape[1] == 1:
-                y = np.squeeze(y.values)
-            else:
-                raise ValueError("LightGBM doesn't support multi-label training")
-
-            if reweighter is None:
-                w = None
-            elif isinstance(reweighter, Reweighter):
-                w = reweighter.reweight(df)
-            else:
-                raise ValueError("Unsupported reweighter type.")
-            ds_l.append((lgb.Dataset(x.values, label=y, weight=w), key))
-        return ds_l
-
-    def finetune(self, dataset: DatasetH, num_boost_round=10, verbose_eval=20, reweighter=None):
-        """
-        finetune model
-
-        Parameters
-        ----------
-        dataset : DatasetH
-            dataset for finetuning
-        num_boost_round : int
-            number of round to finetune model
-        verbose_eval : int
-            verbose level
-        """
-        # Based on existing model and finetune by train more rounds
-        dtrain, valid_test = self._prepare_data_finetune(dataset, reweighter)  # pylint: disable=W0632
-
-        valid_test = valid_test[0]
-        verbose_eval_callback = lgb.log_evaluation(period=verbose_eval)
-        self.model = lgb.train(
-            self.params,
-            valid_test,
-            num_boost_round=num_boost_round,
-            init_model=self.model,
-            valid_sets=[valid_test],
-            valid_names=["train"],
-            callbacks=[verbose_eval_callback],
-        )
 
 
 class Model:
     def __init__(self,
                  segments: dict[str, tuple[str, str]] = {
         'train': ('2015-01-05', '2023-12-31'),
-        # 'train': ('2023-01-05', '2023-12-31'),
         'valid': ('2024-01-01', '2024-12-31'),
         'test': ('2025-01-01', '2025-11-15')
+        #  "train": ("2008-01-01", "2014-12-31"),
+        #  "valid": ("2015-01-01", "2016-12-31"),
+        #  "test": ("2017-01-01", "2020-08-01")
 },
                  market: str = 'csi300',
                  benchmark: str = "SH000300",
@@ -182,7 +39,7 @@ class Model:
                  is_std: bool = False,
                  step: int = 3000,
                  model_name: str = 'transformer',
-                 date_type: str = 'ds'  # 数据类型 DatasetH/TSDatasetH
+                 data_type: str = 'ds'  # 数据类型 DatasetH/TSDatasetH
                  ):
         self.segments = segments
         self.market = market
@@ -192,7 +49,7 @@ class Model:
         self.is_win = is_win
         self.is_std = is_std
         self.step = step
-        self.date_type = date_type
+        self.data_type = data_type
         self.model_name = model_name
 
         _setup_kwargs = {'custom_ops': [CMean, CStd]}  # 注册自定义操作
@@ -218,12 +75,12 @@ class Model:
                 start = train_list[i]
                 end = train_list[min(i + step, len(train_list)) - 1]
                 self.logger.info('train: ({}, {})'.format(start, end))
-                dataset = self.prepare_dataset(start, end, self.date_type, ExpAlpha158, **kwargs)
-                self.logger.info('dateset: {}'.format(dataset))
+                dataset = self.prepare_dataset(start, end, self.data_type, Alpha360, **kwargs)
+                self.logger.info('dataset: {}'.format(dataset))
 
                 self.model.fit(dataset)
             R.save_objects(**{'params.pkl': self.model})
-            R.save_objects(**{'dataset': dataset})  # 保存最后迭代的dateset配置
+            R.save_objects(**{'dataset': dataset})  # 保存最后迭代的dataset配置
 
             recorder = R.get_recorder()
             self.backtest(self.model, dataset, recorder)
@@ -284,14 +141,14 @@ class Model:
         self.logger.info('model: {}'.format(model))
         return model
 
-    def prepare_dataset(self, start, end, date_type, handler_model, **kwargs):
+    def prepare_dataset(self, start, end, data_type, handler_model, **kwargs):
         """
             构建训练数据
         Parameters
         ----------
         start: train_start
         end：train_end
-        date_type: 数据类型。ds: DatasetH, ts: TSDatasetH
+        data_type: 数据类型。ds: DatasetH, ts: TSDatasetH
         handler_model: 特征处理类
 
         Returns: DatasetH
@@ -336,7 +193,7 @@ class Model:
         data_handler_config.update(kwargs)
         handler = handler_model(**data_handler_config)
 
-        if date_type == 'ts':
+        if data_type == 'ts':
             dataset = {
                 "class": "TSDatasetH",
                 "module_path": "qlib.data.dataset",
@@ -415,9 +272,9 @@ class Model:
         t = time.time()
         self.train(step=3000,
                    is_online=False,
-                   use_expand_feas=False,
-                   is_win=False,
-                   is_std=False
+                   # use_expand_feas=False,
+                   # is_win=False,
+                   # is_std=False
                    )
         self.logger.info('耗时：{}s'.format(round(time.time()-t, 4)))
 
