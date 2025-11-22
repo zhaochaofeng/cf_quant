@@ -36,7 +36,7 @@ ${python_path} ${cur_path}/lightgbm_alpha158_multi_horizon2.py main \
 --start_wid "${start_wid}" \
 --train_wid 500 \
 --uri ${uri} \
---horizon 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+--horizon 1,2,3,4,5,6,7
 
 exit_code=$?
 

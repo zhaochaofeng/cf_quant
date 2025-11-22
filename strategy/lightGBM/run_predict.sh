@@ -27,7 +27,7 @@ ${python_path} ${cur_path}/predict.py main \
 --start_date ${dt} \
 --end_date ${dt} \
 --uri ${uri} \
---horizon 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30
+--horizon 1,2,3,4,5,6,7
 
 if [ $? -eq 0 ]; then
   echo "执行成功！"
