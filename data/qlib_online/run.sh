@@ -136,7 +136,10 @@ main(){
   if [ $? -eq 0 ];then
       echo "执行完成 ！！！"
     else
-      echo "执行失败！！！"
+      msg="执行失败！！！"
+      echo ${msg}
+      ${python_path} ${cf_quant_path}/utils/send_email.py "Data: qlib_online" "${msg}"
+      exit 1
   fi
 }
 
