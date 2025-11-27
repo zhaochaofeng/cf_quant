@@ -84,7 +84,8 @@ process_data(){
   --is_offline True \
   --path_in ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv \
   --columns "['ts_code', 'date', 'open', 'close', 'high', 'low', 'volume', 'amount', 'factor', 'change', \
-  'ind_one', 'ind_two', 'ind_three']"
+  'ind_one', 'ind_two', 'ind_three']" \
+  --index_list "['000300.SH', '000905.SH', '000903.SH', '000906.SH']"
   check_success "复权等数据处理"
 }
 
