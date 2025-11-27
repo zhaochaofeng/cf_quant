@@ -163,8 +163,8 @@ class CheckMySQLData:
                     tmp = ts_api(pro, api_fun,
                                  ts_code=','.join(stocks[k:k + batch_size]),
                                  start_date=start_date, end_date=end_date, **kwargs)
-                    if tmp.empty:
-                        # self.logger.info('no data: {}'.format(','.join(stocks[k: k + batch_size])))
+                    if tmp is None or tmp.empty:
+                        # self.logger.info('no data_new: {}'.format(','.join(stocks[k: k + batch_size])))
                         continue
                     df_list.append(tmp)
                     time.sleep(60 / req_per_min)

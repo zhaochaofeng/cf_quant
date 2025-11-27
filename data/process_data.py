@@ -47,9 +47,9 @@ class Base(ABC):
             for index, row in df.iterrows():
                 tmp = self.parse_line(row)
                 data.append(tmp)
-            self.logger.info('data len: {}'.format(len(data)))
+            self.logger.info('data_new len: {}'.format(len(data)))
             if len(data) == 0:
-                err_msg = 'data is empty !'
+                err_msg = 'data_new is empty !'
                 self.logger.error(err_msg)
                 raise Exception(err_msg)
             return data
@@ -101,7 +101,7 @@ class ProcessData(Base):
         self.logger.info('\n{}\n{}\n{}'.format('-'*50, sql, '-'*50))
         df = pd.read_sql(sql, engine)
         if df.empty:
-            err_msg = 'table {} has no data: {}'.format(table_name, self.now_date)
+            err_msg = 'table {} has no data_new: {}'.format(table_name, self.now_date)
             self.logger.info(err_msg)
             raise Exception(err_msg)
         codes = df[code_name].values.tolist()
@@ -254,8 +254,8 @@ class TSCommonData(ProcessData):
                     tmp = ts_api(pro, api_fun,
                                  ts_code=','.join(stocks[k:k + batch_size]),
                                  start_date=start_date, end_date=end_date)
-                    if tmp.empty:
-                        # self.logger.info('no data: {}'.format(','.join(stocks[k: k + batch_size])))
+                    if tmp is None or tmp.empty:
+                        # self.logger.info('no data_new: {}'.format(','.join(stocks[k: k + batch_size])))
                         continue
                     df_list.append(tmp)
                     time.sleep(60 / req_per_min)
