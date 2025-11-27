@@ -189,16 +189,17 @@ class CheckMySQLData:
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
-    def fetch_data_from_qlib(self, provider_uri='~/.qlib/qlib_data/custom_data_hfq'):
+    def fetch_data_from_qlib(self, provider_uri='~/.qlib/qlib_data/custom_data_hfq', index_list=None):
         """ 从qlib文件系统读取数据 """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_qlib...'))
+        if index_list is None:
+            index_list = []
         qlib.init(provider_uri=provider_uri)
         fields = ['${}'.format(f) for f in self.feas[2:]]
         # instruments = ['SZ300760']
         config = D.instruments(market='all')
         instruments = D.list_instruments(instruments=config, start_time=self.start_date, end_time=self.end_date,
                                          as_list=True)
-        index_list = ['SH000300', 'SH000903', 'SH000905']
         # instruments = instruments[0:20]
         instruments = list(set(instruments) - set(index_list))
         df = D.features(instruments, fields, start_time=self.start_date, end_time=self.end_date)

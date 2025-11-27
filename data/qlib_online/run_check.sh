@@ -21,7 +21,12 @@ fi
 
 echo "[${dt1} - ${dt2}]"
 
-${python_path} ${cur_path}/check.py --start_date ${dt1} --end_date ${dt2} --epsilon 0.005
+${python_path} ${cur_path}/check.py \
+  --start_date ${dt1} \
+  --end_date ${dt2} \
+  --epsilon 0.005 \
+  --index_list "['SH000300', 'SH000903', 'SH000905', 'SH000906']"
+
 
 # 判断是否执行成功
 if [ $? -eq 0 ]; then

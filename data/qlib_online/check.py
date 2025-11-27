@@ -24,8 +24,11 @@ feas = {
 def main(start_date: str,
          end_date: str,
          provider_uri: str = '~/.qlib/qlib_data/custom_data_hfq',
-         epsilon: float = 0.001
+         epsilon: float = 0.001,
+         index_list=None
          ):
+    if index_list is None:
+        index_list = ['SH000300', 'SH000903', 'SH000905', 'SH000906']
     t = time.time()
     check = CheckMySQLData(
         start_date=start_date,
@@ -37,7 +40,7 @@ def main(start_date: str,
         if not check.is_trade_day:
             return
 
-        df_qlib, stocks = check.fetch_data_from_qlib(provider_uri=provider_uri)
+        df_qlib, stocks = check.fetch_data_from_qlib(provider_uri=provider_uri, index_list=index_list)
         df_qlib.sort_index(inplace=True)
         stocks = ['{}.{}'.format(s[2:8], s[0:2]) for s in stocks]
         df_ts = check.fetch_data_from_ts(stocks, api_fun='pro_bar',
