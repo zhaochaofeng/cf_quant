@@ -1,156 +1,185 @@
 '''
-    功能：lightGBM_Alpha158策略的模型训练
+    lightGBM 模型训练
 '''
-import time
-import fire
-import pandas as pd
-import qlib
-from qlib.data import D
-from qlib.workflow import R
-from qlib.data.filter import NameDFilter
-from qlib.utils import flatten_dict
-from qlib.utils import init_instance_by_config
-from qlib.workflow.record_temp import SignalRecord, PortAnaRecord, SigAnaRecord
-from datetime import datetime, timedelta
-from utils.utils import sql_engine
-from utils.utils import get_n_pretrade_day
-from utils.utils import send_email
-import traceback
 
-class LightGBMAlpha158:
+import fire
+import copy
+import time
+import traceback
+import pandas as pd
+from datetime import datetime
+import qlib
+from qlib.workflow import R
+from qlib.data import D
+from qlib.utils.data import zscore
+from qlib.workflow.record_temp import SignalRecord, SigAnaRecord, PortAnaRecord
+
+from utils import (
+    LoggerFactory,
+    MySQLDB,
+    get_n_pretrade_day,
+    send_email
+)
+from strategy.dataset import (
+    prepare_data,
+    ExpAlpha158,
+    MultiHorizonGen,
+    dataframe_to_dataset
+)
+from strategy.model import LGBModel2
+
+
+class LightGBMModel:
     def __init__(self,
-        market='all',
-        benchmark="SH000300",
-        provider_uri='~/.qlib/qlib_data/custom_data_hfq',
-        experiment_name='lightGBM_Alpha158',
-        start_wid=1,      # test_end 向前移动的天数。至少前移1天，保证回测时不出错
-        test_wid=100,     # 测试集时间宽度
-        valid_wid=100,    # 验证集时间宽度
-        train_wid=500     # 训练集时间宽度
-    ):
-        self.market = market
+                 provider_uri: str = '~/.qlib/qlib_data/cn_data',
+                 uri: str = None,
+                 segments: dict = None,
+                 instruments: str = 'csi300',
+                 benchmark: str = 'SH000300',
+                 exp_name: str = 'lightgbm_alpha',
+                 is_finetune: bool = False,
+                 is_online: bool = False,
+                 horizon: list = None,
+                 start_wid: int = 1,
+                 test_wid: int = 200,
+                 valid_wid: int = 100,
+                 train_wid: int = 500,
+                 ):
+        self.provider_uri = provider_uri
+        self.instruments = instruments
         self.benchmark = benchmark
-        self.experiment_name = experiment_name
+        self.exp_name = exp_name
+        self.is_finetune = is_finetune
+        self.is_online = is_online
         self.start_wid = start_wid
         self.test_wid = test_wid
         self.valid_wid = valid_wid
         self.train_wid = train_wid
-        qlib.init(provider_uri=provider_uri)
 
-    def choose_stocks(self, start_time, end_time):
-        ''' 股票筛选  '''
-        print('choose_stocks ...')
-        # 主板。第3-4位数字为60或00
-        nameDFilter = NameDFilter(name_rule_re='^[A-Za-z]{2}(60|00)')
-        instruments = D.instruments(
-            market=self.market,
-            filter_pipe=[nameDFilter]
-        )
+        self.logger = LoggerFactory.get_logger(__name__)
+        if horizon is None:
+            self.horizon = [1]
+        self.horizon = horizon
+        if segments is not None:
+            self.segments = segments
+        else:
+            self.segments = self.date_interval()
+        if uri is None:
+            uri = './mlruns'
+        self.uri = uri
+        self.init()
 
-        print('start_time: {}, end_time: {}'.format(start_time, end_time))
-        stocks = D.list_instruments(instruments, as_list=True, start_time=start_time, end_time=end_time)
-        print('主板总股票数：{}'.format(len(stocks)))
+    def init(self):
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'qlib init ...'))
+        qlib.init(provider_uri=self.provider_uri)
 
-        # 15天之内的 ST股、次新股
-        engine = sql_engine()
-        dt1 = (datetime.now() - timedelta(days=15)).strftime('%Y-%m-%d')
-        dt2 = datetime.now().strftime('%Y-%m-%d')
-        target_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
-        print('dt1: {}, dt2: {}, target_day: {}'.format(dt1, dt2, target_date))
-        sql = """select ts_code, name, list_date from cf_quant.stock_info_ts where day>='{}' and day<='{}'""".format(dt1, dt2)
-        stocks_info = pd.read_sql(sql, engine)
-        # 过滤ST、退市和次新股
-        stocks_filter = stocks_info[
-                (stocks_info['name'].str.contains('ST')) |      # ST股票
-                (stocks_info['name'].str.contains('退')) |      # 退市股票
-                (stocks_info['list_date'] > target_date)        # 次新股
-            ]
-        # 转换股票代码格式以匹配qlib格式
-        stocks_filter = stocks_filter['ts_code'].apply(lambda x: '{}{}'.format(x[7:9], x[0:6])).unique().tolist()
-        print('stocks_filter len: {}'.format(len(stocks_filter)))
-        stocks = set(stocks) - set(stocks_filter)
-        # 排除非benchmark指数
-        index_list = ['SH000905', 'SH000903']
-        stocks = list(stocks - set(index_list))
-        print('过滤后股票数：{}'.format(len(stocks)))
-        print(stocks[0:10])
-        return stocks
-
-    def date_interval(self):
+    def date_interval(self) -> dict:
         ''' 训练 / 验证 / 测试 时间区间'''
-        print('date_interval ...')
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'date_interval ...'))
         now = datetime.now().strftime('%Y-%m-%d')
         test_end = get_n_pretrade_day(now, self.start_wid)
         test_start = get_n_pretrade_day(test_end, self.test_wid)
-        valid_end = get_n_pretrade_day(test_start, 3)     # 防止train最后日期标签计算(Ref($close,-2)/Ref($close, -1)-1)造成的数据泄漏
+        valid_end = get_n_pretrade_day(test_start, 1)
         valid_start = get_n_pretrade_day(valid_end, self.valid_wid)
-        train_end = get_n_pretrade_day(valid_start, 3)    # 防止valid与test之间的数据泄漏
+        train_end = get_n_pretrade_day(valid_start, 1)
         train_start = get_n_pretrade_day(train_end, self.train_wid)
 
         train_inter = (train_start, train_end)
         valid_inter = (valid_start, valid_end)
         test_inter = (test_start, test_end)
 
-        print('train_inter: {}'.format(train_inter))
-        print('valid_inter: {}'.format(valid_inter))
-        print('test_inter: {}'.format(test_inter))
-
-        return train_inter, valid_inter, test_inter
-
-    def main(self):
-        train_inter, valid_inter, test_inter = self.date_interval()
-
-        instruments = self.choose_stocks(train_inter[0], test_inter[1])
-
-        data_handler_config = {
-            "start_time": train_inter[0],
-            "end_time": test_inter[1],
-            "fit_start_time": train_inter[0],
-            "fit_end_time": train_inter[1],
-            "instruments": instruments,
-            # "drop_raw": True
+        segments = {
+            "train": train_inter,
+            "valid": valid_inter,
+            "test": test_inter,
         }
+        self.logger.info(segments)
+        return segments
 
-        # 模型和数据的配置参数
-        task = {
-            "model": {
-                "class": "LGBModel",
-                "module_path": "qlib.contrib.model.gbdt",
-                "kwargs": {
-                    "loss": "mse",
-                    "colsample_bytree": 0.8879,
-                    "learning_rate": 0.0421,
-                    "subsample": 0.8789,
-                    "lambda_l1": 205.6999,
-                    "lambda_l2": 580.9768,
-                    "max_depth": 8,
-                    "num_leaves": 210,
-                    "num_threads": 10,
-                },
-            },
-            "dataset": {
-                "class": "DatasetH",
-                "module_path": "qlib.data.dataset",
-                "kwargs": {
-                    "handler": {
-                        "class": "Alpha158",
-                        "module_path": "qlib.contrib.data.handler",
-                        "kwargs": data_handler_config,
-                    },
-                    "segments": {
-                        "train": train_inter,
-                        "valid": valid_inter,
-                        "test": test_inter,
-                    },
-                },
-            },
+    def prepare_data(self):
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'prepare_data ...'))
+        learn_processors = [
+            # {"class": "DropnaLabel"},
+            # {"class": "CSZScoreNorm", "kwargs": {"fields_group": "label"}},
+        ]
+        infer_processors = [
+            {"class": "DropCol", "kwargs": {"col_list": ["VWAP0"]}}
+        ]
+        kwargs = {
+            'expand_feas': None,
+            'is_win': False,
+            'is_std': False,
+            'ref': -2
         }
+        dataset, config = prepare_data(self.segments,
+                               handler_model=ExpAlpha158,
+                               instruments=self.instruments,
+                               learn_processors=learn_processors,
+                               infer_processors=infer_processors,
+                               **kwargs
+                               )
+        return dataset, config
 
-        # model initialization
-        model = init_instance_by_config(task["model"])
-        dataset = init_instance_by_config(task["dataset"])
+    def get_label(self, start_time, end_time, hr, instruments):
+        col_name = f'LABEL{hr}'
+        fields = [f"Ref($close, -({hr}+1)) / Ref($close, -1) - 1"]
+        instruments = D.instruments(market=instruments)
+        df = D.features(instruments=instruments, fields=fields, start_time=start_time, end_time=end_time)
+        df.columns = pd.MultiIndex.from_tuples([('label', col_name)])
 
-        # 回测配置信息
+        df_learn = copy.deepcopy(df)   # 用于训练(learn)
+        df_learn.dropna(inplace=True, axis=0)
+        # 训练的标签 CSZScoreNorm
+        df_learn = df_learn.groupby('datetime', group_keys=False).apply(zscore)
+        df_learn = df_learn.swaplevel()   # 索引转化为 <datetime, instrument>
+        df_learn.sort_index(inplace=True)
+
+        df_infer = df.swaplevel()     # 用于回测
+        df_infer.sort_index(inplace=True)
+        return df_learn, df_infer
+
+    def load_model(self):
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'load_model ...'))
+        if self.is_finetune:
+            self.logger.info('load model from newest recorder ...')
+            exp = R.get_exp(experiment_name=self.exp_name)
+            # 获取最新的在线模型记录器
+            recorders = exp.list_recorders()
+            online_recorders = []
+            for rid, rec in recorders.items():
+                if rec.status != 'FINISHED':
+                    continue
+                # 检查上线状态
+                # tags = rec.list_tags()
+                # if tags.get('online_status') == 'online':
+                #     online_recorders.append(rec)
+                online_recorders.append(rec)
+            if not online_recorders:
+                raise ValueError(f"实验{self.exp_name}中没有找到在线模型记录")
+            # 选择最新的在线模型
+            newest_recorder = max(online_recorders, key=lambda rec: rec.start_time)
+            recorder = newest_recorder
+            # 加载模型
+            model = recorder.load_object("params.pkl")
+        else:
+            self.logger.info('create gbm model object ...')
+            kwargs = {
+                "loss": "mse",
+                "colsample_bytree": 0.8879,
+                "learning_rate": 0.0421,
+                "subsample": 0.8789,
+                "lambda_l1": 205.6999,
+                "lambda_l2": 580.9768,
+                "max_depth": 8,
+                "num_leaves": 210,
+                "num_threads": 20,
+            }
+            model = LGBModel2(**kwargs)
+        return model
+
+    def backtest(self, dataset, model, recorder, hr, metrics):
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'backtest ...'))
+        segments = dataset.segments
         port_analysis_config = {
             "executor": {
                 "class": "SimulatorExecutor",
@@ -162,64 +191,144 @@ class LightGBMAlpha158:
             },
             "strategy": {
                 "class": "TopkDropoutStrategy",
-                "module_path": "qlib.contrib.strategy.signal_strategy",
+                "module_path": "qlib.contrib.strategy",
                 "kwargs": {
                     "model": model,
                     "dataset": dataset,
-                    "topk": 20,
-                    "n_drop": 2,
+                    "topk": 50,
+                    "n_drop": 5,
+                    "hold_thresh": hr
                 },
             },
             "backtest": {
-                "start_time": test_inter[0],
-                "end_time": test_inter[1],
-                "account": 50000,
+                "start_time": segments['test'][0],
+                "end_time": segments['test'][1],
+                "account": 100000000,
                 "benchmark": self.benchmark,
                 "exchange_kwargs": {
                     "freq": "day",
                     "limit_threshold": 0.095,
                     "deal_price": "close",
-                    "open_cost": 0.0003,
-                    "close_cost": 0.0013,
+                    "open_cost": 0.0005,
+                    "close_cost": 0.0015,
                     "min_cost": 5,
                 },
             },
         }
 
-        # 训练
-        with R.start(experiment_name=self.experiment_name):
-            R.log_params(**flatten_dict(task))
-            model.fit(dataset)
-            # 保存模型
+        sr = SignalRecord(model, dataset, recorder)
+        sr.generate()
+
+        sar = SigAnaRecord(recorder)
+        sar.generate()
+
+        par = PortAnaRecord(recorder, config=port_analysis_config, risk_analysis_freq='day')
+        par.generate()
+
+        metrics.append(self.read_metrics(recorder, segments['test'][1], hr))
+
+    def read_metrics(self, recorder, day, hr):
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'read_metrics ...'))
+        path = '{}/{}/{}/metrics'.format(recorder.uri.replace('file:', ''), recorder.experiment_id, recorder.id)
+        print(path)
+        metrics = {}
+        map = {'IC': 'IC', 'ICIR': 'ICIR', 'Rank IC': 'RIC', 'Rank ICIR': 'RICIR'}
+        for m in map.keys():
+            metrics[map[m]] = pd.read_csv(path + '/' + m, sep=' ', header=None).iloc[0, 1]
+        metrics['day'] = day
+        metrics['horizon'] = hr
+        metrics['model'] = self.exp_name
+        metrics['instruments'] = self.instruments
+        return metrics
+
+    def print_info(self, fea_learn, label_learn, data_learn, dataset_learn,
+                   fea_infer, label_infer, data_infer, dataset_infer
+                   ):
+        self.logger.info('dataset_learn: {}'.format('-' * 50))
+        self.logger.info("features_learn shape: {}".format(fea_learn.shape))
+        self.logger.info("label_learn shape: {}".format(label_learn.shape))
+        self.logger.info("data_learn shape: {}".format(data_learn.shape))
+        # self.logger.info(dataset_learn.prepare(col_set=['feature', 'label'], segments='train'))
+        self.logger.info('dataset_infer: {}'.format('-' * 50))
+        self.logger.info("features_infer shape: {}".format(fea_infer.shape))
+        self.logger.info("label_infer shape: {}".format(label_infer.shape))
+        self.logger.info("data_infer shape: {}".format(data_infer.shape))
+        # self.logger.info(dataset_infer.prepare(col_set=['feature', 'label'], segments='train'))
+
+    def train(self, dataset_learn, dataset_infer, model, hr, metrics):
+        exp_name = f"{self.exp_name}_h{hr}"
+        with R.start(experiment_name=exp_name, uri=self.uri):
+            model.fit(dataset_learn)
             R.save_objects(**{'params.pkl': model})
-            # 保存task配置信息
-            R.save_objects(**{'task': task})
-            # 保存DatesetH对象
-            R.save_objects(**{'dataset': dataset})
-
+            R.save_objects(**{'dataset': dataset_learn})
             recorder = R.get_recorder()
-            # 预测信号
-            sr = SignalRecord(model, dataset, recorder)
-            sr.generate()
+            self.backtest(dataset_infer, model, recorder, hr, metrics)
 
-            # 信号分析
-            sar = SigAnaRecord(recorder, ana_long_short=True)
-            sar.generate()
+        if self.is_online:
+            self.logger.info('\n{}\n{}'.format('-' * 50, 'online training ...'))
+            with R.start(experiment_name='online_{}'.format(exp_name), uri=self.uri):
+                model.finetune(dataset_learn, num_boost_round=10, verbose_eval=10)
+                R.save_objects(**{'params.pkl': model})
+                R.save_objects(**{'dataset': dataset_learn})
 
-            # 回测
-            par = PortAnaRecord(recorder, config=port_analysis_config, risk_analysis_freq='day')
-            par.generate()
+    def metrics_to_mysql(self, metrics: list) -> None:
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'metrics_to_mysql ...'))
+        if len(metrics) == 0:
+            raise ValueError('metrics is empty')
+        feas = list(metrics[0].keys())
+        feas_format = ['%({})s'.format(f) for f in feas]
+        with MySQLDB() as db:
+            sql = '''INSERT INTO monitor_model_metrics ({}) VALUES ({})'''.format(','.join(feas), ','.join(feas_format))
+            db.executemany(sql, metrics)
+
+    def main(self):
+        try:
+            t = time.time()
+            dataset, config = self.prepare_data()
+            task = {
+                "dataset": config,
+            }
+
+            fea_learn = pd.concat(
+                dataset.prepare(segments=['train', 'valid', 'test'], col_set=['feature'], data_key='learn'), axis=0)
+            fea_infer = pd.concat(
+                dataset.prepare(segments=['train', 'valid', 'test'], col_set=['feature'], data_key='infer'), axis=0)
+
+            # 生成多周期tasks
+            multi_gen = MultiHorizonGen(horizon=self.horizon, label_leak_n=2)
+            tasks = multi_gen.generate(task)
+            assert len(tasks) == len(self.horizon)
+            metrics = []
+            for i, t in enumerate(tasks):
+                hr = t['extra']['horizon']
+                self.logger.info('\n{}\n{}: {}'.format('*' * 100, 'horizon', hr))
+                model = self.load_model()
+                label_learn, label_infer = self.get_label(self.segments['train'][0],
+                                                          self.segments['test'][1],
+                                                          hr,
+                                                          self.instruments)
+
+                data_learn = pd.concat([fea_learn, label_learn], axis=1, join='inner')
+                data_infer = pd.concat([fea_infer, label_infer], axis=1, join='inner')
+
+                segments = t["dataset"]["kwargs"]["segments"]
+                dataset_learn = dataframe_to_dataset(data_learn, segments)
+                dataset_infer = dataframe_to_dataset(data_infer, segments)
+
+                self.print_info(
+                    fea_learn, label_learn, data_learn, dataset_learn,
+                    fea_infer, label_infer, data_infer, dataset_infer)
+
+                self.train(dataset_learn, dataset_infer, model, hr, metrics)
+
+            # 指标写入mysql
+            self.metrics_to_mysql(metrics)
+            self.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
+        except:
+            err_msg = traceback.format_exc()
+            self.logger.error(err_msg)
+            send_email('Strategy: lightgbm_alpha', err_msg)
+
 
 if __name__ == '__main__':
-    try:
-        t = time.time()
-        fire.Fire(LightGBMAlpha158)
-        print('耗时：{}s'.format(round(time.time()-t, 4)))
-    except Exception as e:
-        print('error: {}'.format(e))
-        error_info = traceback.format_exc()
-        send_email('Strategy: lightgbm_alpha158', error_info)
-
-        '''
-        python lightgbm.py main --start_wid 30 --train_wid 100
-        '''
+    fire.Fire(LightGBMModel)
