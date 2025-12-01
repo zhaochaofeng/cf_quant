@@ -4,13 +4,55 @@
 
 from typing import Union
 
+from qlib.workflow.task.gen import MultiHorizonGenBase
 from qlib.utils import init_instance_by_config
 from qlib.data.dataset import DatasetH, DataHandler, TSDatasetH
+from qlib.data.dataset.loader import DataLoader
+from qlib.data.dataset.handler import DataHandlerLP
 from qlib.contrib.data.handler import Alpha158
 
 from utils import (
     standardize, winsorize
 )
+
+
+class MultiHorizonGen(MultiHorizonGenBase):
+    """
+        多周期预测
+    """
+    def set_horizon(self, t: dict, hr: int):
+        t.setdefault("extra", {})["horizon"] = hr
+
+
+class CustomDataLoader(DataLoader):
+    """
+        自定义DataLoder
+    """
+    def __init__(self, data):
+        self.data = data
+
+    def load(self, instruments, start_time=None, end_time=None):
+        return self.data
+
+
+def dataframe_to_dataset(df, segments: dict) -> DatasetH:
+    """
+        将DataFrame 转化为 DatasetH
+    Parameters
+    ----------
+    df: DataFrame
+    segments: train/valid/test 划分区间
+
+    Returns： DatasetH
+    -------
+
+    """
+    cus_dataloader = CustomDataLoader(df)
+    data_handler = DataHandlerLP(
+        data_loader=cus_dataloader
+    )
+    return DatasetH(handler=data_handler, segments=segments)
+
 
 class ExpAlpha158(Alpha158):
     def __init__(self,
@@ -140,7 +182,7 @@ def prepare_data(segments: dict,
                  data_type: str = 'ds',
                  step_len: int = None,
                  **kwargs
-                 ) -> Union[DatasetH, TSDatasetH]:
+                 ) -> (Union[DatasetH, TSDatasetH], dict):
     """
     Args:
         segments: 训练集、验证集、测试集的划分
@@ -177,12 +219,13 @@ def prepare_data(segments: dict,
     if data_type == 'ts':
        kwargs.update({'step_len': step_len})
 
-    dataset = {
+    config = {
         'class': 'DatasetH' if data_type == 'ds' else 'TSDatasetH',
         'module_path': 'qlib.data.dataset',
         'kwargs': kwargs
     }
-    return init_instance_by_config(dataset)
+    dataset = init_instance_by_config(config)
+    return dataset, config
 
 
 if __name__ == '__main__':
