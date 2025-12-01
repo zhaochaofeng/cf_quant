@@ -94,9 +94,9 @@ if __name__ == '__main__':
         '''
 
         # execute
-        # data = {'day': '2025-09-10'}
+        # data_new = {'day': '2025-09-10'}
         # sql = """ insert into test (day) values (%(day)s)"""
-        # db.execute(sql, data)
+        # db.execute(sql, data_new)
 
         # executemany
         data_list = [{'day': '2025-09-07'}, {'day': '2025-09-08'}]
