@@ -283,7 +283,7 @@ class LightGBMModel:
 
     def main(self):
         try:
-            t = time.time()
+            t0 = time.time()
             dataset, config = self.prepare_data()
             task = {
                 "dataset": config,
@@ -323,7 +323,7 @@ class LightGBMModel:
 
             # 指标写入mysql
             self.metrics_to_mysql(metrics)
-            self.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
+            self.logger.info('耗时：{}s'.format(round(time.time() - t0, 4)))
         except:
             err_msg = traceback.format_exc()
             self.logger.error(err_msg)
