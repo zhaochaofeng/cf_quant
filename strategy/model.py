@@ -1,6 +1,3 @@
-'''
-    模型框架
-'''
 from typing import List, Tuple
 
 import lightgbm as lgb
@@ -12,12 +9,12 @@ from qlib.data.dataset.handler import DataHandlerLP
 from qlib.data.dataset.weight import Reweighter
 import torch
 from qlib.contrib.model.pytorch_transformer import TransformerModel
-
+from qlib.contrib.model.pytorch_transformer_ts import TransformerModel as TransformerModelTS
 
 class LGBModel2(LGBModel):
     def _prepare_data_finetune(self, dataset: DatasetH, reweighter=None) -> List[Tuple[lgb.Dataset, str]]:
         """
-        Prepare data for finetune
+        Prepare data_new for finetune
         """
         ds_l = []
         assert "train" in dataset.segments
@@ -28,7 +25,7 @@ class LGBModel2(LGBModel):
             if isinstance(df, list):  # 合并 valid 和 test
                 df = pd.concat(df, axis=0, join="outer")
             if df.empty:
-                raise ValueError("Empty data from dataset, please check your dataset config.")
+                raise ValueError("Empty data_new from dataset, please check your dataset config.")
             x, y = df["feature"], df["label"]
 
             # Lightgbm need 1D array as its label
@@ -74,39 +71,88 @@ class LGBModel2(LGBModel):
             callbacks=[verbose_eval_callback],
         )
 
+
+
 class TransformerModel2(TransformerModel):
-    def __init__(self, dropout=0.15, GPU=0, d_feat=359, seed=0):
-        super().__init__(dropout=dropout, GPU=GPU, d_feat=d_feat, seed=seed)
-        self.device = self.get_device(GPU)
+    def __init__(self,  **kwargs):
+        super().__init__(**kwargs)
+        self.device = get_device()
         self.model.to(self.device)
 
-    def get_device(self, GPU=0, return_str=False):
-        """
-        Get the appropriate device (CUDA, MPS, or CPU) based on availability.
-        Parameters
-        ----------
-        GPU : int
-            the GPU ID used for training. If >= 0 and CUDA is available, use CUDA.
-        return_str : bool
-            if True, return device as string; if False, return torch.device object.
-        Returns
-        -------
-        torch.device or str
-            The device to use for computation.
-        """
-        USE_CUDA = torch.cuda.is_available() and GPU >= 0
-        USE_MPS = torch.backends.mps.is_available()
 
-        # Default to CPU, then check for GPU availability
-        device_str = 'cpu'
-        if USE_CUDA:
-            device_str = f'cuda:{GPU}'
-        elif USE_MPS:
-            device_str = 'mps'
+class TransformerModelTS2(TransformerModelTS):
+    def __init__(self,  **kwargs):
+        super().__init__(**kwargs)
+        self.device = get_device()
+        self.model.to(self.device)
+    
+    def train_epoch(self, data_loader):
+        self.model.train()
 
-        if return_str:
-            return device_str
-        else:
-            return torch.device(device_str)
+        for data in data_loader:
+            # Ensure data is converted to float32 before moving to device
+            feature = data[:, :, 0:-1].float().to(self.device)
+            label = data[:, -1, -1].float().to(self.device)
+
+            pred = self.model(feature.float())
+            loss = self.loss_fn(pred, label)
+
+            self.train_optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_value_(self.model.parameters(), 3.0)
+            self.train_optimizer.step()
+            
+    def test_epoch(self, data_loader):
+        self.model.eval()
+
+        scores = []
+        losses = []
+
+        for data in data_loader:
+            # mps 仅支持float32，需要将float64转换为float32
+            feature = data[:, :, 0:-1].float().to(self.device)
+            label = data[:, -1, -1].float().to(self.device)
+
+            with torch.no_grad():
+                pred = self.model(feature.float())
+                loss = self.loss_fn(pred, label)
+                losses.append(loss.item())
+
+                score = self.metric_fn(pred, label)
+                scores.append(score.item())
+
+        return np.mean(losses), np.mean(scores)
 
 
+def get_device(GPU=0, return_str=False):
+    """
+    Get the appropriate device (CUDA, MPS, or CPU) based on availability.
+    Parameters
+    ----------
+    GPU : int
+        the GPU ID used for training. If >= 0 and CUDA is available, use CUDA.
+    return_str : bool
+        if True, return device as string; if False, return torch.device object.
+    Returns
+    -------
+    torch.device or str
+        The device to use for computation.
+    """
+    USE_CUDA = torch.cuda.is_available() and GPU >= 0
+    USE_MPS = torch.backends.mps.is_available()
+
+    # Default to CPU, then check for GPU availability
+    device_str = 'cpu'
+    if USE_CUDA:
+        device_str = f'cuda:{GPU}'
+    elif USE_MPS:
+        device_str = 'mps'
+
+    if return_str:
+        return device_str
+    else:
+        return torch.device(device_str)
+
+
+def init_model(model, **kwargs):
+    return model(**kwargs)

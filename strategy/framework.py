@@ -11,7 +11,8 @@ from qlib.utils import init_instance_by_config
 from qlib.workflow import R
 from qlib.workflow.record_temp import SignalRecord, PortAnaRecord, SigAnaRecord
 
-from strategy.dataset import ExpAlpha158, Alpha360
+from strategy.dataset import ExpAlpha158
+from qlib.contrib.data.handler import Alpha360
 from strategy.model import LGBModel2, TransformerModel2
 from utils import (
     CMean, CStd,
@@ -71,7 +72,7 @@ class Model:
         with R.start(experiment_name=self.experiment_name):
             dataset = None
             for i in range(0, len(train_list), step):
-                self.logger.info('data round: {}'.format(i+1))
+                self.logger.info('data_new round: {}'.format(i+1))
                 start = train_list[i]
                 end = train_list[min(i + step, len(train_list)) - 1]
                 self.logger.info('train: ({}, {})'.format(start, end))
@@ -136,7 +137,7 @@ class Model:
             model = LGBModel2(**kwargs)
         else:
             self.logger.info('create transformer model object ...')
-            model = TransformerModel2()
+            model = TransformerModel2(d_feat=359)
             self.logger.info('device: {}'.format(model.device))
         self.logger.info('model: {}'.format(model))
         return model
