@@ -106,9 +106,10 @@ update(){
   fi
   rm -rf ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
   rm -rf ${provider_uri_tmp}/out_${dt1}_${dt2}
-  rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}.csv
-  rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}
-  rm -rf ${provider_uri_tmp}/pit_normalized_${dt1}_${dt2}
+#  rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}.csv
+#  rm -rf ${provider_uri_tmp}/pit_${dt1}_${dt2}
+#  rm -rf ${provider_uri_tmp}/pit_normalized_${dt1}_${dt2}
+  cp "${data_path}/csi*.txt" "${provider_uri_tmp}/instruments/"
   if [ -d "${provider_uri}" ];then
     mv ${provider_uri} ${provider_uri_bak}
   fi
