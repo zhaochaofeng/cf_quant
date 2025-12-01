@@ -17,6 +17,7 @@ class ExpAlpha158(Alpha158):
                  expand_feas: tuple[list, list] = None,
                  is_win: bool = False,
                  is_std: bool = False,
+                 ref: int = -2,
                  **kwargs
                  ):
         """
@@ -28,10 +29,11 @@ class ExpAlpha158(Alpha158):
         self.expand_feas = expand_feas
         self.is_win = is_win
         self.is_std = is_std
+        self.ref = ref
         super().__init__(**kwargs)
 
     def get_label_config(self):
-        return ["Ref($close, -5)/Ref($close, -1) - 1"], ["LABEL0"]
+        return [f"Ref($close, {self.ref})/Ref($close, -1) - 1"], ["LABEL0"]
 
     def get_feature_config(self):
         # 获取原始Alpha158特征配置
@@ -136,7 +138,8 @@ def prepare_data(segments: dict,
                  learn_processors: list = None,
                  infer_processors: list = None,
                  data_type: str = 'ds',
-                 step_len: int = None
+                 step_len: int = None,
+                 **kwargs
                  ) -> Union[DatasetH, TSDatasetH]:
     """
     Args:
@@ -164,6 +167,7 @@ def prepare_data(segments: dict,
         'learn_processors': learn_processors,
         'infer_processors': infer_processors,
     }
+    data_handler_config.update(kwargs)
 
     handler = handler_model(**data_handler_config)
     kwargs = {
