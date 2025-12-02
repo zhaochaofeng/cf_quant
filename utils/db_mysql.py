@@ -4,6 +4,7 @@
 
 import pymysql
 from .utils import get_config
+from .logger import LoggerFactory
 
 class MySQLDB:
     def __init__(self):
@@ -17,6 +18,7 @@ class MySQLDB:
             cursorclass=pymysql.cursors.DictCursor
         )
         self.cursor = self.conn.cursor()
+        self.logger = LoggerFactory.get_logger(__name__)
 
     def __enter__(self):
         ''' 进入上下文管理器 '''
@@ -27,12 +29,12 @@ class MySQLDB:
         try:
             if exc_type:
                 self.conn.rollback()
-                print(f"事务回滚：{exc_val}")
+                self.logger.error(f"事务回滚：{exc_val}")
             else:
                 self.conn.commit()
         except Exception as e:
             # 确保即使在提交/回滚时出错也能关闭连接
-            print(f"退出上下文时发生错误：{e}")
+            self.logger.error(f"退出上下文时发生错误：{e}")
             if self.conn:
                 self.conn.rollback()
         finally:
@@ -44,7 +46,7 @@ class MySQLDB:
         ''' 查询 '''
         try:
             s = self.cursor.mogrify(sql, params or ())
-            print('{}\n{}\n{}'.format('-' * 100, s, '-' * 100))
+            self.logger.info('\n{}\n{}\n{}'.format('-' * 50, s, '-' * 50))
             self.cursor.execute(sql, params or ())
             return self.cursor.fetchall()
         except pymysql.MySQLError as e:
@@ -54,7 +56,7 @@ class MySQLDB:
         ''' 增删改（单条） '''
         try:
             s = self.cursor.mogrify(sql, params or ())
-            print('{}\n{}\n{}'.format('-' * 100, s, '-' * 100))
+            self.logger.info('\n{}\n{}\n{}'.format('-' * 50, s, '-' * 50))
             self.cursor.execute(sql, params or ())
         except pymysql.MySQLError as e:
             raise Exception('error in execute: {}'.format(e))
@@ -65,7 +67,7 @@ class MySQLDB:
             return
         try:
             s = self.cursor.mogrify(sql, params_list[0])
-            print('{}\n{}\n{}'.format('-' * 100, s, '-' * 100))
+            self.logger.info('\n{}\n{}\n{}'.format('-' * 50, s, '-' * 50))
             for k in range(0, len(params_list), batch_size):
                 self.cursor.executemany(sql, params_list[k: k+batch_size])
                 # 当数据量大时，按批提交
@@ -82,9 +84,13 @@ class MySQLDB:
                 self.conn.close()
             # print('关闭数据库连接!!!')
         except Exception as e:
-            print('关闭数据库连接时发生错误：{}'.format(e))
+            err_msg = '关闭数据库连接时发生错误：{}'.format(e)
+            self.logger.error(err_msg)
+            raise Exception(err_msg)
 
-if __name__ == '__main__':
+
+def unit_test():
+    """ 测试用例 """
     with MySQLDB() as db:
         # query
         # sql = """ select * from test where day>=%s """
@@ -99,11 +105,7 @@ if __name__ == '__main__':
         # db.execute(sql, data_new)
 
         # executemany
-        data_list = [{'day': '2025-09-07'}, {'day': '2025-09-08'}]
+        data_list = [{'day': '2025-10-11'}, {'day': '2025-10-12'}]
         sql = ''' insert into test (day) values (%(day)s)'''
         db.executemany(sql, data_list)
-
-
-
-
 
