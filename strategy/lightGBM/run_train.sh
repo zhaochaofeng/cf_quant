@@ -44,7 +44,7 @@ if [ $? -eq 0 ]; then
 else
   err_msg="执行失败！"
   echo ${err_msg}
-  ${python_path} ${cf_quant_path}/utils/send_email.py "Strategy: lightgbm_alpha" "${err_msg}"
+  ${python_path} ${cf_quant_path}/utils/send_email.py "Strategy: lightgbm_alpha: train" "${err_msg}"
   exit 1
 fi
 
