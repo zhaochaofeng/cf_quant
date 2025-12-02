@@ -1,4 +1,3 @@
-
 CREATE TABLE IF NOT EXISTS monitor_return_rate(
     id INT NOT NULL AUTO_INCREMENT,
     qlib_code VARCHAR(10) NOT NULL COMMENT 'Qlib股票代码, 如 SZ000001',
@@ -7,7 +6,7 @@ CREATE TABLE IF NOT EXISTS monitor_return_rate(
     model VARCHAR(50) COMMENT '模型名称, 如 lightgbm_alpha',
     instruments VARCHAR(50) COMMENT '股票集合，如 csi300',
     PRIMARY KEY (id),
-    UNIQUE KEY un_code_day (qlib_code, day)
+    UNIQUE KEY un_model_ins_code_date (model, instruments, qlib_code, day)
 ) ENGINE=InnoDB
     DEFAULT CHARSET=utf8mb4
     COLLATE=utf8mb4_unicode_ci
