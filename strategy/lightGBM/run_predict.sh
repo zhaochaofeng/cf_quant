@@ -3,7 +3,7 @@ source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
 cf_quant_path="/root/cf_quant"
-uri='./mlruns'
+uri='"/data/cf_quant/mlruns"'
 
 if [ $# -eq 0 ];then
     dt1=`date +%Y-%m-%d`

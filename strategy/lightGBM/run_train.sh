@@ -2,6 +2,7 @@
 source ~/.bashrc
 cur_path=`pwd`
 provider_uri="/root/.qlib/qlib_data/custom_data_hfq"
+uri="/data/cf_quant/mlruns"
 python_path="/root/anaconda3/envs/python3/bin/python"
 cf_quant_path="/root/cf_quant"
 dt=`date +%Y-%m-%d`
@@ -29,6 +30,7 @@ echo 'start_wid: '${start_wid}
 
 ${python_path} ${cur_path}/lightgbm_alpha.py \
   --provider_uri "${provider_uri}" \
+  --uri "${uri}" \
   --instruments "csi300" \
   --is_online False \
   --horizon "[1,2,3,4,5]" \
