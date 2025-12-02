@@ -58,7 +58,7 @@ class LightGBMModel:
 
         self.logger = LoggerFactory.get_logger(__name__)
         if horizon is None:
-            self.horizon = [1]
+            horizon = [1]
         self.horizon = horizon
         if segments is not None:
             self.segments = segments
