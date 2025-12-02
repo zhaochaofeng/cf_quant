@@ -9,8 +9,8 @@ from typing import Union
 from qlib.data.dataset.handler import DataHandlerLP
 from qlib.workflow.expm import MLflowExpManager
 from utils.utils import get_n_nexttrade_day
-from utils.utils import mysql_connect
 from utils.utils import send_email
+from utils import MySQLDB
 import traceback
 
 class Predict:
@@ -113,14 +113,15 @@ class Predict:
     def merge_preds(self):
         print('-' * 100)
         print('merge_preds ...')
-        merged = pd.DataFrame()
+        merged_list = []
         for exp_name in self.preds:
             hr = int(exp_name.replace('lightGBM_Alpha158_h', ''))
             df = self.preds[exp_name]
             date = df['day'].iloc[0].strftime('%Y-%m-%d')
             next = pd.to_datetime(get_n_nexttrade_day(date, hr))
             df['day'] = next
-            merged = pd.concat([merged, df], axis=0, ignore_index=True)
+            merged_list.append(df)
+        merged = pd.concat(merged_list, axis=0, ignore_index=True)
         return merged
 
     def write_to_mysql(self, merged: pd.DataFrame):
@@ -135,23 +136,15 @@ class Predict:
             data.append(tmp)
         print('data len: {}'.format(len(data)))
 
-        conn = mysql_connect()
         columns_format = ["%({})s".format(c) for c in columns]
         sql = '''
             INSERT INTO monitor_return_rate({}) VALUES ({})
             ON DUPLICATE KEY UPDATE score=VALUES(score)
         '''.format(','.join(columns), ','.join(columns_format))
 
-        with conn.cursor() as cursor:
-            try:
-                print(cursor.mogrify(sql, data[0]))
-                cursor.executemany(sql, data)
-                conn.commit()
-            except Exception as e:
-                conn.rollback()  # 回滚
-                raise Exception('error in write to mysql: {}'.format(e))
-            finally:
-                conn.close()
+        with MySQLDB() as db:
+            db.executemany(sql, data)
+
         print('写入完成!!!')
 
     def main(self):
