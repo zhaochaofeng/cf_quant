@@ -17,7 +17,8 @@ class LGBModel2(LGBModel):
         Prepare data_new for finetune
         """
         ds_l = []
-        assert "train" in dataset.segments
+        assert "valid" in dataset.segments
+        assert "test" in dataset.segments
         # for key in ["train", ["valid", "test"]]:
         for key in [["valid", "test"]]:
             # if key in dataset.segments:
@@ -57,20 +58,18 @@ class LGBModel2(LGBModel):
             verbose level
         """
         # Based on existing model and finetune by train more rounds
-        dtrain, valid_test = self._prepare_data_finetune(dataset, reweighter)  # pylint: disable=W0632
-
-        valid_test = valid_test[0]
+        ds_l = self._prepare_data_finetune(dataset, reweighter)  # pylint: disable=W0632
+        ds, names = list(zip(*ds_l))
         verbose_eval_callback = lgb.log_evaluation(period=verbose_eval)
         self.model = lgb.train(
             self.params,
-            valid_test,
+            train_set=ds[0],
             num_boost_round=num_boost_round,
             init_model=self.model,
-            valid_sets=[valid_test],
+            valid_sets=ds,
             valid_names=["train"],
             callbacks=[verbose_eval_callback],
         )
-
 
 
 class TransformerModel2(TransformerModel):
