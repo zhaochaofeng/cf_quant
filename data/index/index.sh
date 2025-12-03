@@ -25,7 +25,7 @@ retry_process() {
     status=$?
     (( status == 0 )) && return 0
     (( retry_count++ ))
-    sleep 10
+    sleep 1h
   done
   return $status
 }
