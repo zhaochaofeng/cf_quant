@@ -39,6 +39,7 @@ class LightGBMModel:
                  exp_name: str = 'lightgbm_alpha',
                  is_finetune: bool = False,
                  is_online: bool = False,
+                 is_mysql: bool = True,
                  horizon: list = None,
                  start_wid: int = 1,
                  test_wid: int = 200,
@@ -51,6 +52,7 @@ class LightGBMModel:
         self.exp_name = exp_name
         self.is_finetune = is_finetune
         self.is_online = is_online
+        self.is_mysql = is_mysql
         self.start_wid = start_wid
         self.test_wid = test_wid
         self.valid_wid = valid_wid
@@ -319,10 +321,11 @@ class LightGBMModel:
                     fea_learn, label_learn, data_learn, dataset_learn,
                     fea_infer, label_infer, data_infer, dataset_infer)
 
-                self.train(dataset_learn, dataset_infer, model, hr, metrics, ds_config)
+                self.train(dataset_learn, dataset_infer, model, hr, metrics, dataset)
 
             # 指标写入mysql
-            self.metrics_to_mysql(metrics)
+            if self.is_mysql:
+                self.metrics_to_mysql(metrics)
             self.logger.info('耗时：{}s'.format(round(time.time() - t0, 4)))
         except:
             err_msg = traceback.format_exc()
