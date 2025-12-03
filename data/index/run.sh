@@ -13,6 +13,7 @@ if [ ! -d ${provider_uri} ]; then
   mkdir -p ${provider_uri}
 fi
 
+
 retry_process() {
   # 重试函数
   local cmd="$1"
@@ -30,6 +31,7 @@ retry_process() {
   return $status
 }
 
+
 check_success(){
   # 执行结果检查函数
   if [ $? -eq 0 ]; then
@@ -42,6 +44,7 @@ check_success(){
   fi
 }
 
+
 # CSI300
 retry_process "
   ${python_path} ${qlib_path}/scripts/data_collector/cn_index/collector.py \
@@ -50,6 +53,7 @@ retry_process "
   --method parse_instruments
 "
 check_success "CSI300"
+
 
 # CSI500
 retry_process "
@@ -62,3 +66,7 @@ retry_process "
 "
 check_success "CSI500"
 
+
+# CSIA500
+retry_process "${python_path} ${cur_path}/index_a500.py"
+check_success "CSIA500"
