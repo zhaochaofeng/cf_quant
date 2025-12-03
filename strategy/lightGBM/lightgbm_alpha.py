@@ -255,12 +255,12 @@ class LightGBMModel:
         self.logger.info("data_infer shape: {}".format(data_infer.shape))
         # self.logger.info(dataset_infer.prepare(col_set=['feature', 'label'], segments='train'))
 
-    def train(self, dataset_learn, dataset_infer, model, hr, metrics):
+    def train(self, dataset_learn, dataset_infer, model, hr, metrics, ds_config):
         exp_name = f"{self.exp_name}_h{hr}"
         with R.start(experiment_name=exp_name, uri=self.uri):
             model.fit(dataset_learn)
             R.save_objects(**{'params.pkl': model})
-            R.save_objects(**{'dataset': dataset_learn})
+            R.save_objects(**{'dataset': ds_config})
             recorder = R.get_recorder()
             self.backtest(dataset_infer, model, recorder, hr, metrics)
 
@@ -269,7 +269,7 @@ class LightGBMModel:
             with R.start(experiment_name='online_{}'.format(exp_name), uri=self.uri):
                 model.finetune(dataset_learn, num_boost_round=10, verbose_eval=10)
                 R.save_objects(**{'params.pkl': model})
-                R.save_objects(**{'dataset': dataset_learn})
+                R.save_objects(**{'dataset': ds_config})
 
     def metrics_to_mysql(self, metrics: list) -> None:
         self.logger.info('\n{}\n{}'.format('=' * 100, 'metrics_to_mysql ...'))
@@ -284,9 +284,9 @@ class LightGBMModel:
     def main(self):
         try:
             t0 = time.time()
-            dataset, config = self.prepare_data()
+            dataset, ds_config = self.prepare_data()
             task = {
-                "dataset": config,
+                "dataset": ds_config,
             }
 
             fea_learn = pd.concat(
@@ -319,7 +319,7 @@ class LightGBMModel:
                     fea_learn, label_learn, data_learn, dataset_learn,
                     fea_infer, label_infer, data_infer, dataset_infer)
 
-                self.train(dataset_learn, dataset_infer, model, hr, metrics)
+                self.train(dataset_learn, dataset_infer, model, hr, metrics, ds_config)
 
             # 指标写入mysql
             self.metrics_to_mysql(metrics)
