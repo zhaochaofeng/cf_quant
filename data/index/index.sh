@@ -24,7 +24,7 @@ retry_process() {
     eval "$cmd"
     status=$?
     (( status == 0 )) && return 0
-    (( retry_count-- ))
+    (( retry_count++ ))
     sleep 10
   done
   return $status
