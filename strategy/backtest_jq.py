@@ -127,7 +127,7 @@ def trade(context):
                 get_security_info(stock, date=context.current_dt).display_name,
                 stock,
                 g.score_dict.get(stock, -float('inf'))))
-            order_target(stock, 0)
+            order_target(stock, 0, MarketOrderStyle(1))
 
     # Step 7: 买入操作
     buy_stocks = []
@@ -142,7 +142,7 @@ def trade(context):
                 stock,
                 round(value_per_stock, 4),
                 g.score_dict.get(stock, -float('inf'))))
-            order_value(stock, value_per_stock)
+            order_value(stock, value_per_stock, MarketOrderStyle(9999))
 
             # 记录买入成功的股票
             pos_size_new = len(context.portfolio.positions)
