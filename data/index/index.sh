@@ -5,6 +5,7 @@ source ~/.bashrc
 cur_path=`pwd`
 python_path="/root/anaconda3/envs/python3/bin/python"
 qlib_path="/root/qlib"
+cf_quant_path="/root/cf_quant"
 provider_uri='/root/.qlib/qlib_data/index'
 echo "cur_path: ${cur_path}"
 
@@ -13,10 +14,13 @@ if [ ! -d ${provider_uri} ]; then
 fi
 
 retry_process() {
+  # 重试函数
   local cmd="$1"
-  local retry_count=5
+  local retry_count=0
   local status=1
-  while (( retry_count > 0 )); do
+  echo "$cmd"
+  while (( retry_count < 5 )); do
+    echo "retry_count: ${retry_count}"
     eval "$cmd"
     status=$?
     (( status == 0 )) && return 0
@@ -26,6 +30,18 @@ retry_process() {
   return $status
 }
 
+check_success(){
+  # 执行结果检查函数
+  if [ $? -eq 0 ]; then
+    echo "$1 执行成功！！！"
+  else
+    err_msg="$1 执行失败！！！"
+    echo "${err_msg}"
+    ${python_path} ${cf_quant_path}/utils/send_email.py "Data: index" "${err_msg}"
+    exit 1
+  fi
+}
+
 # CSI300
 retry_process "
   ${python_path} ${qlib_path}/scripts/data_collector/cn_index/collector.py \
@@ -33,12 +49,16 @@ retry_process "
   --qlib_dir ${provider_uri} \
   --method parse_instruments
 "
+check_success "CSI300"
 
-
-
-
-
-
-
-
+# CSI500
+retry_process "
+  ${python_path} ${qlib_path}/scripts/data_collector/cn_index/collector.py \
+  --index_name CSI500 \
+  --qlib_dir ${provider_uri} \
+  --method parse_instruments \
+  --request_retry 5 \
+  --retry_sleep 10
+"
+check_success "CSI500"
 
