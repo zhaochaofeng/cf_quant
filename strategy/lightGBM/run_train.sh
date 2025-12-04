@@ -75,8 +75,8 @@ check_success "csi500"
 ${python_path} ${cur_path}/lightgbm_alpha.py \
   --provider_uri "${provider_uri}" \
   --uri "${uri}" \
-  --instruments "csiA500" \
-  --exp_name "lightgbm_alpha_csiA500" \
+  --instruments "csia500" \
+  --exp_name "lightgbm_alpha_csia500" \
   --is_online False \
   --horizon "[1,2,3,4,5]" \
   --start_wid "${start_wid}" \
@@ -84,4 +84,4 @@ ${python_path} ${cur_path}/lightgbm_alpha.py \
   --valid_wid 100 \
   --train_wid 800 \
   main
-check_success "csiA500"
+check_success "csia500"

@@ -57,7 +57,7 @@ def get_last_month_range(date: str = None):
 def main(
         date: str = None,
         instruments_path: str = '~/.qlib/qlib_data/custom_data_hfq/instruments/all.txt',
-        output_path: str = '~/.qlib/qlib_data/index/instruments/csiA500.txt'
+        output_path: str = '~/.qlib/qlib_data/index/instruments/csia500.txt'
     ):
     try:
         t = time.time()
