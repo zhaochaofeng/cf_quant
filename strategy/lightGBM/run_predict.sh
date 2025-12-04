@@ -69,5 +69,5 @@ ${python_path} ${cur_path}/predict.py main \
   --instruments "csia500" \
   --exp_name "lightgbm_alpha_csia500" \
   --horizon "[1,2,3,4,5]"
-check_success "csiA500"
+check_success "csia500"
 
