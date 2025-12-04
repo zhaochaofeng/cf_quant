@@ -51,6 +51,7 @@ class Predict:
         self.model_info = {}
         self.preds = {}
         self.logger = LoggerFactory.get_logger(__name__)
+        self.logger.info('\n\n\n{}\n{}: {}\n'.format('》' * 100, 'Predict', self.exp_name))
         self.initialize()
 
     def initialize(self):
