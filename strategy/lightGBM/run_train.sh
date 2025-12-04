@@ -36,7 +36,6 @@ check_success(){
   else
     err_msg="$1 执行失败！！！"
     echo "${err_msg}"
-    ${python_path} ${cf_quant_path}/utils/send_email.py "Data: index" "${err_msg}"
     exit 1
   fi
 }
