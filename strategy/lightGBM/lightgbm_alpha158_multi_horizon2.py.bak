@@ -133,7 +133,7 @@ class LightGBMAlpha158:
 
         return train_inter, valid_inter, test_inter
 
-    def dataframe_to_dataseth(self, df, segments):
+    def dataframe_to_dataset(self, df, segments):
         cus_dataloader = CustomDataLoader(df)
         data_handler = DataHandlerLP(
             data_loader=cus_dataloader
@@ -160,6 +160,8 @@ class LightGBMAlpha158:
     def main(self):
         train_inter, valid_inter, test_inter = self.date_interval()
         instruments = self.choose_stocks(train_inter[0], test_inter[1])
+        # instruments = D.instruments(market='csi300')
+        # instruments = D.list_instruments(instruments, as_list=True)
 
         data_handler_config = {
             "start_time": train_inter[0],
@@ -233,8 +235,8 @@ class LightGBMAlpha158:
 
             segs = tasks[i]["dataset"]["kwargs"]["segments"]
             print("segments: {}".format(segs))
-            dataset_learn = self.dataframe_to_dataseth(self.features_learn, segs)
-            dataset_infer = self.dataframe_to_dataseth(self.features_infer, segs)
+            dataset_learn = self.dataframe_to_dataset(self.features_learn, segs)
+            dataset_infer = self.dataframe_to_dataset(self.features_infer, segs)
 
             print('dataset_learn: {}'.format('-' * 100))
             print("features_learn shape: {}".format(self.features_learn.shape))

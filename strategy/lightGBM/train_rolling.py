@@ -60,11 +60,11 @@ class RollingOnlineTrain:
                 'model': {'class': 'LGBModel', 'module_path': 'qlib.contrib.model.gbdt'},
                 "dataset": {
                     "class": "DatasetH",
-                    "module_path": "qlib.data.dataset",
+                    "module_path": "qlib.data_new.dataset",
                     "kwargs": {
                         "handler": {
                             "class": "Alpha158",
-                            "module_path": "qlib.contrib.data.handler",
+                            "module_path": "qlib.contrib.data_new.handler",
                             "kwargs": data_handler_config,
                         },
                         "segments": {
@@ -173,7 +173,7 @@ class RollingOnlineTrain:
         else:
             print(f"{type(self.trainer)} is not supported for worker.")
 
-    # Reset all things to the first status, be careful to save important data
+    # Reset all things to the first status, be careful to save important data_new
     def reset(self):
         for task in self.tasks:
             name_id = task["model"]["class"]
