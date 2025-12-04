@@ -66,8 +66,8 @@ ${python_path} ${cur_path}/predict.py main \
   --start_date "${dt1}" \
   --end_date "${dt2}" \
   --uri "${uri}" \
-  --instruments "csiA500" \
-  --exp_name "lightgbm_alpha_csiA500" \
+  --instruments "csia500" \
+  --exp_name "lightgbm_alpha_csia500" \
   --horizon "[1,2,3,4,5]"
 check_success "csiA500"
 
