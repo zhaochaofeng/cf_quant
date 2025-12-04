@@ -2,24 +2,19 @@
     lightGBM 模型训练
 '''
 
-import fire
 import copy
 import time
 import traceback
-import pandas as pd
 from datetime import datetime
+
+import fire
+import pandas as pd
 import qlib
-from qlib.workflow import R
 from qlib.data import D
 from qlib.utils.data import zscore
+from qlib.workflow import R
 from qlib.workflow.record_temp import SignalRecord, SigAnaRecord, PortAnaRecord
 
-from utils import (
-    LoggerFactory,
-    MySQLDB,
-    get_n_pretrade_day,
-    send_email
-)
 from strategy.dataset import (
     prepare_data,
     ExpAlpha158,
@@ -27,6 +22,13 @@ from strategy.dataset import (
     dataframe_to_dataset
 )
 from strategy.model import LGBModel2
+from utils import (
+    LoggerFactory,
+    MySQLDB,
+    get_n_pretrade_day,
+    send_email,
+    CStd, CMean
+)
 
 
 class LightGBMModel:
@@ -73,7 +75,8 @@ class LightGBMModel:
 
     def init(self):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'qlib init ...'))
-        qlib.init(provider_uri=self.provider_uri)
+        _setup_kwargs = {'custom_ops': [CStd, CMean]}
+        qlib.init(provider_uri=self.provider_uri, **_setup_kwargs)
 
     def date_interval(self) -> dict:
         ''' 训练 / 验证 / 测试 时间区间'''
@@ -109,10 +112,20 @@ class LightGBMModel:
         ]
         kwargs = {
             'expand_feas': None,
-            'is_win': False,
+            'is_win': True,
             'is_std': False,
             'ref': -2
         }
+        # 自定义因子
+        factors = []
+        factor_dic = {}
+        for factor in factors:
+            factor_dic.update(factor())
+        fields, names = [], []
+        for k, v in factor_dic.items():
+            names.append(k)
+            fields.append(v['exp'])
+        kwargs.update({'expand_feas': (fields, names)})
         dataset, config = prepare_data(self.segments,
                                handler_model=ExpAlpha158,
                                instruments=self.instruments,
