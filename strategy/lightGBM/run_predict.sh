@@ -41,14 +41,14 @@ check_success(){
 }
 
 
-${python_path} ${cur_path}/predict.py main \
-  --start_date "${dt1}" \
-  --end_date "${dt2}" \
-  --uri "${uri}" \
-  --instruments "csi300" \
-  --exp_name "lightgbm_alpha_csi300" \
-  --horizon "[1,2,3,4,5]"
-check_success "csi300"
+#${python_path} ${cur_path}/predict.py main \
+#  --start_date "${dt1}" \
+#  --end_date "${dt2}" \
+#  --uri "${uri}" \
+#  --instruments "csi300" \
+#  --exp_name "lightgbm_alpha_csi300" \
+#  --horizon "[1,2,3,4,5]"
+#check_success "csi300"
 
 
 ${python_path} ${cur_path}/predict.py main \
@@ -61,12 +61,12 @@ ${python_path} ${cur_path}/predict.py main \
 check_success "csi500"
 
 
-${python_path} ${cur_path}/predict.py main \
-  --start_date "${dt1}" \
-  --end_date "${dt2}" \
-  --uri "${uri}" \
-  --instruments "csia500" \
-  --exp_name "lightgbm_alpha_csia500" \
-  --horizon "[1,2,3,4,5]"
-check_success "csia500"
+#${python_path} ${cur_path}/predict.py main \
+#  --start_date "${dt1}" \
+#  --end_date "${dt2}" \
+#  --uri "${uri}" \
+#  --instruments "csia500" \
+#  --exp_name "lightgbm_alpha_csia500" \
+#  --horizon "[1,2,3,4,5]"
+#check_success "csia500"
 
