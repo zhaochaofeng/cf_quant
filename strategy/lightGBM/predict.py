@@ -28,6 +28,8 @@ class Predict:
         horizon: list = None,
         start_date: str = None,
         end_date: str = None,
+        is_mysql: bool = True,
+        is_redis: bool = True
     ):
         self.provider_uri = provider_uri
         self.uri = uri
@@ -35,6 +37,8 @@ class Predict:
         self.end_date = end_date
         self.exp_name = exp_name
         self.instruments = instruments
+        self.is_mysql = is_mysql
+        self.is_redis = is_redis
         if horizon is None:
             horizon = [1]
         if start_date is None:
@@ -185,9 +189,11 @@ class Predict:
             # 合并预测结果
             merged = self.merge_preds()
             # 写入mysql
-            self.write_to_mysql(merged)
+            if self.is_mysql:
+                self.write_to_mysql(merged)
             # 写入redis
-            self.write_to_redis(merged)
+            if self.is_redis:
+                self.write_to_redis(merged)
             self.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))
         except Exception as e:
             erro_info = traceback.format_exc()
