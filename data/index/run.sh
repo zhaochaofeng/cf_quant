@@ -70,3 +70,8 @@ check_success "CSI500"
 # CSIA500
 retry_process "${python_path} ${cur_path}/index_a500.py"
 check_success "CSIA500"
+
+
+${python_path} ${cur_path}/change_end_date.py
+check_success "change_end_date"
+
