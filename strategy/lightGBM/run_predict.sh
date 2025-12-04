@@ -28,17 +28,46 @@ if [ $? -eq 5 ];then
   exit 0
 fi
 
-${python_path} ${cur_path}/predict.py main \
---start_date "${dt1}" \
---end_date "${dt2}" \
---uri "${uri}" \
---horizon "[1,2,3,4,5]"
 
-if [ $? -eq 0 ]; then
-  echo "执行成功！"
-else
-  err_msg="执行失败！"
-  echo ${err_msg}
-  ${python_path} ${cf_quant_path}/utils/send_email.py "Strategy: lightgbm_alpha: predict" "${err_msg}"
-  exit 1
-fi
+check_success(){
+  # 执行结果检查函数
+  if [ $? -eq 0 ]; then
+    echo "$1 执行成功！！！"
+  else
+    err_msg="$1 执行失败！！！"
+    echo "${err_msg}"
+    ${python_path} ${cf_quant_path}/utils/send_email.py "Data: index" "${err_msg}"
+    exit 1
+  fi
+}
+
+
+${python_path} ${cur_path}/predict.py main \
+  --start_date "${dt1}" \
+  --end_date "${dt2}" \
+  --uri "${uri}" \
+  --instruments "csi300" \
+  --exp_name "lightgbm_alpha_csi300" \
+  --horizon "[1,2,3,4,5]"
+check_success "csi300"
+
+
+${python_path} ${cur_path}/predict.py main \
+  --start_date "${dt1}" \
+  --end_date "${dt2}" \
+  --uri "${uri}" \
+  --instruments "csi500" \
+  --exp_name "lightgbm_alpha_csi500" \
+  --horizon "[1,2,3,4,5]"
+check_success "csi500"
+
+
+${python_path} ${cur_path}/predict.py main \
+  --start_date "${dt1}" \
+  --end_date "${dt2}" \
+  --uri "${uri}" \
+  --instruments "csiA500" \
+  --exp_name "lightgbm_alpha_csiA500" \
+  --horizon "[1,2,3,4,5]"
+check_success "csiA500"
+
