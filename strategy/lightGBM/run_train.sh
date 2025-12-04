@@ -26,27 +26,62 @@ if [ $# -eq 0 ];then
     exit 1
 fi
 
-echo 'start_wid: '${start_wid}
+echo "start_wid: ${start_wid}"
+
+
+check_success(){
+  # 执行结果检查函数
+  if [ $? -eq 0 ]; then
+    echo "$1 执行成功！！！"
+  else
+    err_msg="$1 执行失败！！！"
+    echo "${err_msg}"
+    ${python_path} ${cf_quant_path}/utils/send_email.py "Data: index" "${err_msg}"
+    exit 1
+  fi
+}
+
 
 ${python_path} ${cur_path}/lightgbm_alpha.py \
   --provider_uri "${provider_uri}" \
   --uri "${uri}" \
   --instruments "csi300" \
+  --exp_name "lightgbm_alpha_csi300" \
   --is_online False \
   --horizon "[1,2,3,4,5]" \
   --start_wid "${start_wid}" \
-  --test_wid 200 \
+  --test_wid 252 \
   --valid_wid 100 \
   --train_wid 800 \
   main
+check_success "csi300"
 
 
-if [ $? -eq 0 ]; then
-  echo "执行成功！"
-else
-  err_msg="执行失败！"
-  echo ${err_msg}
-  ${python_path} ${cf_quant_path}/utils/send_email.py "Strategy: lightgbm_alpha: train" "${err_msg}"
-  exit 1
-fi
+${python_path} ${cur_path}/lightgbm_alpha.py \
+  --provider_uri "${provider_uri}" \
+  --uri "${uri}" \
+  --instruments "csi500" \
+  --exp_name "lightgbm_alpha_csi500" \
+  --is_online False \
+  --horizon "[1,2,3,4,5]" \
+  --start_wid "${start_wid}" \
+  --test_wid 252 \
+  --valid_wid 100 \
+  --train_wid 800 \
+  main
+check_success "csi500"
 
+
+${python_path} ${cur_path}/lightgbm_alpha.py \
+  --provider_uri "${provider_uri}" \
+  --uri "${uri}" \
+  --instruments "csiA500" \
+  --exp_name "lightgbm_alpha_csiA500" \
+  --is_online False \
+  --horizon "[1,2,3,4,5]" \
+  --start_wid "${start_wid}" \
+  --test_wid 252 \
+  --valid_wid 100 \
+  --train_wid 800 \
+  main
+check_success "csiA500"
