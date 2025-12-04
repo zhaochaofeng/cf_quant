@@ -62,7 +62,7 @@ def main(
     try:
         t = time.time()
         if date is None:
-            date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            date = datetime.now().strftime("%Y-%m-%d")
 
         date = date.replace('-', '')
         start_date, end_date = get_last_month_range()
