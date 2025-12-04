@@ -137,7 +137,7 @@ class Predict:
             day_mapping = {}
             # 对每个唯一日期仅请求一次
             for day in unique_day:
-                time.sleep(60/500)  # 1min 最多请求500次
+                time.sleep(60/400)  # 1min 最多请求500次
                 date_str = pd.to_datetime(day).strftime('%Y-%m-%d')
                 new_date = get_n_nexttrade_day(date_str, hr)
                 day_mapping[day] = new_date
@@ -203,7 +203,7 @@ class Predict:
         except Exception as e:
             erro_info = traceback.format_exc()
             self.logger.error(erro_info)
-            send_email(f'Strategy:predict:{self.exp_name}-{self.instruments}', erro_info)
+            send_email(f'Strategy:predict:{self.exp_name}', erro_info)
 
 
 if __name__ == '__main__':
