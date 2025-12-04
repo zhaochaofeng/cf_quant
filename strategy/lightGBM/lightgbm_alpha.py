@@ -71,6 +71,7 @@ class LightGBMModel:
         if uri is None:
             uri = './mlruns'
         self.uri = uri
+        self.logger.info('\n\n\n{}\n{}: {}\n'.format('》' * 100, 'Training', self.exp_name))
         self.init()
 
     def init(self):
