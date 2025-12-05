@@ -4,23 +4,56 @@ import qlib
 from qlib.workflow import R
 from qlib.workflow.record_temp import SignalRecord, SigAnaRecord, PortAnaRecord
 from strategy.dataset import prepare_data
-# from strategy.model import TransformerModelTS2
+from strategy.model import TransformerModelTS2
 from strategy.model import TransformerModel2
+from datetime import datetime
+from utils import get_n_pretrade_day
 
 
+def date_interval(
+                start_wid: int = 2,
+                test_wid: int = 252,
+                valid_wid: int = 100,
+                train_wid: int = 500,
+                ) -> dict:
+    ''' 训练 / 验证 / 测试 时间区间'''
+    now = datetime.now().strftime('%Y-%m-%d')
+    test_end = get_n_pretrade_day(now, start_wid)
+    test_start = get_n_pretrade_day(test_end, test_wid)
+    valid_end = get_n_pretrade_day(test_start, 1)
+    valid_start = get_n_pretrade_day(valid_end, valid_wid)
+    train_end = get_n_pretrade_day(valid_start, 1)
+    train_start = get_n_pretrade_day(train_end, train_wid)
 
-def main():
-    qlib.init()
+    train_inter = (train_start, train_end)
+    valid_inter = (valid_start, valid_end)
+    test_inter = (test_start, test_end)
+
+    segments = {
+        "train": train_inter,
+        "valid": valid_inter,
+        "test": test_inter,
+    }
+    return segments
+
+
+def main(
+        provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+        ):
+    qlib.init(provider_uri=provider_uri)
 
     benchmark = 'SH000300'
     instruments = 'csi300'
 
-    segments = {
-        "train": ("2008-01-01", "2014-12-31"),
-        "valid": ("2015-01-01", "2016-12-31"),
-        "test": ("2017-01-01", "2020-08-01"),
-    }
-    # step_len = 20
+    # segments = {
+    #     "train": ("2008-01-01", "2014-12-31"),
+    #     "valid": ("2015-01-01", "2016-12-31"),
+    #     "test": ("2017-01-01", "2020-08-01"),
+    # }
+    segments = date_interval()
+    print("segments: {}".format(segments))
+
+    step_len = 20
     learn_processors = [
         {'class': 'DropnaLabel'},
         {'class': 'CSRankNorm', 'kwargs': {'fields_group': 'label'}}
@@ -36,12 +69,12 @@ def main():
         {'class': 'Fillna', 'kwargs': {'fields_group': 'feature'}}
     ]
 
-    # dataset = prepare_data(segments, step_len=step_len, data_type='ts', instruments=instruments,
-    #                        learn_processors=learn_processors, infer_processors=infer_processors)
-    dataset = prepare_data(segments, data_type='ds', instruments=instruments,
+    dataset = prepare_data(segments, step_len=step_len, data_type='ts', instruments=instruments,
                            learn_processors=learn_processors, infer_processors=infer_processors)
-    # model = TransformerModelTS2(d_feat=20, seed=0, n_jobs=5)
-    model = TransformerModel2(d_feat=20, seed=0, dropout=0.15)
+    # dataset = prepare_data(segments, data_type='ds', instruments=instruments,
+    #                        learn_processors=learn_processors, infer_processors=infer_processors)
+    model = TransformerModelTS2(d_feat=20, seed=0, n_jobs=5)
+    # model = TransformerModel2(d_feat=20, seed=0, dropout=0.15)
     param_num = sum(p.numel() for p in model.model.parameters())
     print('\n{}\n{}'.format('-' * 100, param_num))
 
