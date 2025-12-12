@@ -151,10 +151,10 @@ class TSFinacialData(ProcessData):
                 # 每日更新时。需要针对 f_ann_date 圈选。因为 ann_date 固定，不限定 f_ann_date 将会产生重复数据
                 if start_date == end_date:
                     tmp = tmp[tmp.f_ann_date == self.now_date.replace('-', '')]
+                time.sleep(60 / 500)  # 1min最多请求500次
                 if tmp.empty:
                     continue
                 df_list.append(tmp)
-                time.sleep(60/400)  # 1min最多请求500次
             if len(df_list) == 0:
                 return pd.DataFrame()
             df = pd.concat(df_list, axis=0, join='outer')
