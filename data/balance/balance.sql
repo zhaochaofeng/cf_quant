@@ -154,11 +154,29 @@ CREATE TABLE IF NOT EXISTS balance_ts(
     oth_debt_invest DECIMAL(20, 4) COMMENT '其他债权投资(元)',
     update_flag TINYINT COMMENT '更新标识',
     PRIMARY KEY (id),
-    UNIQUE KEY uk_day_code(end_date, ts_code, ann_date, f_ann_date, update_flag),
+    UNIQUE KEY uk_day_code(end_date, ts_code, f_ann_date, update_flag),
     INDEX qlib_index(qlib_code)
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci
   COMMENT='tushare-资产负债表'
   AUTO_INCREMENT=1;
+
+
+'''
+# 问题1：存在 end_date, ts_code, f_ann_date, update_flag 重复的数据。
+# 处理方式：按照 ann_date排序降序， 去最新日期的数据
+select end_date, ts_code, f_ann_date, update_flag, count(*) as num
+from balance_ts group by end_date, ts_code, f_ann_date, update_flag having num >1 limit 10;
+
++------------+-----------+------------+-------------+-----+
+| end_date   | ts_code   | f_ann_date | update_flag | num |
++------------+-----------+------------+-------------+-----+
+| 2018-12-31 | 920491.BJ | 2021-12-31 |           1 |   2 |
+| 2021-06-30 | 920491.BJ | 2021-12-31 |           1 |   2 |
++------------+-----------+------------+-------------+-----+
+'''
+
+
+
 
