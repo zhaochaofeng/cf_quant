@@ -82,13 +82,19 @@ class TSStockInfoProcessor(Base):
                 tmp = ts_api(pro, 'index_member_all', l1_code=code)
                 df_ind = pd.concat([df_ind, tmp], ignore_index=True)
                 df_ind.drop(columns='name', inplace=True)
+            # 行业信息可能变动，导致同一个ts_code对应多个行业
+            df_ind.sort_values(by=['ts_code', 'in_date'], inplace=True)
+            df_ind.drop_duplicates(subset=['ts_code'], keep='last', inplace=True)
             df_ind.set_index('ts_code', inplace=True)
+
             self.logger.info('df_ind shape: {}'.format(df_ind.shape))
             if df_ind.empty:
                 err_msg = 'df_ind is empty !'
                 self.logger.error(err_msg)
                 raise Exception(err_msg)
 
+            print(df_info.head())
+            print(df_ind.head())
             df_ind = df_ind.reindex(df_info.index)
             df_merge = pd.concat([df_info, df_ind], axis=1, join='outer')
             df_merge.reset_index(inplace=True)
