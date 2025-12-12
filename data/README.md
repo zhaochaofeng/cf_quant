@@ -10,6 +10,7 @@ from income_ts )a;
 ```
 2. 存在 ts_code, end_date, ann_date, f_ann_date 字段值相同的数据，也就是同一天做了数据修改，此时需要使用update_flag=1 的数据
 
+3. income_ts 和 balance_ts 从 1990 年就有数据，cashflow_ts从2001年才有数据
 
 
 
