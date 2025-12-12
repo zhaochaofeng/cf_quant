@@ -182,7 +182,11 @@ def main(
             return
 
         stocks = processor.get_stocks()
+        # stocks = ['920491.BJ']
         df = processor.fetch_data_from_api(stocks, api_fun='balancesheet')
+        if df.empty:
+            processor.logger.warning('has no data: [{}, {}]'.format(start_date, end_date))
+            return
         data = processor.process(df)
         processor.write_to_mysql(data)
         processor.logger.info('耗时：{}s'.format(round(time.time() - t, 4)))

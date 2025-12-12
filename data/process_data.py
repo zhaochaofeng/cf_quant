@@ -119,7 +119,7 @@ class TSFinacialData(ProcessData):
         super().__init__(now_date=now_date, **kwargs)
         self.start_date = start_date
         self.end_date = end_date
-        self.has_financial_data = True
+        self.has_financial_data = True   # 每日执行
         # [1月1日-4月30, 7月1日-8月31日，10月1日-10月31]
         # 仅在当前的上述日期范围内才进行财务数据获取
         # inter_valid = get_trade_cal_inter(self.get_date(1, 1), self.get_date(4, 30)) + \
@@ -146,13 +146,22 @@ class TSFinacialData(ProcessData):
             end_date = self.end_date.replace('-', '')
             for i, stock in enumerate(stocks):
                 if (i + 1) % 100 == 0:
-                    self.logger.info('processed num: {}'.format(i + 1))
+                    self.logger.info('processed num: {} / {}'.format(i + 1, len(stocks)))
                 tmp = ts_api(pro, api_fun, ts_code=stock, start_date=start_date, end_date=end_date)
+                # 每日更新时。需要针对 f_ann_date 圈选。因为 ann_date 固定，不限定 f_ann_date 将会产生重复数据
+                if start_date == end_date:
+                    tmp = tmp[tmp.f_ann_date == self.now_date.replace('-', '')]
                 if tmp.empty:
                     continue
                 df_list.append(tmp)
                 time.sleep(60/500)  # 1min最多请求500次
+            if len(df_list) == 0:
+                return pd.DataFrame()
             df = pd.concat(df_list, axis=0, join='outer')
+            # 如果 end_date, ts_code, f_ann_date, update_flag 重复，则取 ann_date 最新日期数据
+            df = df.sort_values(by=['end_date', 'ts_code', 'f_ann_date', 'update_flag', 'ann_date'])
+            df = df.drop_duplicates(subset=['end_date', 'ts_code', 'f_ann_date', 'update_flag'], keep='last')
+
             if df.empty:
                 msg = 'df is empty: {}'.format(self.now_date)
                 self.logger.error(msg)
