@@ -50,12 +50,13 @@ class CheckMySQLData:
             self.is_trade_day = False
 
     def fetch_data_from_mysql(self, table_name: str = None, conditions_dict: dict = None,
-                              sql_str: str = None) -> pd.DataFrame:
+                              sql_str: str = None, is_fin: bool = False) -> pd.DataFrame:
         """
         从 MySQL 中获取数据
         Args:
             conditions_dict: 在基础sql上加条件
             sql_str: 外部直接输入SQL
+            is_fin: 是否为财务数据
         """
         if table_name is None:
             table_name = self.table_name
@@ -94,6 +95,8 @@ class CheckMySQLData:
                     df = pd.read_sql(sql, engine)
 
             self.logger.info('df shape: {}'.format(df.shape))
+            if is_fin:
+                return df
             if df.empty:
                 error_msg = 'df is empty !!!'
                 self.logger.error(error_msg)
@@ -113,6 +116,7 @@ class CheckMySQLData:
                            ts_type: str = None,
                            code_type: str = None,
                            feas: list = None,
+                           is_fin: bool = False,
                            **kwargs
                            ):
         ''' 从Tushare获取通用数据
@@ -122,6 +126,7 @@ class CheckMySQLData:
                 ts_type: tushare 接口类型。pro(默认): tushare_pro; ts: tushare_ts;
                 code_type: 股票code类型。ts(默认): 000001.SZ; qlib: 如SZ000001; bao: 如：sh.000001
                 feas: 取数字段
+                is_fin: 是否为财务数据
         '''
         import warnings
         warnings.filterwarnings("ignore")
@@ -169,6 +174,9 @@ class CheckMySQLData:
                     df_list.append(tmp)
                     time.sleep(60 / req_per_min)
                 df = pd.concat(df_list, axis=0, join='outer')
+
+            if is_fin:
+                return df
 
             if df.empty:
                 err_msg = 'df is empty !'
@@ -219,7 +227,14 @@ class CheckMySQLData:
         df.set_index(keys=self.feas[0:2], inplace=True)
         return df, instruments
 
-    def check(self, df_target, df_test, is_repair=True, compare_type: str = 'eq', epsilon: float = 0.0001):
+    def check(self,
+              df_target,
+              df_test,
+              is_repair=True,
+              compare_type: str = 'eq',
+              epsilon: float = 0.0001,
+              idx_num: int = 2
+              ):
         '''
         检查 MySQL 与 API 数据是否相同
         Args:
@@ -228,6 +243,7 @@ class CheckMySQLData:
             is_repair: 当df_target与df_test不一致时，可以使用test数据修复mysql数据
             compare_type: 比较类型。eq(默认): 值相等；round: 设置误差范围
             epsilon: 误差大小
+            idx_num: 索引字段数。feas[0: index] 作为索引
         '''
         self.logger.info('\n{}\n{}'.format('=' * 100, 'check ...'))
         try:
@@ -248,14 +264,14 @@ class CheckMySQLData:
                 test_f = []
                 try:
                     target_row = df_target.loc[index]
-                    for f in self.feas[2:]:
+                    for f in self.feas[idx_num:]:
                         target_f.append('{}:{}'.format(f, target_row[f]))
                 except:
                     target_f = ['NaN']
 
                 try:
                     test_row = df_test.loc[index]
-                    for f in self.feas[2:]:
+                    for f in self.feas[idx_num:]:
                         test_f.append('{}:{}'.format(f, test_row[f]))
                 except:
                     test_f = ['NaN']
