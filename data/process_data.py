@@ -154,7 +154,7 @@ class TSFinacialData(ProcessData):
                 if tmp.empty:
                     continue
                 df_list.append(tmp)
-                time.sleep(60/500)  # 1min最多请求500次
+                time.sleep(60/400)  # 1min最多请求500次
             if len(df_list) == 0:
                 return pd.DataFrame()
             df = pd.concat(df_list, axis=0, join='outer')
