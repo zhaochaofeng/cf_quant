@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from utils import LoggerFactory
 from utils import MySQLDB
 from utils import sql_engine, tushare_pro, bao_stock_connect
-from utils import get_trade_cal_inter, is_trade_day
+from utils import get_trade_cal_inter, is_trade_day, get_n_pretrade_day
 from utils import ts_api, bao_api
 
 
@@ -82,7 +82,7 @@ class ProcessData(Base):
             now_date: 指定获取股票集合的日期，默认为当天
         '''
         super().__init__(**kwargs)
-        self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
+        self.now_date = get_n_pretrade_day(now_date if now_date else datetime.now().strftime('%Y-%m-%d'), 0)
 
     def get_stocks(self, table_name: str = 'stock_info_ts', code_name: str='ts_code', is_alive: bool = False):
         """ 获取股票列表
