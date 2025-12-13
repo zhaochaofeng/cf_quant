@@ -14,6 +14,6 @@ from .logger import LoggerFactory
 
 # 自定义 qlib 操作
 from .qlib_ops import (
-    LastValue, standardize, winsorize, CMean, CStd
+    LastValue, standardize, winsorize, CMean, CStd, PTTM
 )
 
