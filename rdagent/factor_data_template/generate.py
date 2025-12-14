@@ -157,7 +157,8 @@ class PTTM(P):
 _setup_kwargs = {'custom_ops': [PTTM]}
 qlib.init(provider_uri="~/.qlib/qlib_data/custom_data_hfq", **_setup_kwargs)
 
-instruments = D.instruments()
+# 减少数据量
+instruments = D.instruments(market='csi300')
 fields = ["$open", "$close", "$high", "$low", "$volume", "$factor", "PTTM($$n_income_q)", "PTTM($$n_income_attr_p_q)"]
 data = D.features(instruments, fields, freq="day").swaplevel().sort_index().loc["2015-01-01":].sort_index()
 
