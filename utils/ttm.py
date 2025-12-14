@@ -18,7 +18,8 @@ def load_period_events(instrument: str, field: str) -> pd.DataFrame:
     data_root = Path(C.dpm.get_data_uri())
     data_path = data_root / "financial" / instrument.lower() / f"{field_token}.data"
     if not data_path.exists():
-        raise FileNotFoundError(f"{data_path} 不存在，请确认已经准备好财务数据。")
+        print(f"{data_path} 不存在，请确认已经准备好财务数据。")
+        return pd.DataFrame()
 
     record_dtype = np.dtype(
         [
@@ -55,7 +56,7 @@ def compute_ttm_events(period_events: pd.DataFrame) -> pd.DataFrame:
     """
     value_map: Dict[int, float] = {}
     results = []
-    for _, row in period_events.sort_values("ann_date").iterrows():
+    for _, row in period_events.iterrows():
         period = int(row["period"])
         value = float(row["value"])
         value_map[period] = value
@@ -121,6 +122,8 @@ def build_ttm_features(
         for instrument in instruments:
             # 读取财报事件数据。DataFrame(ann_date, period, value)
             period_events = load_period_events(instrument, field)
+            if period_events is None or period_events.empty:
+                continue
             # 计算TTM (ann_date, period, value, ttm)
             ttm_events = compute_ttm_events(period_events)
             # 按照calendar 扩种ttm
@@ -144,12 +147,12 @@ def build_ttm_features(
 
 
 if __name__ == "__main__":
-    qlib.init(provider_uri="~/.qlib/qlib_data/cn_data", region=REG_CN)
+    qlib.init(provider_uri="~/.qlib/qlib_data/custom_data_hfq", region=REG_CN)
 
-    instruments = ["SH600000"]
-    fields = ["$$roewa_q"]
-    start_time = "2009-01-01"
-    end_time = "2020-01-01"
+    instruments = ["SZ300498"]
+    fields = ["$$n_income_q"]
+    start_time = "2014-08-15"
+    end_time = "2014-08-15"
 
     dense_ttm = build_ttm_features(instruments, fields, start_time, end_time)
     print(dense_ttm)
