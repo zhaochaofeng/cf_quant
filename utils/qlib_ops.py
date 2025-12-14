@@ -6,13 +6,15 @@
 '''
 
 import sys
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from qlib.config import C
 from qlib.data import D
 from qlib.data.ops import Expression, ExpressionOps
 from qlib.data.ops import (
-    If, Feature
+    If
 )
 from qlib.data.ops import Operators
 from qlib.data.pit import P
@@ -95,7 +97,7 @@ class CStd(ConstantOps):
     def __init__(self, feature):
         super(CStd, self).__init__(feature, 'std')
 
-
+'''
 class PTTM(P):
     """
     PTTM: 基于 Qlib PIT 系统的 TTM (Trailing Twelve Months) 操作符实现
@@ -152,6 +154,7 @@ class PTTM(P):
 
         # 用于 forward-fill 的最后有效 TTM 值
         last_valid_ttm = np.nan
+        last_period_series = None  # 缓存上次的 period_series
 
         for cur_index in range(start_index, end_index + 1):
             cur_time = _calendar[cur_index]
@@ -171,8 +174,14 @@ class PTTM(P):
 
                 ttm_value = self._compute_ttm(s)
 
-                if not np.isnan(ttm_value):
-                    last_valid_ttm = ttm_value
+                # 优化：只有当 period_series 变化时才重新计算
+                if last_period_series is None or not s.equals(last_period_series):
+                    ttm_value = self._compute_ttm(s)
+                    if not np.isnan(ttm_value):
+                        last_valid_ttm = ttm_value
+                    last_period_series = s.copy()
+                # if not np.isnan(ttm_value):
+                #     last_valid_ttm = ttm_value
 
                 resample_data[cur_index - start_index] = last_valid_ttm
 
@@ -242,13 +251,120 @@ class PTTM(P):
         # 应用 TTM 公式
         ttm = current_value + prev_annual_value - prev_same_value
         return float(ttm)
+'''
 
+
+class PTTM(P):
+
+    """优化版本：基于事件驱动的 TTM 计算"""
+
+    TTM_WINDOW_SIZE = 8
+
+    def __str__(self):
+        return f"PTTM({self.feature})"
+
+    def _load_internal(self, instrument, start_index, end_index, freq):
+        _calendar = D.calendar(freq=freq)
+        calendar_range = pd.DatetimeIndex([_calendar[i] for i in range(start_index, end_index + 1)])
+
+        try:
+            # 1. 一次性读取所有 period 事件数据
+            field_name = str(self.feature)
+            period_events = self._load_all_period_events(instrument, field_name)
+            if period_events.empty:
+                return pd.Series(dtype="float32", name=str(self))
+
+            # 2. 批量计算每个公告的 TTM
+            ttm_events = self._compute_ttm_events(period_events)
+
+            # 3. Forward-fill 到日历
+            dense_series = self._make_dense_series(ttm_events, calendar_range)
+
+            # 4. 转换为 RangeIndex
+            resample_data = dense_series.values.astype("float32")
+            return pd.Series(
+                resample_data,
+                index=pd.RangeIndex(start_index, end_index + 1),
+                dtype="float32",
+                name=str(self)
+            )
+        except FileNotFoundError:
+            get_module_logger("PTTM").warning(f"WARN: period data not found for {str(self)}")
+            return pd.Series(dtype="float32", name=str(self))
+
+    def _load_all_period_events(self, instrument: str, field: str) -> pd.DataFrame:
+        """一次性读取所有 period 事件"""
+        field_token = field[2:] if field.startswith("$$") else field
+        data_root = Path(C.dpm.get_data_uri())
+        data_path = data_root / "financial" / instrument.lower() / f"{field_token}.data"
+
+        if not data_path.exists():
+            get_module_logger(f"{data_path} 不存在")
+            return pd.DataFrame()
+
+        record_dtype = np.dtype([
+            ("ann_date", C.pit_record_type["date"]),
+            ("period", C.pit_record_type["period"]),
+            ("value", C.pit_record_type["value"]),
+            ("_next", C.pit_record_type["index"]),
+        ])
+        raw = np.fromfile(data_path, dtype=record_dtype)
+        df = pd.DataFrame(raw)[["ann_date", "period", "value"]]
+
+        df = df[df["ann_date"] > 0].copy()
+        df["ann_date"] = pd.to_datetime(df["ann_date"].astype(str), format="%Y%m%d", errors="coerce")
+        df = df.dropna(subset=["ann_date"])
+        df["period"] = df["period"].astype(int)
+        df["value"] = df["value"].astype(float)
+        return df.sort_values(["ann_date", "period"]).reset_index(drop=True)
+
+    def _compute_ttm_events(self, period_events: pd.DataFrame) -> pd.DataFrame:
+        """批量计算所有 TTM 值"""
+        value_map = {}
+        results = []
+
+        for _, row in period_events.iterrows():
+            period = int(row["period"])
+            value = float(row["value"])
+            value_map[period] = value
+
+            year, quarter = period // 100, period % 100
+
+            if quarter == 4:
+                ttm = value
+            else:
+                prev_same = (year - 1) * 100 + quarter
+                prev_annual = (year - 1) * 100 + 4
+                prev_same_val = value_map.get(prev_same)
+                prev_annual_val = value_map.get(prev_annual)
+
+                ttm = value + prev_annual_val - prev_same_val if (
+                            prev_same_val is not None and prev_annual_val is not None) else np.nan
+
+            results.append({
+                "ann_date": row["ann_date"],
+                "period": period,
+                "ttm": ttm,
+            })
+        return pd.DataFrame(results)
+
+    def _make_dense_series(self, ttm_events: pd.DataFrame, calendar: pd.DatetimeIndex) -> pd.Series:
+        """Forward-fill 到交易日频率"""
+        effective = (
+            ttm_events.dropna(subset=["ttm"])
+            .sort_values("ann_date")
+            .set_index("ann_date")["ttm"]
+        )
+        if effective.empty:
+            return pd.Series(np.nan, index=calendar, dtype=float)
+
+        effective = effective[~effective.index.duplicated(keep="last")]
+        dense = effective.reindex(calendar, method="ffill")
+        return dense
 
 
 def standardize(feature: Expression):
     """ 标准化 """
-    # mean = LastValue(Mean(feature, 0))
-    # std = LastValue(Std(feature, 0))
     mean = CMean(feature)
     std = CStd(feature)
     x = (feature - mean) / std
@@ -257,8 +373,6 @@ def standardize(feature: Expression):
 
 def winsorize(feature: Expression, k: int = 3):
     """ 去极值 """
-    # mean = LastValue(Mean(feature, 0))
-    # std = LastValue(Std(feature, 0))
     mean = CMean(feature)
     std = CStd(feature)
     lower_bound = mean - k * std
