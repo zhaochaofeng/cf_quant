@@ -126,6 +126,8 @@ instruments = D.instruments(market='csi300')
 fields = ["$open", "$close", "$high", "$low", "$volume", "$factor", "PTTM($$n_income_q)", "PTTM($$n_income_attr_p_q)"]
 data = D.features(instruments, fields, freq="day").swaplevel().sort_index().loc["2015-01-01":].sort_index()
 
+data.dropna(how='all', subset=["$open", "$close", "$high", "$low"], inplace=True)
+
 data.to_hdf("./daily_pv_all.h5", key="data")
 
 
