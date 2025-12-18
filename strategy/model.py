@@ -11,7 +11,9 @@ import torch
 from qlib.contrib.model.pytorch_transformer import TransformerModel
 from qlib.contrib.model.pytorch_transformer_ts import TransformerModel as TransformerModelTS
 
+
 class LGBModel2(LGBModel):
+
     def _prepare_data_finetune(self, dataset: DatasetH, reweighter=None) -> List[Tuple[lgb.Dataset, str]]:
         """
         Prepare data_new for finetune
@@ -155,3 +157,20 @@ def get_device(GPU=0, return_str=False):
 
 def init_model(model, **kwargs):
     return model(**kwargs)
+
+
+def prepare_model_config(
+        class_name: str = 'LGBModel',
+        module_path: str = 'qlib.contrib.model',
+        **kwargs):
+    model = {
+        'class': class_name,
+        'module_path': module_path,
+        'kwargs': kwargs
+    }
+    return model
+
+
+if __name__ == '__main__':
+    from pprint import pprint
+    pprint(prepare_model_config())
