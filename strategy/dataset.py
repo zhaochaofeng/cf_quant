@@ -20,6 +20,7 @@ class MultiHorizonGen(MultiHorizonGenBase):
     """
         多周期预测
     """
+
     def set_horizon(self, t: dict, hr: int):
         t.setdefault("extra", {})["horizon"] = hr
 
@@ -28,6 +29,7 @@ class CustomDataLoader(DataLoader):
     """
         自定义DataLoder
     """
+
     def __init__(self, data):
         self.data = data
 
@@ -145,7 +147,7 @@ def construct_data_for_griffinnet():
             m2 = f"Mask(Mean($amount, {d}) / ($amount), '{s}')"
             s2 = f"Mask(Std($amount, {d}) / ($amount), '{s}')"
             exp_fields.extend([m1, s1, m2, s2])
-    exp_name = ['f_{}'.format(i+1) for i in range(len(exp_fields))]
+    exp_name = ['f_{}'.format(i + 1) for i in range(len(exp_fields))]
     handler = ExpAlpha158(
         expand_feas=(exp_fields, exp_name),
         **handler_config
@@ -162,7 +164,6 @@ def construct_data_for_griffinnet():
     train.config(**{'fillna_type': 'ffill+bfill'})
     valid.config(**{'fillna_type': 'ffill+bfill'})
     test.config(**{'fillna_type': 'ffill+bfill'})
-
 
     path_base = 'griffinnet/custom_data_new'
     os.makedirs(path_base, exist_ok=True)
@@ -217,7 +218,7 @@ def prepare_data(segments: dict,
         'segments': segments
     }
     if data_type == 'ts':
-       kwargs.update({'step_len': step_len})
+        kwargs.update({'step_len': step_len})
 
     config = {
         'class': 'DatasetH' if data_type == 'ds' else 'TSDatasetH',
@@ -228,11 +229,91 @@ def prepare_data(segments: dict,
     return dataset, config
 
 
+def prepare_data_config(
+        segments: dict,
+        class_name: str = 'Alpha158',
+        module_path: str = 'qlib.contrib.data.handler',
+        instruments: str = 'csi300',
+        learn_processors: list = None,
+        infer_processors: list = None,
+        data_type: str = 'ds',
+        step_len: int = None,
+        **kwargs
+    ) -> dict:
+    """
+    Args:
+        segments: 训练集、验证集、测试集的划分
+        class_name: 数据类
+        module_path: 数据类路径
+        instruments: 使用的股票池
+        learn_processors: 训练集数据处理
+        infer_processors: 测试集数据处理
+        data_type: 数据类型。ds: DatasetH; ts: TSDatasetH
+        step_len: 时间步长。ts==TSDatasetH 时有效
+        **kwargs: 用于传递给handler的参数
+
+    Example:
+        if __name__ == '__main__':
+            import qlib
+            qlib.init()
+            from qlib.utils import init_instance_by_config
+            from strategy.dataset import prepare_data_config
+            from pprint import pprint
+
+            segments = {
+                "train": ("2018-01-01", "2018-03-31"),
+                "valid": ("2018-04-01", "2018-05-31"),
+                "test": ("2018-06-01", "2018-09-10"),
+            }
+            dataset = prepare_data_config(segments=segments, class_name='ExpAlpha158', module_path='strategy.dataset')
+            pprint(dataset)
+            dataset = init_instance_by_config(dataset)
+            print(dataset.prepare(segments='train'))
+    """
+    if data_type == 'ts' and step_len is None:
+        raise ValueError('step_len is required when data_type is ts')
+    if learn_processors is None:
+        learn_processors = []
+    if infer_processors is None:
+        infer_processors = []
+
+    data_handler_config = {
+        'start_time': segments['train'][0],
+        'end_time': segments['test'][1],
+        'fit_start_time': segments['train'][0],
+        'fit_end_time': segments['train'][1],
+        'instruments': instruments,
+        'learn_processors': learn_processors,
+        'infer_processors': infer_processors,
+    }
+    data_handler_config.update(kwargs)
+
+    dataset_kwargs = {
+        'handler': {
+            'class': class_name,
+            'module_path': module_path,
+            'kwargs': data_handler_config
+        },
+        'segments': segments
+    }
+    if data_type == 'ts':
+        dataset_kwargs.update({'step_len': step_len})
+
+    dataset = {
+        'class': 'DatasetH' if data_type == 'ds' else 'TSDatasetH',
+        'module_path': 'qlib.data.dataset',
+        'kwargs': dataset_kwargs
+    }
+    return dataset
+
+
 if __name__ == '__main__':
-    construct_data_for_griffinnet()
-
-
-
-
+    segments = {
+        "train": ("2018-01-01", "2018-03-31"),
+        "valid": ("2018-04-01", "2018-05-31"),
+        "test": ("2018-06-01", "2018-09-10"),
+    }
+    from pprint import pprint
+    pprint(prepare_data_config(segments))
 
 
