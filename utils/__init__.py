@@ -16,4 +16,7 @@ from .logger import LoggerFactory
 from .qlib_ops import (
     LastValue, standardize, winsorize, CMean, CStd, PTTM
 )
+# 自定义 qlib processor
+from .qlib_processor import Winsorize
+
 
