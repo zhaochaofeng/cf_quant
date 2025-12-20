@@ -27,7 +27,8 @@ from strategy.model import prepare_model_config
 from utils import (
     LoggerFactory,
     MySQLDB,
-    CStd, CMean
+    CStd, CMean,
+    get_config
 )
 
 
@@ -70,14 +71,15 @@ class LightGBMModelRolling:
     def init(self):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'qlib init ...'))
         _setup_kwargs = {'custom_ops': [CStd, CMean]}
+        config = get_config()
         qlib.init(
             default_conf="server",
             region=REG_CN,
             # expression_cache='DiskExpressionCache',
-            redis_host="39.105.18.127",
-            redis_port=6379,
+            redis_host=config['redis']['host'],
+            redis_port=config['redis']['port'],
             redis_task_db=3,
-            redis_password="Zhao_38013984",
+            redis_password=config['redis']['password'],
             provider_uri=self.provider_uri,
             **_setup_kwargs)
 
