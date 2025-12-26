@@ -4,7 +4,7 @@
 
 import os
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -16,9 +16,11 @@ def change(date: str = None, path: str = None):
     print('path: {}'.format(path))
     if date is None:
         date = datetime.now().strftime("%Y-%m-%d")
+        pre_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     df = pd.read_csv(path, sep='\t', header=None)
     df.columns = ['code', 'start_date', 'end_date']
-    df['end_date'] = date
+    # 仅修改当前有效的成分股 end_date
+    df.loc[df['end_date'] == pre_date, 'end_date'] = date
     path_new = path + '.tmp'
     df.to_csv(path_new, sep='\t', header=False, index=False)
 

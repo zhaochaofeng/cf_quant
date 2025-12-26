@@ -7,7 +7,26 @@ python_path="/root/anaconda3/envs/python3/bin/python"
 qlib_path="/root/qlib"
 cf_quant_path="/root/cf_quant"
 provider_uri='/root/.qlib/qlib_data/index'
+
+
+if [ $# -eq 0 ]; then
+    dt=`date +%Y-%m-%d`
+  elif [ $# -eq 1 ]; then
+    dt=$1
+  else
+    echo "参数错误！！！"
+    exit 1
+fi
 echo "cur_path: ${cur_path}"
+echo "dt: "${dt}
+
+
+${python_path} ${cf_quant_path}/utils/is_trade_day.py ${dt}
+if [ $? -eq 5 ];then
+  echo '非交易日！！！'
+  exit 0
+fi
+
 
 if [ ! -d ${provider_uri} ]; then
   mkdir -p ${provider_uri}

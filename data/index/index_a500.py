@@ -64,7 +64,6 @@ def main(
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")
 
-        date = date.replace('-', '')
         start_date, end_date = get_last_month_range()
         pro = tushare_pro()
         df = pro.index_weight(index_code='000510.SH', start_date=start_date, end_date=end_date)
