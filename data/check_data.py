@@ -281,20 +281,27 @@ class CheckMySQLData:
                     with MySQLDB() as db:
                         test_row = df_test.loc[index]
                         params = {
-                            'day': index[0],
-                            'ts_code': index[1],
+                            # 'day': index[0],
+                            # 'ts_code': index[1],
                         }
-                        for f in self.feas[2:]:
+                        # 需要feas 索引字段排列顺序与 df 索引一致
+                        for i, f in enumerate(self.feas[0:idx_num]):
+                            params[f] = index[i]
+                        for f in self.feas[idx_num:]:
                             v = test_row[f]
                             if pd.isna(v):
                                 v = None
                             params[f] = v
+                        ts_code = params['ts_code']
+                        qlib_code = '{}{}'.format(ts_code[7:9].upper(), ts_code[0:6])
+                        params['qlib_code'] = qlib_code
                         # sql = """
                         #     UPDATE {} SET {} WHERE day=%(day)s AND ts_code=%(ts_code)s
                         # """.format(self.table_name, ','.join(['{}=%({})s'.format(f, f) for f in self.feas[2:]]))
-                        columns = ','.join(self.feas)
-                        values = ','.join([f"%({f})s" for f in self.feas])
-                        update_clause = ','.join([f"{f}=VALUES({f})" for f in self.feas[idx_num:]])
+                        feas = self.feas + ['qlib_code']
+                        columns = ','.join(feas)
+                        values = ','.join([f"%({f})s" for f in feas])
+                        update_clause = ','.join([f"{f}=VALUES({f})" for f in feas[idx_num:]])
                         sql = f"""
                             INSERT INTO {self.table_name} ({columns})
                             VALUES ({values})
