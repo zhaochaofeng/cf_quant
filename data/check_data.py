@@ -289,9 +289,17 @@ class CheckMySQLData:
                             if pd.isna(v):
                                 v = None
                             params[f] = v
-                        sql = """
-                            UPDATE {} SET {} WHERE day=%(day)s AND ts_code=%(ts_code)s
-                        """.format(self.table_name, ','.join(['{}=%({})s'.format(f, f) for f in self.feas[2:]]))
+                        # sql = """
+                        #     UPDATE {} SET {} WHERE day=%(day)s AND ts_code=%(ts_code)s
+                        # """.format(self.table_name, ','.join(['{}=%({})s'.format(f, f) for f in self.feas[2:]]))
+                        columns = ','.join(self.feas)
+                        values = ','.join([f"%({f})s" for f in self.feas])
+                        update_clause = ','.join([f"{f}=VALUES({f})" for f in self.feas[idx_num:]])
+                        sql = f"""
+                            INSERT INTO {self.table_name} ({columns})
+                            VALUES ({values})
+                            ON DUPLICATE KEY UPDATE {update_clause}
+                        """
                         db.execute(sql, params)
 
                 res.append('{}: [target: {};  test: {}]'.format(index, ', '.join(target_f), ', '.join(test_f)))
