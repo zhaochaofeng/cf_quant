@@ -131,7 +131,7 @@ def main(start_date: str, end_date: str):
         # test
         # stocks = df_mysql['ts_code'].unique().tolist()
         # df_mysql = df_mysql[df_mysql['ts_code'].isin(stocks[0:50])]
-        df_mysql.set_index(['ts_code', 'end_date', 'f_ann_date', 'update_flag'], inplace=True)
+        df_mysql.set_index(list(feas.values())[0:4], inplace=True)
         df_mysql.sort_index(axis=0, inplace=True)
 
         stocks = df_mysql.index.get_level_values('ts_code').unique().tolist()
@@ -151,9 +151,9 @@ def main(start_date: str, end_date: str):
             df_ts[col] = df_ts[col].astype('int64', errors='ignore')
         df_ts['end_type'] = df_ts['end_type'].astype('float32')
 
-        df_ts.set_index(['ts_code', 'end_date', 'f_ann_date', 'update_flag'], inplace=True)
+        df_ts.set_index(list(feas.values())[0:4], inplace=True)
         df_ts.sort_index(axis=0, inplace=True)
-        res = check.check(df_mysql, df_ts, is_repair=False, idx_num=4)
+        res = check.check(df_mysql, df_ts, is_repair=True, idx_num=4)
         if len(res) != 0:
             send_email('Data:Check:cashflow_ts', '\n'.join(res))
         print('耗时：{}s'.format(round(time.time() - t, 4)))
