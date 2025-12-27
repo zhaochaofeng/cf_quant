@@ -210,7 +210,7 @@ def main(start_date: str, end_date: str):
         df_ts.sort_index(axis=0, inplace=True)
         res = check.check(df_mysql, df_ts, is_repair=True, idx_num=4)
         if len(res) != 0:
-            send_email('Data:Check:balance_ts', '\n'.join(res))
+            send_email('Data:Check:balance_ts (Auto repair)', '\n'.join(res))
         print('耗时：{}s'.format(round(time.time() - t, 4)))
     except Exception as e:
         error_msg = traceback.format_exc()
