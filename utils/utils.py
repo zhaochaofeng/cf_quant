@@ -1,20 +1,21 @@
 
-import yaml
-import tushare as ts
-import numpy as np
+import smtplib
+import time
+from datetime import datetime, timedelta
+from email.header import Header
+from email.mime.text import MIMEText
+from email.utils import formataddr
+from functools import wraps
+from pathlib import Path
+
 import pandas as pd
 import pymysql
 import redis
-from pathlib import Path
-from sqlalchemy import create_engine
-from datetime import datetime, timedelta
+import tushare as ts
+import yaml
 from jqdatasdk import *
+from sqlalchemy import create_engine
 
-import smtplib
-from email.mime.text import MIMEText
-from email.header import Header
-from email.utils import formataddr
-import traceback
 
 def get_config(config_path: str = None):
     ''' 读取配置文件 '''
@@ -244,6 +245,47 @@ def ts_api(pro, api_func, **kwargs) -> pd.DataFrame:
     except Exception as e:
         raise Exception(f"调用API {api_func} 时发生错误: {str(e)}")
 
+
+def retry_on_failure(max_retries: int = 3, delay: float = 1.0):
+    """重试装饰器 工厂函数
+
+    @retry_on_failure(max_retries=5, delay=0.5)
+    def test():
+        # 50% 概率返回无需更新
+        if random.random() < 0.5:
+            return 1, "OK"
+        else:
+            return 0, "Error"
+
+    if __name__ == "__main__":
+        status, error, attempts = test()
+        print(f"结果: {status}")
+        print(f"错误信息: {error}")
+        print(f"尝试次数: {attempts + 1}")
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_error = None
+            for attempt in range(max_retries + 1):
+                try:
+                    result, error = func(*args, **kwargs)
+                    if result != 1:  # 非失败状态直接返回
+                        return result, error, attempt
+                    last_error = error
+                except Exception as e:
+                    last_error = str(e)
+
+                if attempt < max_retries:
+                    print(f"  重试第 {attempt + 1} 次，延迟 {delay * (attempt + 1):.1f} 秒...")
+                    time.sleep(delay * (attempt + 1))  # 递增延迟
+
+            return 1, last_error, max_retries
+
+        return wrapper
+
+    return decorator
 
 if __name__ == '__main__':
     print(get_n_nexttrade_day('2025-09-20', 1))

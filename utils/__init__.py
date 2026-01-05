@@ -6,7 +6,8 @@ from .utils import (
     sql_engine,
     is_trade_day, get_n_pretrade_day, get_n_nexttrade_day, get_trade_cal_inter, get_month_start_end,
     send_email,
-    bao_api, ts_api
+    bao_api, ts_api,
+    retry_on_failure,
 )
 
 from .db_mysql import MySQLDB
