@@ -46,6 +46,8 @@ class DiskExpressionCache2(DiskExpressionCache):
             last_update_time = d["info"]["last_update"]
 
             # get newest calendar
+            # from .data import Cal, ExpressionD  # pylint: disable=C0415
+
             whole_calendar = Cal.calendar(start_time=None, end_time=None, freq=freq)
             # calendar since last updated.
             new_calendar = Cal.calendar(start_time=last_update_time, end_time=None, freq=freq)
@@ -56,62 +58,57 @@ class DiskExpressionCache2(DiskExpressionCache):
                 # No future updating is needed.
                 return 1
             else:
-                # existing data info
+                # get the data needed after the historical data are removed.
+                # The start index of new data
+                current_index = len(whole_calendar) - len(new_calendar) + 1
+
+                # The existing data length
                 size_bytes = os.path.getsize(cp_cache_uri)
                 ele_size = np.dtype("<f").itemsize
                 assert size_bytes % ele_size == 0
                 ele_n = size_bytes // ele_size - 1
-                # read ref_start_index (文件首 4 字节)
-                with open(cp_cache_uri, "rb") as f:
-                    ref_start_index = int(np.frombuffer(f.read(4), dtype="<f")[0])
 
                 expr = ExpressionD.get_expression_instance(field)
                 lft_etd, rght_etd = expr.get_extended_window_size()
-                remove_n = min(rght_etd, ele_n)  # 与原逻辑一致
+                # The expression used the future data after rght_etd days.
+                # So the last rght_etd data should be removed.
+                # There are most `ele_n` period of data can be remove
+                remove_n = min(rght_etd, ele_n)
+                assert new_calendar[1] == whole_calendar[current_index]
 
-                current_index = len(whole_calendar) - len(new_calendar) + 1  # 原逻辑
-                # Series. 索引是日期索引
+                # ---- Fix -----
+                # 二进制文件的第一个元素
+                with open(cp_cache_uri, "rb") as f:
+                    ref_start_index = int(np.frombuffer(f.read(4), dtype="<f")[0])
+                expected_start_idx = ref_start_index + ele_n - remove_n
+                query_left_shift = remove_n + (current_index - expected_start_idx)
+                query_left_shift = min(query_left_shift, ele_n)
+
                 data = self.provider.expression(
-                    instrument, field, whole_calendar[current_index - remove_n], new_calendar[-1], freq
+                    instrument, field, whole_calendar[current_index - query_left_shift], new_calendar[-1], freq
                 )
-                # print('\n{}, type: {}, data: {}'.format('-' * 50, type(data), data))
-                # --- 关键补丁：按日历对齐，填充缺口为 NaN，保证索引不漂移 ---
-                if not data.empty:
-                    # print('whole_calendar[0]: '.format(whole_calendar[0]))
-                    cal_index_map = {ts: idx for idx, ts in enumerate(whole_calendar)}
-                    expected_start_idx = ref_start_index + ele_n - remove_n  # 追加起始日历索引
-                    expected_end_idx = cal_index_map[new_calendar[-1]]
-                    aligned = np.full(expected_end_idx - expected_start_idx + 1, np.nan, dtype="<f")
-                    for idx, val in data.items():
-                        # print('\n idx: {}, expected_start_idx: {}, expected_end_idx: {}'.format(idx, expected_start_idx,
-                        #                                                                         expected_end_idx))
-                        if idx is None or idx < expected_start_idx or idx > expected_end_idx:
-                            continue
-                        aligned[idx - expected_start_idx] = val
-                    # 删除尾部为nan的元素
-                    if len(aligned) > 0:
-                        # 找到最后一个非NaN值的索引
-                        non_nan_mask = ~np.isnan(aligned)
-                        if np.any(non_nan_mask):
-                            last_valid_idx = np.where(non_nan_mask)[0][-1]
-                            aligned = aligned[:last_valid_idx + 1]
-                        else:
-                            # 如果全部都是NaN，则清空数组
-                            aligned = np.array([], dtype="<f")
-                else:
-                    aligned = np.array([], dtype="<f")
-                # ------------------------------------------------------------
+
+                data = np.array(data).astype("<f")
+                # 删除尾部为nan的元素
+                if len(data) > 0 and np.isnan(data[-1]):
+                    non_nan_mask = ~np.isnan(data)
+                    if np.any(non_nan_mask):
+                        last_valid_idx = np.where(non_nan_mask)[0][-1]
+                        data = data[:last_valid_idx + 1]
+                    else:
+                        data = np.array([], dtype="<f")
+
                 with open(cp_cache_uri, "ab") as f:
-                    data_array = aligned
-                    # Remove the last bits (保持原逻辑，仅对齐后数据写入)
+                    # data = np.array(data).astype("<f")
+                    # Remove the last bits
                     f.truncate(size_bytes - ele_size * remove_n)
-                    f.write(data_array)
+                    f.write(data)
+                # ---------------
                 # update meta file
                 d["info"]["last_update"] = str(new_calendar[-1])
                 with meta_path.open("wb") as f:
                     pickle.dump(d, f, protocol=C.dump_protocol_version)
         return 0
-
 
 class DiskDatasetCache2(DiskDatasetCache):
     def __init__(self, provider, **kwargs):
