@@ -30,7 +30,7 @@ from utils import (
     CStd, CMean,
     get_config
 )
-
+from utils import RollingPortAnaRecord
 
 class LightGBMModelRolling:
 
@@ -151,8 +151,6 @@ class LightGBMModelRolling:
         ]
         kwargs = {
             'expand_feas': None,
-            'is_win': False,
-            'is_std': False,
             'ref': -self.ref
         }
         # 自定义因子
@@ -196,8 +194,10 @@ class LightGBMModelRolling:
         self.logger.info(model)
         return model
 
-    def backtest(self, signals, metrics):
+    def backtest(self, signals, preds, metrics):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'backtest ...'))
+
+        '''
         port_analysis_config = {
             "executor": {
                 "class": "SimulatorExecutor",
@@ -245,11 +245,58 @@ class LightGBMModelRolling:
 
         analysis_df = pd.concat(analysis)
         pprint(analysis_df)
+        '''
 
         metrics.append(self.read_metrics(self.recorders,
                                          signals.index.get_level_values("datetime").max().strftime('%Y-%m-%d'),
                                          self.ref - 1))
         print('\n{}\n{}'.format('=' * 100, metrics))
+
+        port_analysis_config = {
+            "executor": {
+                "class": "SimulatorExecutor",
+                "module_path": "qlib.backtest.executor",
+                "kwargs": {
+                    "time_per_step": "day",
+                    "generate_portfolio_metrics": True,
+                },
+            },
+            "strategy": {
+                "class": "TopkDropoutStrategy",
+                "module_path": "qlib.contrib.strategy",
+                "kwargs": {
+                    "signal": "<PRED>",
+                    "topk": 50,
+                    "n_drop": 5,
+                    "hold_thresh": self.ref - 1
+                },
+            },
+            "backtest": {
+                "start_time": preds.index.get_level_values("datetime").min(),
+                "end_time": preds.index.get_level_values("datetime").max(),
+                "account": 100000000,
+                "benchmark": self.benchmark,
+                "exchange_kwargs": {
+                    "freq": "day",
+                    "limit_threshold": 0.095,
+                    "deal_price": "close",
+                    "open_cost": 0.0005,
+                    "close_cost": 0.0015,
+                    "min_cost": 5,
+                },
+            },
+        }
+
+        with R.start():
+            recorder = R.get_recorder(experiment_name=self.exp_name)
+            rolling_port_record = RollingPortAnaRecord(
+                recorder=recorder,
+                rolling_pred_df=preds,
+                config=port_analysis_config,
+                risk_analysis_freq='day'
+            )
+            rolling_port_record.generate()
+            print('RollingPortAnaRecord recorder id: {}'.format(recorder.id))
 
     def read_metrics(self, rec_ids, day, hr):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'read_metrics ...'))
@@ -313,9 +360,10 @@ class LightGBMModelRolling:
             self.reset()
             self.rolling_online_manager.first_train()
             signals = self.rolling_online_manager.prepare_signals()
-
+            preds = self.rolling_online_manager.get_collector()()
+            preds = list(list(preds.values())[0].values())[0]
             metrics = []
-            self.backtest(signals, metrics)
+            self.backtest(signals, preds, metrics)
 
             # 指标写入mysql
             if self.is_mysql:
