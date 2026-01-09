@@ -20,4 +20,8 @@ from .qlib_ops import (
 # 自定义 qlib processor
 from .qlib_processor import Winsorize
 
+# 回测工具
+from .backtest import RollingPortAnaRecord
+
+
 
