@@ -80,7 +80,7 @@ class DiskExpressionCache2(DiskExpressionCache):
                 # 二进制文件的第一个元素
                 with open(cp_cache_uri, "rb") as f:
                     ref_start_index = int(np.frombuffer(f.read(4), dtype="<f")[0])
-                expected_start_idx = ref_start_index + ele_n - remove_n
+                expected_start_idx = ref_start_index + ele_n
                 query_left_shift = remove_n + (current_index - expected_start_idx)
                 query_left_shift = min(query_left_shift, ele_n)
 
@@ -89,14 +89,15 @@ class DiskExpressionCache2(DiskExpressionCache):
                 )
 
                 data = np.array(data).astype("<f")
-                # 删除尾部为nan的元素
-                if len(data) > 0 and np.isnan(data[-1]):
-                    non_nan_mask = ~np.isnan(data)
-                    if np.any(non_nan_mask):
-                        last_valid_idx = np.where(non_nan_mask)[0][-1]
-                        data = data[:last_valid_idx + 1]
-                    else:
-                        data = np.array([], dtype="<f")
+                # 删除尾部为nan的元素. 未来数据指标（如label）的NaN保存
+                if rght_etd <= 0:
+                    if len(data) > 0 and np.isnan(data[-1]):
+                        non_nan_mask = ~np.isnan(data)
+                        if np.any(non_nan_mask):
+                            last_valid_idx = np.where(non_nan_mask)[0][-1]
+                            data = data[:last_valid_idx + 1]
+                        else:
+                            data = np.array([], dtype="<f")
 
                 with open(cp_cache_uri, "ab") as f:
                     # data = np.array(data).astype("<f")

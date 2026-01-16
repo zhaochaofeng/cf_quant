@@ -48,7 +48,7 @@ def check(
         qlib.init(provider_uri=provider_uri)
         h1 = init_instance_by_config(handler)
         data1 = h1.fetch(col_set='__all', data_key='infer')
-        data1.drop(columns=['LABEL0'], inplace=True)   # 非缓存数据有些标签为NaN
+        # data1.drop(columns=['LABEL0'], inplace=True)   # 非缓存数据有些标签为NaN
         print('\n{}\n{}'.format('-' * 50, data1))
 
         config = get_config()
@@ -63,7 +63,7 @@ def check(
         )
         h2 = init_instance_by_config(handler)
         data2 = h2.fetch(col_set='__all', data_key='infer')
-        data2.drop(columns=['LABEL0'], inplace=True)
+        # data2.drop(columns=['LABEL0'], inplace=True)
         print('\n{}\n{}'.format('-' * 50, data1))
 
         # diff = (data1.eq(data2)) | ((data1.isna()) & (data2.isna()))
