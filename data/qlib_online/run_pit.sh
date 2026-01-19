@@ -76,6 +76,8 @@ get_data_from_mysql(){
         UNION ALL
         SELECT 'non_oper_exp', t.non_oper_exp
         UNION ALL
+        SELECT 'n_income_attr_p', t.n_income_attr_p
+        UNION ALL
         SELECT 'operate_profit', t.operate_profit
         UNION ALL
         SELECT 'total_profit', t.total_profit
