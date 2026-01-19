@@ -139,7 +139,8 @@ data = (
         .sort_index()
     )
     .swaplevel()
-    .loc[data.reset_index()["instrument"].unique()[:100]]
+    # .loc[data.reset_index()["instrument"].unique()[:100]]
+    .iloc[0:100]
     .swaplevel()
     .sort_index()
 )
