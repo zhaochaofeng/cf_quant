@@ -132,17 +132,32 @@ data.to_hdf("./daily_pv_all.h5", key="data")
 
 
 fields = ["$open", "$close", "$high", "$low", "$volume", "$factor", "PTTM($$n_income_q)", "PTTM($$n_income_attr_p_q)"]
-data = (
-    (
-        D.features(instruments, fields, start_time="2018-01-01", end_time="2019-12-31", freq="day")
-        .swaplevel()
-        .sort_index()
-    )
-    .swaplevel()
-    # .loc[data.reset_index()["instrument"].unique()[:100]]
-    .iloc[0:100]
-    .swaplevel()
-    .sort_index()
-)
+# 获取前一个data中的股票代码
+target_instruments = data.reset_index()["instrument"].unique()[:100]
 
-data.to_hdf("./daily_pv_debug.h5", key="data")
+# 直接获取目标时间范围的数据，并过滤出共同存在的股票
+subset_data = D.features(target_instruments, fields,
+                         start_time="2018-01-01", end_time="2019-12-31", freq="day")
+
+# 确保只保留两个数据集都有的股票
+available_instruments = subset_data.index.get_level_values('instrument').unique()
+final_data = (
+    subset_data.swaplevel().sort_index()
+).swaplevel().loc[available_instruments.intersection(target_instruments)].swaplevel().sort_index()
+
+final_data.to_hdf("./daily_pv_debug.h5", key="data")
+
+
+# data = (
+#     (
+#         D.features(instruments, fields, start_time="2018-01-01", end_time="2019-12-31", freq="day")
+#         .swaplevel()
+#         .sort_index()
+#     )
+#     .swaplevel()
+#     .loc[data.reset_index()["instrument"].unique()[:100]]
+#     .swaplevel()
+#     .sort_index()
+# )
+#
+# data.to_hdf("./daily_pv_debug.h5", key="data")
