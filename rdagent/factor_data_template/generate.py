@@ -161,8 +161,3 @@ final_data.to_hdf("./daily_pv_debug.h5", key="data")
 # )
 #
 # data.to_hdf("./daily_pv_debug.h5", key="data")
-
-'''
-PTTM($$n_income_q): Net Profit Including Non-controlling Interests. Net profit for the reporting period on a consolidated basis, representing the total profit attributable to both the parent company’s shareholders and non-controlling interests (minority interests).
-PTTM($$n_income_attr_p_q): Net Profit Attributable to Parent Company Shareholders. Net profit for the reporting period attributable to the shareholders of the parent company, excluding the portion attributable to non-controlling interests.
-'''
