@@ -16,11 +16,9 @@ NOTE: **key is always "data" for all hdf5 files **.
 # For different data, We have some basic knowledge for them
 
 ## Daily price and volume data
-$open: open price of the stock on that day.
-$close: close price of the stock on that day.
-$high: high price of the stock on that day.
-$low: low price of the stock on that day.
-$volume: volume of the stock on that day.
+$open: adjusted open price of the stock on that day.
+$close: adjusted close price of the stock on that day.
+$high: adjusted high price of the stock on that day.
+$low: adjusted low price of the stock on that day.
+$volume: adjusted volume of the stock on that day.
 $factor: factor value of the stock on that day.
-PTTM($$n_income_q): Net Profit Including Non-controlling Interests. Net profit for the reporting period on a consolidated basis, representing the total profit attributable to both the parent company’s shareholders and non-controlling interests (minority interests).
-PTTM($$n_income_attr_p_q): Net Profit Attributable to Parent Company Shareholders. Net profit for the reporting period attributable to the shareholders of the parent company, excluding the portion attributable to non-controlling interests.
