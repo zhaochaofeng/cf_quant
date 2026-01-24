@@ -14,6 +14,7 @@ class MySQLDB:
             user=config['mysql']['user'],
             password=config['mysql']['password'],
             db=config['mysql']['db'],
+            port=config['mysql']['port'],
             charset='utf8',
             cursorclass=pymysql.cursors.DictCursor
         )
