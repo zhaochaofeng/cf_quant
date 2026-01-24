@@ -1,6 +1,11 @@
-#/bin/bash
+#!/bin/bash
+
+# 引入全局配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../config.sh"
+
 cur_path=`pwd`
-python_path="/root/anaconda3/envs/python3/bin/python"
+python_path="${PYTHON_PATH}"
 echo ${cur_path}
 
 if [ $# -eq 0 ]; then
@@ -21,16 +26,16 @@ if [ $# -eq 0 -o $# -eq 1 ]; then
 fi
 
 if [ $# -eq 0 -o $# -eq 1 ]; then
-    ${python_path} ${cur_path}/valuation.py --date ${dt}
+    ${python_path} ${cur_path}/jqfactor.py --date ${dt}
   else
     while [[ $dt1 < $dt2 ]]
       do
         echo "dt1: "${dt1}
-        ${python_path} ${cur_path}/valuation.py --date ${dt1}
+        ${python_path} ${cur_path}/jqfactor.py --date ${dt1}
         dt1=`date -d "+1 day $dt1" +%Y-%m-%d`
       done
     echo "dt1: "${dt1}
-    ${python_path} ${cur_path}/valuation.py --date ${dt1}
+    ${python_path} ${cur_path}/jqfactor.py --date ${dt1}
 fi
 
 # 判断是否执行成功

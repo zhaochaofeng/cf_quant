@@ -1,12 +1,16 @@
 #!/bin/bash
 source ~/.bashrc
 
+# 引入全局配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../config.sh"
+
 ## 构建指数成分股集合
 cur_path=`pwd`
-python_path="/root/anaconda3/envs/python3/bin/python"
-qlib_path="/root/qlib"
-cf_quant_path="/root/cf_quant"
-provider_uri='/root/.qlib/qlib_data/index'
+python_path="${PYTHON_PATH}"
+qlib_path="${QLIB_PATH}"
+cf_quant_path="${CF_QUANT_PATH}"
+provider_uri="${QLIB_DATA_PATH}/index"
 
 
 if [ $# -eq 0 ]; then

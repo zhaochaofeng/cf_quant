@@ -2,12 +2,17 @@
 
 # 功能：每日全量更新qlib线上数据
 source ~/.bashrc
+
+# 引入全局配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../config.sh"
+
 cur_path=`pwd`
-python_path="/root/anaconda3/envs/python3/bin/python"
-qlib_path="/root/qlib"
-cf_quant_path="/root/cf_quant"
-data_path="/root/.qlib/qlib_data"
-provider_uri="${data_path}/custom_data_hfq"
+python_path="${PYTHON_PATH}"
+qlib_path="${QLIB_PATH}"
+cf_quant_path="${CF_QUANT_PATH}"
+data_path="${QLIB_DATA_PATH}"
+provider_uri="${PROVIDER_URI}"
 provider_uri_tmp="${data_path}/custom_data_hfq_tmp"
 provider_uri_bak="${data_path}/custom_data_hfq_bak"
 
