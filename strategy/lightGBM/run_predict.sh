@@ -1,9 +1,14 @@
 #!/bin/bash
 source ~/.bashrc
+
+# 引入全局配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../config.sh"
+
 cur_path=`pwd`
-python_path="/root/anaconda3/envs/python3/bin/python"
-cf_quant_path="/root/cf_quant"
-uri='/data/cf_quant/mlruns'
+python_path="${PYTHON_PATH}"
+cf_quant_path="${CF_QUANT_PATH}"
+uri="${MLFLOW_URI}"
 
 if [ $# -eq 0 ];then
     dt1=`date +%Y-%m-%d`

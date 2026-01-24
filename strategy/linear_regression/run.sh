@@ -1,10 +1,16 @@
-#/bin/bash
+#!/bin/bash
+source ~/.bashrc
+
+# 引入全局配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../../config.sh"
+
 cur_path=`pwd`
-python_path="/root/anaconda3/envs/python3/bin/python"
+python_path="${PYTHON_PATH}"
 echo ${cur_path}
 
 if [ $# -eq 0 ]; then
-    dt=`date -d "93 days ago" +%Y-%m-%d`
+    dt=`date -d "95 days ago" +%Y-%m-%d`
   elif [ $# -eq 1 ]; then
     dt=$1
   elif [ $# -eq 2 ]; then
