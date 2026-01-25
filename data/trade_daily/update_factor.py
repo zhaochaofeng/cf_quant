@@ -29,11 +29,11 @@ def main(start_date: str, end_date: str, use_trade_day: bool = True):
         df_ts = df_ts.reindex(df_mysql.index)  # 对齐索引
         res = check.check(df_mysql, df_ts, is_repair=True)
         if len(res) != 0:
-            send_email('Data:Check:trade_daily_ts factor(Auto Repair)', '\n'.join(res))
+            send_email('Data:Check:trade_daily_ts update factor(Auto Repair)', '\n'.join(res))
         print('耗时：{}s'.format(round(time.time() - t, 4)))
     except Exception as e:
         error_msg = traceback.format_exc()
-        send_email('Data:Check:trade_daily_ts factor', error_msg)
+        send_email('Data:Check:trade_daily_ts:update factor', error_msg)
 
 
 if __name__ == '__main__':

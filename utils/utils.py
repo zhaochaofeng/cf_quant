@@ -69,16 +69,18 @@ def redis_connect():
     ''' 创建redis连接实例 '''
     config = get_config()
     conn = redis.Redis(host=config['redis']['host'],
+                       port=config['redis']['port'],
                        password=config['redis']['password'])
     return conn
 
 def sql_engine():
     ''' 创建sqlalchemy连接mysql的引擎 '''
     config = get_config()
-    url = "mysql+pymysql://{}:{}@{}:3306/{}?charset=utf8mb4".format(
+    url = "mysql+pymysql://{}:{}@{}:{}/{}?charset=utf8mb4".format(
         config['mysql']['user'],
         config['mysql']['password'],
         config['mysql']['host'],
+        config['mysql']['port'],
         config['mysql']['db']
     )
     engine = create_engine(url, echo=False)
