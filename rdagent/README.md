@@ -19,6 +19,8 @@
 [//]: # (![pic]&#40;./env_docer_conda.png&#41;{:width="300px" height="200px"})
 <img src="./env_docer_conda.png" alt="pic" width="300" height="400">
 
-
-
+## ui展示错误。
+- 在Web端，第一轮迭代收益曲线表展示有误。
+- 修改脚本：anaconda3/envs/rdagent/lib/python3.10/site-packages/rdagent/log/ui/app.py
+- 修改内容：将fig = report_figure(fbr[0].content) 修改为 fig = report_figure(fbr[-1].content)
 
