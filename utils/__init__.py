@@ -23,5 +23,8 @@ from .qlib_processor import Winsorize
 # 回测工具
 from .backtest import RollingPortAnaRecord
 
+# 并行计算
+from .multiprocess import multiprocessing_wrapper
+
 
 
