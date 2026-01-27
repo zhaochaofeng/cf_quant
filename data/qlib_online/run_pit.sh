@@ -13,6 +13,10 @@ qlib_path="${QLIB_PATH}"
 cf_quant_path="${CF_QUANT_PATH}"
 data_path="${QLIB_DATA_PATH}"
 provider_uri="${PROVIDER_URI}"
+# 读取mysql配置信息
+config_file="${SCRIPT_DIR}/../../config.yaml"
+mysql_user=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  user:" | sed 's/.*user:[[:space:]]*\(.*\)$/\1/' | sed 's/['\''\"]//g' | tr -d '[:space:]')
+mysql_password=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  password:" | sed 's/.*password:[[:space:]]*\(.*\)$/\1/' | sed 's/[\'\''\"]//g' | tr -d '[:space:]')
 
 echo "cur_path: ${cur_path}"
 
@@ -132,7 +136,7 @@ get_data_from_mysql(){
 EOF
 )
   echo "${sql}"
-  mysql -uchaofeng -pZhao_123 -e "${sql}" > "${provider_uri}/pit_${dt1}_${dt2}.csv"
+  mysql -u${mysql_user} -p${mysql_password} -e "${sql}" > "${provider_uri}/pit_${dt1}_${dt2}.csv"
   check_success "从mysql中导出数据"
 }
 

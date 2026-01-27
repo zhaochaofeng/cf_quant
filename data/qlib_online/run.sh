@@ -15,6 +15,10 @@ data_path="${QLIB_DATA_PATH}"
 provider_uri="${PROVIDER_URI}"
 provider_uri_tmp="${data_path}/custom_data_hfq_tmp"
 provider_uri_bak="${data_path}/custom_data_hfq_bak"
+# 读取mysql配置信息
+config_file="${SCRIPT_DIR}/../../config.yaml"
+mysql_user=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  user:" | sed 's/.*user:[[:space:]]*\(.*\)$/\1/' | sed 's/['\''\"]//g' | tr -d '[:space:]')
+mysql_password=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  password:" | sed 's/.*password:[[:space:]]*\(.*\)$/\1/' | sed 's/[\'\''\"]//g' | tr -d '[:space:]')
 
 echo 'cur_path: '${cur_path}
 
@@ -76,7 +80,7 @@ get_data_from_mysql(){
 EOF
 )
   echo "${sql}"
-  mysql -uchaofeng -pZhao_123 -e "${sql}" > ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
+  mysql -u${mysql_user} -p${mysql_password} -e "${sql}" > ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv
   check_success "从mysql中导出数据"
 }
 
