@@ -9,7 +9,7 @@ export CF_QUANT_PATH="/home/data/cf_quant"
 export QLIB_PATH="/home/data/qlib"
 
 # 数据路径
-export QLIB_DATA_PATH="/chaofeng/.qlib/qlib_data"
+export QLIB_DATA_PATH="/home/chaofeng/.qlib/qlib_data"
 export PROVIDER_URI="${QLIB_DATA_PATH}/custom_data_hfq"
 
 # MLflow路径
