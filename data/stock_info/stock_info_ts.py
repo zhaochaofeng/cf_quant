@@ -35,7 +35,7 @@ feas = {
     'is_new': 'is_new'
 }
 exchange_map = {'BJ': 'BSE', 'SH': 'SSE', 'SZ': 'SZSE'}
-exclude_codes = {'T00018.SH', 'SHTS0018'}  # 噪声数据
+exclude_codes = {'T00018.SH', 'TS0018.SH'}  # 噪声数据
 
 
 class TSStockInfoProcessor(Base):
