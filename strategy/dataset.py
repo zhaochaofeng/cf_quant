@@ -6,6 +6,7 @@ from typing import Callable, Union
 
 import pandas as pd
 from qlib.contrib.data.handler import Alpha158
+from qlib.contrib.data.handler import check_transform_proc
 from qlib.data import D
 from qlib.data.dataset import DatasetH, DataHandler, TSDatasetH
 from qlib.data.dataset.handler import DataHandlerLP
@@ -14,9 +15,6 @@ from qlib.utils import init_instance_by_config
 from qlib.workflow.task.gen import MultiHorizonGenBase
 
 from utils import multiprocessing_wrapper
-from utils import (
-    standardize, winsorize
-)
 
 
 class MultiHorizonGen(MultiHorizonGenBase):
@@ -68,8 +66,7 @@ class ExpAlpha158(Alpha158):
         """
         Args:
             expand_feas: 扩展特征。(fields, name)
-            is_win: 是否取极值
-            is_std: 是否标准化
+            ref: 第 ref 天的收益率，负数表示未来时间点
         """
         self.expand_feas = expand_feas
         self.ref = ref
@@ -90,6 +87,128 @@ class ExpAlpha158(Alpha158):
         # fields.pop(idx)
         # names.pop(idx)
         return fields, names
+
+
+class AlphaExpandHandler(DataHandlerLP):
+    """
+        因子扩展类，支持表达式因子和函数因子
+    """
+    def __init__(
+        self,
+        instruments="csi300",
+        start_time=None,
+        end_time=None,
+        freq="day",
+        infer_processors=[],
+        learn_processors=[],
+        fit_start_time=None,
+        fit_end_time=None,
+        process_type=DataHandlerLP.PTYPE_A,
+        filter_pipe=None,
+        inst_processors=None,
+        expand_feas: tuple[list, list] = None,
+        ref: int = -2,
+        path: str = None,
+        **kwargs,
+    ):
+        """
+        Examples
+        ----------
+        import qlib
+        from qlib.data import D
+        from data.factor import MOM_10D, VW_MOM_5D
+
+        factor_funcs = [MOM_10D, VW_MOM_5D]
+
+        provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
+        qlib.init(provider_uri=provider_uri)
+
+        fields = ['$close', '$volume']
+
+        from strategy.dataset import calculate_and_merge_factors
+
+        res = calculate_and_merge_factors(
+            factor_funcs=factor_funcs,
+            fields=fields,
+            instruments=D.instruments(market='csi300'),
+            start_time="2025-11-01",
+            end_time="2025-12-31",
+            n=2
+        )
+        print(res)
+        res.to_parquet("combined_factors_df.parquet", engine="pyarrow")
+
+        from strategy.dataset import AlphaExpandHandler
+        path = '/Users/chaofeng/code/cf_quant/combined_factors_df.parquet'
+        start_time = "2025-11-01"
+        end_time = "2025-12-31"
+        handler = AlphaExpandHandler(path=path, start_time=start_time, end_time=end_time)
+        df = handler.fetch()
+        """
+        self.expand_feas = expand_feas
+        self.ref = ref
+
+        infer_processors = check_transform_proc(infer_processors, fit_start_time, fit_end_time)
+        learn_processors = check_transform_proc(learn_processors, fit_start_time, fit_end_time)
+
+        fields = ["Resi($close, 5)/$close",
+         "Std(Abs($close/Ref($close, 1)-1)*$volume, 5)/(Mean(Abs($close/Ref($close, 1)-1)*$volume, 5)+1e-12)",
+         "Rsquare($close, 5)", "($high-$low)/$open", "Rsquare($close, 10)", "Corr($close, Log($volume+1), 5)",
+         "Corr($close/Ref($close,1), Log($volume/Ref($volume, 1)+1), 5)", "Corr($close, Log($volume+1), 10)",
+         "Ref($close, 60)/$close", "Resi($close, 10)/$close", "Std($volume, 5)/($volume+1e-12)",
+         "Rsquare($close, 60)", "Corr($close, Log($volume+1), 60)",
+         "Std(Abs($close/Ref($close, 1)-1)*$volume, 60)/(Mean(Abs($close/Ref($close, 1)-1)*$volume, 60)+1e-12)",
+         "Std($close, 5)/$close", "Rsquare($close, 20)",
+         "Corr($close/Ref($close,1), Log($volume/Ref($volume, 1)+1), 60)",
+         "Corr($close/Ref($close,1), Log($volume/Ref($volume, 1)+1), 10)", "Corr($close, Log($volume+1), 20)",
+         "(Less($open, $close)-$low)/$open"]
+        names = ["RESI5", "WVMA5", "RSQR5", "KLEN", "RSQR10", "CORR5", "CORD5", "CORR10",
+           "ROC60", "RESI10", "VSTD5", "RSQR60", "CORR60", "WVMA60", "STD5",
+           "RSQR20", "CORD60", "CORD10", "CORR20", "KLOW"]
+
+        # 表达式因子扩展
+        if expand_feas is not None and len(self.expand_feas) > 0:
+            for field, name in zip(self.expand_feas[0], self.expand_feas[1]):
+                fields.append(field)
+                names.append(name)
+
+        loader_1 = {
+            "class": "qlib.contrib.data.loader.Alpha158DL",
+            "kwargs": {
+                "config": {
+                    "label": ([f"Ref($close, {ref})/Ref($close, -1) - 1"], ["LABEL0"]),
+                    "feature": (fields, names)
+                },
+                "filter_pipe": filter_pipe,
+                "freq": freq,
+                "inst_processors": inst_processors,
+            }
+        }
+        # 函数因子扩展
+        loader_2 = {
+            "class": "qlib.data.dataset.loader.StaticDataLoader",
+            "kwargs": {
+                "config": path
+            }
+        }
+        # 索引顺序 <datetime, instrument>
+        data_loader = {
+            "class": "NestedDataLoader",
+            "kwargs": {
+                "dataloader_l": [loader_1, loader_2]
+            },
+        }
+
+        super().__init__(
+            instruments=instruments,
+            start_time=start_time,
+            end_time=end_time,
+            data_loader=data_loader,
+            infer_processors=infer_processors,
+            learn_processors=learn_processors,
+            process_type=process_type,
+            **kwargs,
+        )
 
 
 def construct_data_for_griffinnet():
@@ -238,8 +357,8 @@ def prepare_data_config(
     """
     Args:
         segments: 训练集、验证集、测试集的划分
-        class_name: 数据类
-        module_path: 数据类路径
+        class_name: DataHandler类
+        module_path: DataHandler类路径
         instruments: 使用的股票池
         learn_processors: 训练集数据处理
         infer_processors: 测试集数据处理
@@ -344,11 +463,10 @@ def calculate_and_merge_factors(
         instruments=D.instruments(market='csi300'),
         start_time="2025-11-01",
         end_time="2025-12-31",
-        is_save=True,
-        is_return=True,
         n=2
     )
     print(res)
+    res.to_parquet("combined_factors_df.parquet", engine="pyarrow")
 
     """
     df = D.features(instruments=instruments,
@@ -357,9 +475,14 @@ def calculate_and_merge_factors(
                     end_time=end_time)
 
     res_list = multiprocessing_wrapper([(factor, (df,)) for factor in factor_funcs], n=n)
-    res_df = pd.concat(res_list, axis=1, join='outer')
-    res_df.sort_index(inplace=True)
-    return res_df
+    combined_factors = pd.concat(res_list, axis=1, join='outer')
+    # 索引顺序 <datetime, instrument>
+    combined_factors = combined_factors.swaplevel().sort_index()
+    # 列去重
+    combined_factors = combined_factors.loc[:, ~combined_factors.columns.duplicated(keep="last")]
+    new_columns = pd.MultiIndex.from_product([["feature"], combined_factors.columns])
+    combined_factors.columns = new_columns
+    return combined_factors
 
 
 if __name__ == '__main__':
