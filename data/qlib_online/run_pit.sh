@@ -136,7 +136,7 @@ get_data_from_mysql(){
 EOF
 )
   echo "${sql}"
-  mysql -u${mysql_user} -p${mysql_password} -e "${sql}" > "${provider_uri}/pit_${dt1}_${dt2}.csv"
+  mysql -u"${mysql_user}" -p"${mysql_password}" -e "${sql}" > "${provider_uri}/pit_${dt1}_${dt2}.csv"
   check_success "从mysql中导出数据"
 }
 

@@ -20,9 +20,6 @@ config_file="${SCRIPT_DIR}/../../config.yaml"
 mysql_user=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  user:" | sed 's/.*user:[[:space:]]*\(.*\)$/\1/' | sed 's/['\''\"]//g' | tr -d '[:space:]')
 mysql_password=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  password:" | sed 's/.*password:[[:space:]]*\(.*\)$/\1/' | sed 's/[\'\''\"]//g' | tr -d '[:space:]')
 
-echo "mysql_user: "${mysql_user}
-echo "mysql_password: "${mysql_password}
-
 echo 'cur_path: '${cur_path}
 
 if [ $# -eq 0 ]; then
