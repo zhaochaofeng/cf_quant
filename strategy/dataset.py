@@ -2,15 +2,18 @@
     数据提供框架
 '''
 
-from typing import Union
+from typing import Callable, Union
 
-from qlib.workflow.task.gen import MultiHorizonGenBase
-from qlib.utils import init_instance_by_config
-from qlib.data.dataset import DatasetH, DataHandler, TSDatasetH
-from qlib.data.dataset.loader import DataLoader
-from qlib.data.dataset.handler import DataHandlerLP
+import pandas as pd
 from qlib.contrib.data.handler import Alpha158
+from qlib.data import D
+from qlib.data.dataset import DatasetH, DataHandler, TSDatasetH
+from qlib.data.dataset.handler import DataHandlerLP
+from qlib.data.dataset.loader import DataLoader
+from qlib.utils import init_instance_by_config
+from qlib.workflow.task.gen import MultiHorizonGenBase
 
+from utils import multiprocessing_wrapper
 from utils import (
     standardize, winsorize
 )
@@ -59,8 +62,6 @@ def dataframe_to_dataset(df, segments: dict) -> DatasetH:
 class ExpAlpha158(Alpha158):
     def __init__(self,
                  expand_feas: tuple[list, list] = None,
-                 is_win: bool = False,
-                 is_std: bool = False,
                  ref: int = -2,
                  **kwargs
                  ):
@@ -71,8 +72,6 @@ class ExpAlpha158(Alpha158):
             is_std: 是否标准化
         """
         self.expand_feas = expand_feas
-        self.is_win = is_win
-        self.is_std = is_std
         self.ref = ref
         super().__init__(**kwargs)
 
@@ -86,10 +85,6 @@ class ExpAlpha158(Alpha158):
         if self.expand_feas:
             fields.extend(self.expand_feas[0])
             names.extend(self.expand_feas[1])
-        if self.is_win:
-            fields = [winsorize(f, 3) for f in fields]
-        if self.is_std:
-            fields = [standardize(f) for f in fields]
         # 删除 VWAP0 列
         # idx = names.index("VWAP0")
         # fields.pop(idx)
@@ -305,6 +300,66 @@ def prepare_data_config(
         'kwargs': dataset_kwargs
     }
     return dataset
+
+
+def calculate_and_merge_factors(
+        factor_funcs: list[Callable],
+        fields: list[str],
+        instruments: Union[list, dict],
+        start_time: str,
+        end_time: str,
+        n: int = 1
+) -> Union[pd.DataFrame, None]:
+    """
+        计算因子值并按列合并
+    Parameters
+    ----------
+    factor_funcs: 因子函数列表
+    fields: 原始字段列表。如[$close]
+    instruments: 股票列表或配置
+    start_time: 起始日期
+    end_time: 终止日期
+    is_save: 是否保存为h5文件
+    is_return: 是否返回合并和的因子DataFrame
+    n: 并行数
+
+    Returns
+    -------
+        DataFrame Or None
+
+    Example
+    ------
+    import qlib
+    from data.factor import MOM_10D, VW_MOM_5D
+
+    factor_funcs = [MOM_10D, VW_MOM_5D]
+
+    provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
+    qlib.init(provider_uri=provider_uri)
+
+    fields = ['$close', '$volume']
+    res = calculate_and_merge_factors(
+        factor_funcs=factor_funcs,
+        fields=fields,
+        instruments=D.instruments(market='csi300'),
+        start_time="2025-11-01",
+        end_time="2025-12-31",
+        is_save=True,
+        is_return=True,
+        n=2
+    )
+    print(res)
+
+    """
+    df = D.features(instruments=instruments,
+                    fields=fields,
+                    start_time=start_time,
+                    end_time=end_time)
+
+    res_list = multiprocessing_wrapper([(factor, (df,)) for factor in factor_funcs], n=n)
+    res_df = pd.concat(res_list, axis=1, join='outer')
+    res_df.sort_index(inplace=True)
+    return res_df
 
 
 if __name__ == '__main__':

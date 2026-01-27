@@ -76,8 +76,7 @@ class LightGBMModel:
 
     def init(self):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'qlib init ...'))
-        _setup_kwargs = {'custom_ops': [CStd, CMean]}
-        qlib.init(provider_uri=self.provider_uri, **_setup_kwargs)
+        qlib.init(provider_uri=self.provider_uri)
 
     def date_interval(self) -> dict:
         ''' 训练 / 验证 / 测试 时间区间'''
@@ -113,8 +112,6 @@ class LightGBMModel:
         ]
         kwargs = {
             'expand_feas': None,
-            'is_win': True,
-            'is_std': False,
             'ref': -2
         }
         # 自定义因子
