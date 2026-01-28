@@ -32,7 +32,20 @@ class Winsorize(Processor):
             upper_bound = mean_train + self.k * std_train
             return np.clip(x, lower_bound, upper_bound)
 
-        df.loc(axis=1)[self.cols] = normalize(df[self.cols].values)
+        # 确保数据类型兼容
+        original_dtype = df[self.cols].dtypes
+        normalized_values = normalize(df[self.cols].values)
+        
+        # 如果原始数据是 float32，则将结果转换为相同的类型
+        if isinstance(original_dtype, pd.Series):
+            # 处理多列可能有不同的 dtype 的情况
+            for i, col in enumerate(self.cols):
+                if df[col].dtype == np.float32:
+                    normalized_values[:, i] = normalized_values[:, i].astype(np.float32)
+        else:
+            # 单一 dtype 情况
+            if df[self.cols].dtype == np.float32:
+                normalized_values = normalized_values.astype(np.float32)
+        
+        df.loc[:, self.cols] = normalized_values
         return df
-
-
