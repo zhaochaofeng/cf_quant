@@ -7,7 +7,12 @@ from .factor_func import (
 """ 函数因子 """
 # 动量因子
 from .momentum import (
-    MOM_10D, VW_MOM_5D
+    MOM_10D, MOM_HIGH_LOW_EFFICIENCY_10D
+)
+
+# 波动率因子
+from .volatility import (
+    VOLATILITY_20D
 )
 
 
