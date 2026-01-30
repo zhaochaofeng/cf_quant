@@ -5,12 +5,12 @@
 import os
 import time
 import traceback
-from pprint import pprint
 
 import fire
 import pandas as pd
 import qlib
-from qlib.contrib.evaluate import backtest_daily, risk_analysis
+from qlib.constant import REG_CN
+from qlib.data import D
 from qlib.model.trainer import TrainerR, Trainer
 from qlib.model.trainer import _log_task_info, _exe_task
 from qlib.workflow import R
@@ -18,19 +18,27 @@ from qlib.workflow.online.manager import OnlineManager
 from qlib.workflow.online.strategy import RollingStrategy
 from qlib.workflow.recorder import Recorder
 from qlib.workflow.task.gen import RollingGen
-from qlib.constant import REG_CN
 
+
+from data.factor import (
+    MOM_10D, VOLATILITY_20D,
+    REVERSAL_5D, MOM_VOL_ADJ_10D,
+)
 from strategy.dataset import (
-    prepare_data_config
+    prepare_data_config,
+    calculate_and_merge_factors
 )
 from strategy.model import prepare_model_config
 from utils import (
     LoggerFactory,
     MySQLDB,
-    CStd, CMean,
     get_config
 )
 from utils import RollingPortAnaRecord
+
+
+
+
 
 class LightGBMModelRolling:
 
@@ -47,8 +55,11 @@ class LightGBMModelRolling:
                  is_online: bool = False,
                  is_mysql: bool = False,
                  trainer: Trainer = TrainerR,
-                 rolling_step: int = 30,
-                 ref: int = 2
+                 rolling_step: int = 900,
+                 ref: int = 2,
+                 n: int = 1,
+                 func_factor: bool = True,  # 是否添加函数因子
+                 default_conf="client"  # server/client
                  ):
         self.provider_uri = provider_uri
         self.instruments = instruments
@@ -60,6 +71,9 @@ class LightGBMModelRolling:
         self.rolling_step = rolling_step
         self.rolling_online_manager = None
         self.ref = ref   # 预测第 ref 天的收益率
+        self.n = n
+        self.func_factor = func_factor
+        self.default_conf = default_conf
         self.recorders = []
 
         self.logger = LoggerFactory.get_logger(__name__)
@@ -70,18 +84,23 @@ class LightGBMModelRolling:
 
     def init(self):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'qlib init ...'))
-        _setup_kwargs = {'custom_ops': [CStd, CMean]}
         config = get_config()
-        qlib.init(
-            default_conf="server",
-            region=REG_CN,
-            # expression_cache='DiskExpressionCache',
-            redis_host=config['redis']['host'],
-            redis_port=config['redis']['port'],
-            redis_task_db=3,
-            redis_password=config['redis']['password'],
-            provider_uri=self.provider_uri,
-            **_setup_kwargs)
+        init_conf = {
+            "default_conf": self.default_conf,
+            "region": REG_CN,
+            "provider_uri": self.provider_uri
+        }
+        if self.default_conf == "server":
+            init_conf.update(
+                {
+                    "redis_host": config['redis']['host'],
+                    "redis_port": config['redis']['port'],
+                    "redis_task_db": 3,
+                    "redis_password": config['redis']['password'],
+                }
+            )
+        self.logger.info("\n{}\n{}".format('-'*50, init_conf))
+        qlib.init(**init_conf)
 
         dataset = self.prepare_data()
         model = self.prepare_model()
@@ -126,10 +145,15 @@ class LightGBMModelRolling:
 
     def prepare_data(self):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'prepare_data ...'))
+        # segments = {
+        #     'train': ('2021-03-11', '2024-06-28'),
+        #     'valid': ('2024-07-01', '2024-11-27'),
+        #     'test': ('2024-11-28', '2025-12-11')
+        # }
         segments = {
-            'train': ('2021-03-11', '2024-06-28'),
-            'valid': ('2024-07-01', '2024-11-27'),
-            'test': ('2024-11-28', '2025-12-11')
+            'train': ('2014-04-30', '2024-05-31'),
+            'valid': ('2024-06-01', '2024-11-30'),
+            'test': ('2024-12-01', '2025-11-30')
         }
 
         # segments = {
@@ -137,6 +161,9 @@ class LightGBMModelRolling:
         #     'valid': ('2025-09-01', '2025-09-30'),
         #     'test': ('2025-10-01', '2025-10-31')
         # }
+        if self.func_factor:
+            self.prepare_func_factor(segments['train'][0], segments['test'][1])
+
         learn_processors = [
             {"class": "DropnaLabel"},
             {"class": "CSZScoreNorm", "kwargs": {"fields_group": "label"}},
@@ -151,8 +178,10 @@ class LightGBMModelRolling:
         ]
         kwargs = {
             'expand_feas': None,
-            'ref': -self.ref
+            'ref': -self.ref,
         }
+        if self.func_factor:
+            kwargs.update({'path': './combined_factors_df.parquet'})
         # 自定义因子
         factors = []
         factor_dic = {}
@@ -165,7 +194,7 @@ class LightGBMModelRolling:
         kwargs.update({'expand_feas': (fields, names)})
         dataset = prepare_data_config(
             segments=segments,
-            class_name='ExpAlpha158',
+            class_name='AlphaExpandHandler' if self.func_factor else 'ExpAlpha158',
             module_path='strategy.dataset',
             instruments=self.instruments,
             learn_processors=learn_processors,
@@ -175,20 +204,37 @@ class LightGBMModelRolling:
         self.logger.info(dataset)
         return dataset
 
+    def prepare_func_factor(self, start_time: str, end_time: str):
+        """ 准备函数因子 """
+        factor_funcs = [MOM_10D, VOLATILITY_20D, REVERSAL_5D, MOM_VOL_ADJ_10D]
+        fields = ['$close', '$open', '$high', '$low', '$volume', '$factor']
+        instruments = D.instruments(market=self.instruments)
+        combined_factors_df = calculate_and_merge_factors(
+            factor_funcs=factor_funcs,
+            fields=fields,
+            instruments=instruments,
+            start_time=start_time,
+            end_time=end_time,
+            n=self.n
+        )
+        combined_factors_df.to_parquet('./combined_factors_df.parquet', engine='pyarrow')
+        self.logger.info('\n{}\nsave to: {}'.format('-' * 50, './combined_factors_df.parquet'))
+
     def prepare_model(self):
         self.logger.info('\n{}\n{}'.format('=' * 100, 'prepare_model ...'))
         kwargs = {
             "loss": "mse",
             "colsample_bytree": 0.8879,
-            "learning_rate": 0.0421,
+            # "learning_rate": 0.0421,
+            'learning_rate': 0.2,
             "subsample": 0.8789,
             "lambda_l1": 205.6999,
             "lambda_l2": 580.9768,
-            # "max_depth": 8,
-            "max_depth": 3,
+            "max_depth": 8,
+            # "max_depth": 3,
             "num_leaves": 210,
             "num_threads": 20,
-            "early_stopping_rounds": 10  # 防止过拟合
+            # "early_stopping_rounds": 10  # 防止过拟合
         }
         model = prepare_model_config(class_name='LGBModel2', module_path='strategy.model', **kwargs)
         self.logger.info(model)
