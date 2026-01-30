@@ -9,123 +9,174 @@ import numpy as np
 def MOM_10D(df):
     """
     Formulation: MOM_{10D,t} = \frac{Close_t - Close_{t-10}}{Close_{t-10}}
-    Description：计算10天的收益率短期价格趋势及动量效应
+    Description：【动量因子】计算10天的收益率短期价格趋势及动量效应
     Backtest：
-        {'IC': 0.013424545859375895, 'ICIR': 0.09727675306079529, 'RIC': 0.0169775775558526, 'RICIR': 0.10040896575551078
-        'The following are analysis results of benchmark return(1day).'
-                               risk
-        mean               0.000732
-        std                0.009844
-        annualized_return  0.174329
-        information_ratio  1.147896
-        max_drawdown      -0.108000
-        'The following are analysis results of the excess return without cost(1day).'
-                               risk
-        mean               0.000429
-        std                0.005609
-        annualized_return  0.102049
-        information_ratio  1.179279
-        max_drawdown      -0.100784
-        'The following are analysis results of the excess return with cost(1day).'
-                               risk
-        mean               0.000230
-        std                0.005612
-        annualized_return  0.054834
-        information_ratio  0.633378
-        max_drawdown      -0.113143
-
+    {'IC': 0.017894337475029908, 'ICIR': 0.1445482899646844, 'RIC': 0.013924254228330967, 'RICIR': 0.10783298067152193}
+    'The following are analysis results of benchmark return(1day).'
+                           risk
+    mean               0.000646
+    std                0.009712
+    annualized_return  0.153717
+    information_ratio  1.025907
+    max_drawdown      -0.109772
+    'The following are analysis results of the excess return without cost(1day).'
+                           risk
+    mean               0.000104
+    std                0.003998
+    annualized_return  0.024646
+    information_ratio  0.399569
+    max_drawdown      -0.062664
+    'The following are analysis results of the excess return with cost(1day).'
+                           risk
+    mean              -0.000091
+    std                0.003997
+    annualized_return -0.021686
+    information_ratio -0.351696
+    max_drawdown      -0.071350
     """
 
     # Ensure the index is sorted
     df = df.sort_index()
 
-    # Extract the adjusted close price column
+    # Extract the close price column
     close_series = df['$close']
 
     # Group by instrument and calculate the 10-day momentum
-    # Shift by 10 days to get Close_{t-10}, then compute percentage change
-    mom_10d = close_series.groupby(level='instrument', group_keys=False).apply(lambda x: (x - x.shift(10)) / x.shift(10))
+    # Shift by 10 to get Close_{t-10}, then compute percentage change
+    mom_10d = close_series.groupby(level='instrument').pct_change(periods=10) * 100
 
-    # Create a DataFrame with the result
-    result_df = pd.DataFrame({'MOM_10D': mom_10d})
+    # Rename the series to the factor name
+    mom_10d.name = 'MOM_10D'
+
+    # Convert to DataFrame
+    result_df = mom_10d.to_frame()
 
     return result_df
 
 
-def MOM_HIGH_LOW_EFFICIENCY_10D(df):
+def REVERSAL_5D(df):
     """
-    Formulation: MOM\_HIGH\_LOW\_EFFICIENCY_{10D,t} = \frac{MOM_{10D,t}}{\frac{1}{10} \sum_{i=0}^{9} \left( \frac{High_{t-i} - Low_{t-i}}{Close_{t-i-1}} \right)}
-    Description: 因子本质上是一个风险调整后的动量。该因子在捕捉价格趋势的同时，根据日内波动率进行了调整，旨在过滤掉那些伴随剧烈波动而产生的动量，从而突出那些更具“效率”的价格运动
+    Formulation: REVERSAL_{5D,t} = - \frac{Close_t - Close_{t-5}}{Close_{t-5}} \times 100
+    Description: 【均值回归因子】 5 日价格反转因子，计算方法为 5 日动量的负值。该因子通过识别过去 5 个交易日内价格向单一方向显著移动后的超买或超卖状态，来捕捉短期的均值回归现象。
     Indicator:
-        [{'IC': 0.015031907353221411, 'ICIR': 0.10732327750639177, 'RIC': 0.02042996097315334, 'RICIR': 0.11659939725234152
-        'The following are analysis results of benchmark return(1day).'
-                               risk
-        mean               0.000732
-        std                0.009844
-        annualized_return  0.174329
-        information_ratio  1.147896
-        max_drawdown      -0.108000
-        'The following are analysis results of the excess return without cost(1day).'
-                               risk
-        mean               0.000484
-        std                0.005673
-        annualized_return  0.115287
-        information_ratio  1.317320
-        max_drawdown      -0.101371
-        'The following are analysis results of the excess return with cost(1day).'
-                               risk
-        mean               0.000286
-        std                0.005675
-        annualized_return  0.068133
-        information_ratio  0.778252
-        max_drawdown      -0.113503
+    {'IC': 0.015911179329660092, 'ICIR': 0.11922679649114731, 'RIC': 0.018980111842142367, 'RICIR': 0.13298780964608237}
+    'The following are analysis results of benchmark return(1day).'
+                           risk
+    mean               0.000646
+    std                0.009712
+    annualized_return  0.153717
+    information_ratio  1.025907
+    max_drawdown      -0.109772
+    'The following are analysis results of the excess return without cost(1day).'
+                           risk
+    mean               0.000417
+    std                0.004317
+    annualized_return  0.099215
+    information_ratio  1.489651
+    max_drawdown      -0.058491
+    'The following are analysis results of the excess return with cost(1day).'
+                           risk
+    mean               0.000219
+    std                0.004319
+    annualized_return  0.052207
+    information_ratio  0.783572
+    max_drawdown      -0.067981
+
 
     """
-
     # Ensure the index is sorted
     df = df.sort_index()
 
-    # Extract necessary columns
+    # Extract the close price column
     close_series = df['$close']
-    high_series = df['$high']
-    low_series = df['$low']
+
+    # Define the look-back period (5 trading days)
+    lookback = 5
+
+    # Function to compute 5-day reversal per instrument
+    def compute_reversal(group):
+        # Calculate 5-day momentum: (Close_t - Close_{t-5}) / Close_{t-5} * 100
+        momentum = (group - group.shift(lookback)) / group.shift(lookback) * 100
+        # Reversal is negative of momentum
+        reversal = -momentum
+        return reversal
+
+    # Apply the calculation per instrument
+    result_series = close_series.groupby(level='instrument').apply(compute_reversal)
+
+    # Reset index to maintain MultiIndex structure
+    result_series = result_series.reset_index(level=0, drop=True)
+
+    # Sort the index to ensure proper alignment
+    result_series = result_series.sort_index()
+
+    # Create a DataFrame with the factor name as column
+    result_df = pd.DataFrame({'REVERSAL_5D': result_series})
+
+    return result_df
+
+
+def MOM_VOL_ADJ_10D(df):
+    """
+    Formulation: MOM\_VOL\_ADJ_{10D,t} = \frac{MOM_{10D,t}}{VOLATILITY_{10D,t}}
+    Description: 【波动率调节动量因子】 10 日波动率调节动量，计算方法为 10 日动量除以 10 日历史波动率。该因子通过风险对趋势信号进行归一化处理，旨在识别波动率较低但动量较强的标的，从而提供更纯净的动量信号
+    Indication:
+    {'IC': 0.017017542216167286, 'ICIR': 0.1300690966361479, 'RIC': 0.018690758060998448, 'RICIR': 0.13056632305383084}
+    'The following are analysis results of benchmark return(1day).'
+                           risk
+    mean               0.000646
+    std                0.009712
+    annualized_return  0.153717
+    information_ratio  1.025907
+    max_drawdown      -0.109772
+    'The following are analysis results of the excess return without cost(1day).'
+                           risk
+    mean               0.000646
+    std                0.004279
+    annualized_return  0.153670
+    information_ratio  2.327898
+    max_drawdown      -0.031030
+    'The following are analysis results of the excess return with cost(1day).'
+                           risk
+    mean               0.000453
+    std                0.004281
+    annualized_return  0.107749
+    information_ratio  1.631522
+    max_drawdown      -0.034492
+    """
+    # Ensure the index is sorted
+    df = df.sort_index()
+
+    # Extract the close price column
+    close_series = df['$close']
 
     # Calculate 10-day momentum: (Close_t - Close_{t-10}) / Close_{t-10} * 100
-    mom_10d = close_series.groupby(level='instrument', group_keys=False).apply(lambda x: (x - x.shift(10)) / x.shift(10)) * 100
-    # mom_10d = close_series.groupby(level='instrument').pct_change(periods=10) * 100
+    mom_10d = close_series.groupby(level='instrument').pct_change(periods=10) * 100
 
-    # Calculate daily high-low range scaled by previous close: (High_{t-i} - Low_{t-i}) / Close_{t-i-1}
-    # First, shift close by 1 to get previous day's close
-    close_shifted = close_series.groupby(level='instrument').shift(1)
-    daily_range_scaled = (high_series - low_series) / close_shifted
+    # Calculate daily returns: r_t = (Close_t - Close_{t-1}) / Close_{t-1}
+    daily_returns = close_series.groupby(level='instrument').pct_change()
 
-    # Calculate 10-day average of daily scaled range: (1/10) * sum_{i=0}^{9} (High_{t-i} - Low_{t-i}) / Close_{t-i-1}
-    avg_range_10d = daily_range_scaled.groupby(level='instrument').rolling(window=10, min_periods=10).mean()
-    avg_range_10d = avg_range_10d.reset_index(level=0, drop=True)
+    # Calculate 10-day historical volatility: rolling standard deviation of daily returns over 10 days
+    # Use window=10 to include current day and previous 9 days, with min_periods=10
+    # Do NOT annualize (remove * np.sqrt(252))
+    volatility_10d = daily_returns.groupby(level='instrument').rolling(window=10, min_periods=10).std()
+    # The rolling operation adds an extra level, reset index to match original
+    volatility_10d = volatility_10d.reset_index(level=0, drop=True)
 
     # Align indices and combine into DataFrame
-    combined = pd.DataFrame({'MOM': mom_10d, 'AVG_RANGE': avg_range_10d})
+    combined = pd.DataFrame({'MOM': mom_10d, 'VOL': volatility_10d})
 
-    # Calculate high-low efficiency momentum: MOM / AVG_RANGE
+    # Calculate volatility-adjusted momentum: MOM / VOL
     # Avoid division by zero or very small numbers
-    combined['MOM_HIGH_LOW_EFFICIENCY_10D'] = combined['MOM'] / combined['AVG_RANGE'].replace(0, np.nan)
+    combined['MOM_VOL_ADJ_10D'] = combined['MOM'] / combined['VOL'].replace(0, np.nan)
 
     # Extract the factor series
-    factor_series = combined['MOM_HIGH_LOW_EFFICIENCY_10D']
-    factor_series.name = 'MOM_HIGH_LOW_EFFICIENCY_10D'
+    factor_series = combined['MOM_VOL_ADJ_10D']
+    factor_series.name = 'MOM_VOL_ADJ_10D'
 
     # Convert to DataFrame
     result_df = factor_series.to_frame()
 
     return result_df
-
-
-
-
-
-
-
-
-
 
 

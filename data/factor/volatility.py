@@ -9,7 +9,7 @@ import numpy as np
 def VOLATILITY_20D(df):
     """
     Formulation: VOLATILITY_{20D,t}=\sqrt{252} \times \sqrt{\frac{1}{19} \sum_{i=0}^{19} (r_{t-i}-\bar{r} )^{2}}
-    Description：过去 20 个交易日的日收益率标准差，即 20 日历史波动率；假设每年有 252 个交易日，进行年化处理。该因子用于衡量短期价格风险以及均值回归的可能性。
+    Description：【波动率因子】过去 20 个交易日的日收益率标准差，即 20 日历史波动率；假设每年有 252 个交易日，进行年化处理。该因子用于衡量短期价格风险以及均值回归的可能性。
     Backtest：
         {'IC': 0.01634871895541512, 'ICIR': 0.11389840663271152, 'RIC': 0.019717409105986405, 'RICIR': 0.1173889770424266,
         'The following are analysis results of benchmark return(1day).'
