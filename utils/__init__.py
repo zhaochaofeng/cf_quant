@@ -26,5 +26,6 @@ from .backtest import RollingPortAnaRecord
 # 并行计算
 from .multiprocess import multiprocessing_wrapper
 
-
+# 时间日期
+from .dt import DateTimeUtils as dt
 
