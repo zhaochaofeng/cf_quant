@@ -73,66 +73,38 @@ get_data_from_mysql(){
       jt.field,
       jt.value
     FROM
-      cf_quant.income_ts t,
+      cf_quant.income_ts t,   -- 利润表
       LATERAL (
-        SELECT 'basic_eps' AS field, t.basic_eps AS value
-        UNION ALL
-        SELECT 'total_revenue', t.total_revenue
-        UNION ALL
-        SELECT 'revenue', t.revenue
-        UNION ALL
-        SELECT 'non_oper_income', t.non_oper_income
-        UNION ALL
-        SELECT 'non_oper_exp', t.non_oper_exp
-        UNION ALL
-        SELECT 'n_income_attr_p', t.n_income_attr_p
-        UNION ALL
-        SELECT 'operate_profit', t.operate_profit
-        UNION ALL
-        SELECT 'total_profit', t.total_profit
-        UNION ALL
-        SELECT 'ebit', t.ebit
-        UNION ALL
-        SELECT 'ebitda', t.ebitda
-        UNION ALL
-        SELECT 'continued_net_profit', t.continued_net_profit
+        SELECT 'revenue' AS field, t.revenue AS value
         UNION ALL
         SELECT 'oper_cost', t.oper_cost
         UNION ALL
-        SELECT 'total_cogs', t.total_cogs
+        SELECT 'n_income_attr_p', t.n_income_attr_p
         UNION ALL
-        SELECT 'admin_exp', t.admin_exp
-        UNION ALL
-        SELECT 'rd_exp', t.rd_exp
-        UNION ALL
-        SELECT 'sell_exp', t.sell_exp
-        UNION ALL
-        SELECT 'fin_exp', t.fin_exp
-        UNION ALL
-        SELECT 'fin_exp_int_exp', t.fin_exp_int_exp
-        UNION ALL
-        SELECT 'fin_exp_int_inc', t.fin_exp_int_inc
-        UNION ALL
-        SELECT 'assets_impair_loss', t.assets_impair_loss
-        UNION ALL
-        SELECT 'invest_income', t.invest_income
-        UNION ALL
-        SELECT 'compr_inc_attr_p', t.compr_inc_attr_p
-        UNION ALL
-        SELECT 'diluted_eps', t.diluted_eps
-        UNION ALL
-        SELECT 'income_tax', t.income_tax
-        UNION ALL
-        SELECT 'int_income', t.int_income
-        UNION ALL
-        SELECT 'n_commis_income', t.n_commis_income
-        UNION ALL
-        SELECT 'prem_earned', t.prem_earned
-        UNION ALL
-        SELECT 'fv_value_chg_gain', t.fv_value_chg_gain
+        SELECT 'basic_eps', t.basic_eps
       ) AS jt
     WHERE
-      t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}';
+      t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}'
+
+    UNION ALL
+
+    SELECT
+      c.f_ann_date AS date,
+      c.end_date AS period,
+      lower(c.qlib_code) AS symbol,
+      jc.field,
+      jc.value
+    FROM
+      cf_quant.cashflow_ts c,   -- 现金流量表
+      LATERAL (
+        SELECT 'n_incr_cash_cash_equ' AS field, c.n_incr_cash_cash_equ AS value
+        UNION ALL
+        SELECT 'n_cashflow_act', c.n_cashflow_act
+        UNION ALL
+        SELECT 'c_pay_acq_const_fiolta', c.c_pay_acq_const_fiolta
+      ) AS jc
+    WHERE
+      c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}'
 EOF
 )
   echo "${sql}"
