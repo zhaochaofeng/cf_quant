@@ -88,7 +88,7 @@ class ProcessData(Base):
         """ 获取股票列表
             Args:
                  table_name: 股票信息表名
-                 is_alive: 是否仅获取当前上市的股票（排除退市）
+                 is_alive: 是否仅获取当前上市的股票（排除退市）.如果是回溯历史数据需要设置为False
         """
         self.logger.info('\n{}\n{}'.format('=' * 100, 'get_stocks...'))
         engine = sql_engine()
