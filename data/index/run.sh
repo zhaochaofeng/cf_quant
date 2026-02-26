@@ -69,13 +69,13 @@ check_success(){
 
 
 # CSI300
-retry_process "
-  ${python_path} ${qlib_path}/scripts/data_collector/cn_index/collector.py \
-  --index_name CSI300 \
-  --qlib_dir ${provider_uri} \
-  --method parse_instruments
-"
-check_success "CSI300"
+#retry_process "
+#  ${python_path} ${qlib_path}/scripts/data_collector/cn_index/collector.py \
+#  --index_name CSI300 \
+#  --qlib_dir ${provider_uri} \
+#  --method parse_instruments
+#"
+#check_success "CSI300"
 
 
 # CSI500
