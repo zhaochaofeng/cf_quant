@@ -64,19 +64,30 @@ get_data_from_mysql(){
   echo "get_data_from_mysql ..."
 
   sql=$(cat <<-EOF
-    select a.ts_code, date, open, close, high, low, vol, amount, adj_factor, ind_one, ind_two, ind_three
+    SELECT
+      a.ts_code, a.date, a.open, a.close, a.high, a.low, a.vol, a.amount, a.adj_factor,
+      b.ind_one, b.ind_two, b.ind_three,
+      c.total_share, c.float_share, c.total_mv, c.circ_mv
     FROM
       (select ts_code, day as date, open, close, high, low, vol, amount, adj_factor
       from cf_quant.trade_daily_ts
       where day >= '${dt1}' and day <= '${dt2}'
       )a
+
     JOIN
       (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three
       from cf_quant.stock_info_ts where day='${dt2}'
       and exchange in ('SSE', 'SZSE')
       )b
     ON
-      a.ts_code=b.ts_code;
+      a.ts_code=b.ts_code
+
+    LEFT JOIN
+      (select ts_code, day as date, total_share, float_share, total_mv, circ_mv from cf_quant.valuation_ts
+      where day >= '${dt1}' and day <= '${dt2}'
+      )c
+    ON
+      a.ts_code = c.ts_code and a.date = c.date
 EOF
 )
   echo "${sql}"
