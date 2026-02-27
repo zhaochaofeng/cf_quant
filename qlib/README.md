@@ -32,5 +32,7 @@ qlib/data/cache.py在脚本中，DiskDatasetCache 类的 update() 函数实现�
 
 ### PIT 数据格式化报错
 scripts/data_collector/pit/collector.py 脚本在执行数据格式化时，出现 get_calendar_list() 函数报错，这个函数用来获取网站交易日历数据。
-但是，在格式化过程中没有用到，从而，可以将 PitNormalize._get_calendar_list函数返回值从get_calendar_list() 修改为[]
-
+但是，在格式化过程中没有用到。
+    
+    解决方法：
+    将 PitNormalize._get_calendar_list函数返回值从get_calendar_list() 修改为[]
