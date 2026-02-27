@@ -31,8 +31,9 @@ qlib/data/cache.py在脚本中，DiskDatasetCache 类的 update() 函数实现�
     方法2：重写 read_data_from_cache() 函数
 
 ### PIT 数据格式化报错
-scripts/data_collector/pit/collector.py 脚本在执行数据格式化时，出现 get_calendar_list() 函数报错，这个函数用来获取网站交易日历数据。
-但是，在格式化过程中没有用到。
+scripts/data_collector/pit/collector.py  和 scripts/data_collector/cn_index/collector.py 脚本在执行数据格式化时，
+出现 scripts/data_collector/utils.py 中 get_calendar_list() 函数报错，这个函数作用是从东方财富网站获取交易日历，但是东方财富API 
+有时不可访问，从而导致报错。
     
     解决方法：
-    将 PitNormalize._get_calendar_list函数返回值从get_calendar_list() 修改为[]
+    get_calendar_list函数中添加 baostock 获取交易日历的方式
