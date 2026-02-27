@@ -145,16 +145,16 @@ process_pit(){
 }
 
 function_set(){
-#  create_tmp_dir
-#  get_data_from_mysql
-#  process_data
+  create_tmp_dir
+  get_data_from_mysql
+  process_data
   trans_to_qlib
 }
 
 main(){
   function_set
-#  process_pit
-#  update
+  process_pit
+  update
   if [ $? -eq 0 ];then
       echo "执行完成 ！！！"
     else
