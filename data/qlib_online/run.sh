@@ -116,7 +116,7 @@ trans_to_qlib(){
   --date_field_name date \
   --data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
   --qlib_dir ${provider_uri_tmp} \
-  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three
+  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three,total_share,float_share,total_mv,circ_mv
   check_success "转化为qlib格式"
 }
 
@@ -145,16 +145,16 @@ process_pit(){
 }
 
 function_set(){
-  create_tmp_dir
-  get_data_from_mysql
-  process_data
+#  create_tmp_dir
+#  get_data_from_mysql
+#  process_data
   trans_to_qlib
 }
 
 main(){
   function_set
-  process_pit
-  update
+#  process_pit
+#  update
   if [ $? -eq 0 ];then
       echo "执行完成 ！！！"
     else
