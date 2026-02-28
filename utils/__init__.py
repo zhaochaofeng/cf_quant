@@ -15,10 +15,14 @@ from .logger import LoggerFactory
 
 # 自定义 qlib 操作
 from .qlib_ops import (
-    LastValue, standardize, winsorize, CMean, CStd, PTTM
+    PTTM
 )
+
 # 自定义 qlib processor
 from .qlib_processor import Winsorize
+
+# 数据预处理
+from .preprocess import winsorize, standardize
 
 # 回测工具
 from .backtest import RollingPortAnaRecord
