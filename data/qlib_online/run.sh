@@ -66,7 +66,7 @@ get_data_from_mysql(){
   sql=$(cat <<-EOF
     SELECT
       a.ts_code, a.date, a.open, a.close, a.high, a.low, a.vol, a.amount, a.adj_factor,
-      b.ind_one, b.ind_two, b.ind_three,
+      b.ind_one, b.ind_two, b.ind_three, b.list_date, b.delist_date,
       c.total_share, c.float_share, c.total_mv, c.circ_mv
     FROM
       (select ts_code, day as date, open, close, high, low, vol, amount, adj_factor
@@ -75,7 +75,8 @@ get_data_from_mysql(){
       )a
 
     JOIN
-      (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three
+      (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three,
+      list_date, delist_date
       from cf_quant.stock_info_ts where day='${dt2}'
       and exchange in ('SSE', 'SZSE')
       )b
@@ -105,7 +106,8 @@ process_data(){
   --is_offline True \
   --path_in ${provider_uri_tmp}/custom_${dt1}_${dt2}.csv \
   --columns "['ts_code', 'date', 'open', 'close', 'high', 'low', 'volume', 'amount', 'factor', 'change', \
-  'ind_one', 'ind_two', 'ind_three', 'total_share', 'float_share', 'total_mv', 'circ_mv']" \
+  'ind_one', 'ind_two', 'ind_three', 'list_date', 'delist_date',
+  'total_share', 'float_share', 'total_mv', 'circ_mv']" \
   --index_list "['000300.SH', '000905.SH', '000903.SH', '000906.SH']"
   check_success "复权等数据处理"
 }
@@ -116,7 +118,7 @@ trans_to_qlib(){
   --date_field_name date \
   --data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
   --qlib_dir ${provider_uri_tmp} \
-  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three,total_share,float_share,total_mv,circ_mv
+  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three,list_date,delist_date,total_share,float_share,total_mv,circ_mv
   check_success "转化为qlib格式"
 }
 
