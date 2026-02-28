@@ -15,13 +15,18 @@ feas = {
     'qlib_code': 'ts_code',
     'day': '',
     'name': 'name',
-    'exchange': 'ts_code',
     'status': 'status',
     'area': 'area',
     'industry': 'industry',
+    'fullname': 'fullname',
+    'enname': 'enname',
     'cnspell': 'cnspell',
     'market': 'market',
+    'exchange': 'exchange',
+    'curr_type': 'curr_type',
     'list_date': 'list_date',
+    'delist_date': 'delist_date',
+    'is_hs': 'is_hs',
     'act_name': 'act_name',
     'act_ent_type': 'act_ent_type',
     'l1_code': 'l1_code',
@@ -34,7 +39,6 @@ feas = {
     'out_date': 'out_date',
     'is_new': 'is_new'
 }
-exchange_map = {'BJ': 'BSE', 'SH': 'SSE', 'SZ': 'SZSE'}
 exclude_codes = {'T00018.SH', 'TS0018.SH'}  # 噪声数据
 
 
@@ -60,9 +64,11 @@ class TSStockInfoProcessor(Base):
             pro = tushare_pro()
             # 基本信息
             df_info = pd.DataFrame()
-            status = {'L': 1, 'D': 0, 'P': 2}
+            status = {'L': 1, 'D': 0, 'P': 2, 'G': 3}
             for k, v in status.items():
-                tmp = ts_api(pro, 'stock_basic', list_status=k)
+                tmp = ts_api(pro, 'stock_basic', list_status=k,
+                             fields='ts_code,name,area,industry,fullname,enname,cnspell,market,'
+                                    'exchange,curr_type,list_date,delist_date,is_hs,act_name,act_ent_type')
                 tmp['status'] = v
                 df_info = pd.concat([df_info, tmp], ignore_index=True)
             df_info.set_index('ts_code', inplace=True)
@@ -120,12 +126,9 @@ class TSStockInfoProcessor(Base):
                     elif f == 'qlib_code':
                         code, suffix = v.split('.')
                         v = '{}{}'.format(suffix.upper(), code)
-                    elif f in ['day', 'in_date']:
+                    elif f in ['day', 'in_date', 'delist_date', 'list_date']:
                         # 日期格式转换
                         v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
-                    elif f == 'exchange':
-                        code, suffix = v.split('.')
-                        v = exchange_map[suffix]
                 tmp[f] = v
             return tmp
         except Exception as e:
