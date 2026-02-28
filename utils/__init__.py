@@ -29,3 +29,5 @@ from .multiprocess import multiprocessing_wrapper
 # 时间日期
 from .dt import DateTimeUtils as dt
 
+# 统计方法
+from .stats import WLS
