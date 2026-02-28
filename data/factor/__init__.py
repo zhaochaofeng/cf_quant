@@ -15,6 +15,11 @@ from .volatility import (
     VOLATILITY_20D
 )
 
+# 规模因子
+from .size import (
+    LNCAP, MIDCAP
+)
+
 
 
 

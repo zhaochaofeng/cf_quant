@@ -3,6 +3,7 @@
 '''
 
 import numpy as np
+from utils import WLS
 
 
 def LNCAP(df):
@@ -20,7 +21,17 @@ def LNCAP(df):
 def MIDCAP(df):
     """ 中等市值 """
 
-    lncap = LNCAP(df)
+    lncap = LNCAP(df)['LNCAP']
+    x = lncap.dropna().values
+    y = x ** 3
+    beta, alpha, resid = WLS(y, x, intercept=True, weight=1, verbose=True)
+    # 这里使用的 lncap 以保证原始数据维度
+    midcap = lncap ** 3 - (alpha + beta[0] * lncap)
+    midcap = midcap.to_frame()
+    midcap.columns = ['MIDCAP']
 
-    return lncap
+    return midcap
+
+
+
 
