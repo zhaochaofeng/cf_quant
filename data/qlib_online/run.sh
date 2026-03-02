@@ -66,7 +66,7 @@ get_data_from_mysql(){
   sql=$(cat <<-EOF
     SELECT
       a.ts_code, a.date, a.open, a.close, a.high, a.low, a.vol, a.amount, a.adj_factor,
-      b.ind_one, b.ind_two, b.ind_three, replace(list_date, '-', '') as list_date, replace(delist_date, '-', '') as delist_date,
+      b.ind_one, b.ind_two, b.ind_three, b.list_date, b.delist_date,
       c.total_share, c.float_share, c.total_mv, c.circ_mv
     FROM
       (select ts_code, day as date, open, close, high, low, vol, amount, adj_factor
@@ -75,7 +75,8 @@ get_data_from_mysql(){
       )a
 
     JOIN
-      (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three
+      (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three,
+      replace(list_date, '-', '') as list_date, replace(delist_date, '-', '') as delist_date,
       from cf_quant.stock_info_ts where day='${dt2}'
       and exchange in ('SSE', 'SZSE')
       )b
