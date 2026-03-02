@@ -10,8 +10,8 @@ import statsmodels.api as sm
 def WLS(y, X, intercept=True, weight=1, verbose=True):
     """ 加权最小二乘法
 
-        y: 因变量
-        X: 自变量
+        y: [array, Series, DataFrame]. 因变量
+        X: [array, Series, DataFrame]. 自变量
         intercept: 是否包含截距项
         weight: array_like/float。权重
         verbose: 是否返回残差
@@ -42,8 +42,6 @@ def WLS(y, X, intercept=True, weight=1, verbose=True):
             return params.iloc[1:]
         else:
             return params
-
-
 
 
 
