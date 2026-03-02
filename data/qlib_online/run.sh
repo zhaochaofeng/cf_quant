@@ -76,7 +76,7 @@ get_data_from_mysql(){
 
     JOIN
       (select ts_code, left(l1_code, 6) as ind_one, left(l2_code, 6) as ind_two, left(l3_code, 6) as ind_three,
-      replace(list_date, '-', '') as list_date, replace(delist_date, '-', '') as delist_date,
+      replace(list_date, '-', '') as list_date, replace(delist_date, '-', '') as delist_date
       from cf_quant.stock_info_ts where day='${dt2}'
       and exchange in ('SSE', 'SZSE')
       )b
