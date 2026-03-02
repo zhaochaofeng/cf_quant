@@ -4,6 +4,32 @@
 
 import pandas as pd
 import numpy as np
+from .utils import capm_regress
+
+
+BENCHMARK = 'SH000300'
+
+
+def BETA(df):
+    """
+    Formulation: r_{i,t} = \alpha_i + \beta_i \cdot r_{m,t} + \epsilon_{i,t}
+    Description：【CAPM Beta因子】通过滚动窗口(504天)加权最小二乘回归，
+        以沪深300指数收益率为自变量，股票收益率为因变量，估计每只股票的
+        beta系数。半衰期为252天。
+    """
+
+    df = df.sort_index()
+    stock_returns = df['$change']
+
+    # CAPM 回归: window=504, half_life=252
+    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=1)
+
+    # 构造结果 DataFrame
+    result_df = pd.DataFrame({'BETA': beta})
+    result_df = result_df.dropna()
+
+    return result_df
+
 
 
 def VOLATILITY_20D(df):
