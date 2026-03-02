@@ -7,9 +7,7 @@ import multiprocessing as mp
 
 
 def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]], n: int = 1) -> list:
-    """It will use multiprocessing to call the functions in func_calls with the given parameters.
-    The results equals to `return  [f(*args) for f, args in func_calls]`
-    It will not call multiprocessing if `n=1`
+    """ 多进程并行计算
 
     Parameters
     ----------
