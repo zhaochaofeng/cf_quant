@@ -5,21 +5,20 @@ from .factor_func import (
 )
 
 """ 函数因子 """
-# 动量因子
-from .momentum import (
-    MOM_10D, REVERSAL_5D, MOM_VOL_ADJ_10D
-)
-
-# 波动率因子
-from .volatility import (
-    VOLATILITY_20D
-)
-
+# 函数因子输入的df 索引为 <instrument, datetime>
 # 规模因子
 from .size import (
     LNCAP, MIDCAP
 )
 
+# 波动率因子
+from .volatility import (
+    VOLATILITY_20D, BETA
+)
 
+# 动量因子
+from .momentum import (
+    MOM_10D, REVERSAL_5D, MOM_VOL_ADJ_10D
+)
 
 
