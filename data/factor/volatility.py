@@ -4,7 +4,7 @@
 
 import pandas as pd
 import numpy as np
-from .utils import capm_regress
+from .utils import capm_regress, cal_cmra, rolling_with_func, SENTINEL
 
 
 BENCHMARK = 'SH000300'
@@ -30,6 +30,96 @@ def BETA(df):
 
     return result_df
 
+
+def HSIGMA(df):
+    """
+    Formulation: 通过CAPM模型回归得到的残差标准差
+    Description：【残差波动率因子】通过滚动窗口(504天)加权最小二乘回归，
+        以沪深300指数收益率为自变量，股票收益率为因变量，估计每只股票的
+        残差波动率。半衰期为252天。
+    """
+    
+    df = df.sort_index()
+    stock_returns = df['$change']
+    
+    # CAPM 回归获取残差波动率: window=504, half_life=252
+    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=1)
+    
+    # 构造结果 DataFrame
+    result_df = pd.DataFrame({'HSIGMA': sigma})
+    result_df = result_df.dropna()
+    
+    return result_df
+
+
+def DASTD(df):
+    """
+    Formulation: 带半衰期权重的日收益率标准差
+    Description：【日波动率因子】过去252个交易日的日收益率标准差，使用权重递减的
+        半衰期为42天的指数权重计算。
+    """
+    
+    # Ensure the index is sorted
+    df = df.sort_index()
+    
+    # Extract the daily returns
+    daily_returns = df['$change']
+    
+    # Calculate rolling standard deviation with half-life weighting
+    # Window = 252 days, Half-life = 42 days (BARRA CNE6 specification)
+    dastd_series = rolling_with_func(
+        daily_returns, 
+        window=252, 
+        half_life=42,
+        func_name='std'
+    )
+
+    # Create result DataFrame
+    result_df = pd.DataFrame({'DASTD': dastd_series})
+    
+    # Drop rows where volatility is NaN (due to insufficient data)
+    result_df = result_df.dropna()
+    
+    return result_df
+
+
+def CMRA(df):
+    """
+    Formulation: CMRA = Z_max - Z_min, where Z_t = sum of returns over t months
+    Description：【累计收益范围因子】计算过去12个月的累计收益率范围，
+        Z值为每个月的累计收益率，CMRA为最大值与最小值之差。
+        CNE6版本使用对数收益率。
+    """
+    
+    # Ensure the index is sorted
+    df = df.sort_index()
+    
+    # Extract daily returns and convert to log returns (CNE6 version)
+    log_returns = np.log(1 + df['$change'])
+    
+    # Replace NaN with SENTINEL for consistent missing value handling
+    log_returns = log_returns.where(pd.notnull(log_returns), SENTINEL)
+    
+    # Apply rolling CMRA calculation per instrument
+    # cal_cmra internally handles SENTINEL values
+    cmra_series = log_returns.groupby(level='instrument').rolling(
+        window=252, min_periods=21  # At least 1 month of data
+    ).apply(
+        lambda x: cal_cmra(x, months=12, days_per_month=21, sentinel=SENTINEL),
+        raw=True
+    )
+    
+    # Reset the extra groupby level to restore original MultiIndex structure
+    cmra_series = cmra_series.reset_index(level=0, drop=True)
+    
+    # Create result DataFrame
+    result_df = pd.DataFrame({'CMRA': cmra_series})
+    
+    # Drop NaN values only
+    # Note: CMRA can be 0 when max Z equals min Z (rare but valid)
+    result_df = result_df.dropna()
+    
+    return result_df
 
 
 def VOLATILITY_20D(df):

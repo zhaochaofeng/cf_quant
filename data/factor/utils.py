@@ -10,6 +10,9 @@ provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 
 BENCHMARK = 'SH000300'
 
+# 缺失值标记，用于 rolling 计算中处理 NaN
+SENTINEL = 1e10
+
 
 def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_date: str) -> pd.DataFrame:
     """ 获取qlib 字段数据 """
@@ -42,12 +45,18 @@ def get_stock_list_info(instruments: list, start_date: str, end_date: str) -> tu
             - list_date_map: dict, instrument -> pd.Timestamp
             - delist_date_map: dict, instrument -> pd.Timestamp or pd.NaT
     """
+    # 待修复：list_date/delist_date 传入qlib后数据改变。如 SH600188 的 list_date从1998-07-01变为19980700
+    return {}, {}
+    '''
     df = get_qlib_data(
         instruments=instruments,
         fields=['$list_date', '$delist_date'],
         start_date=start_date,
         end_date=end_date,
     )
+
+    # df['$list_date'] = pd.to_datetime(df['$list_date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
+    # df['$delist_date'] = pd.to_datetime(df['$delist_date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
 
     list_date_map = {}
     delist_date_map = {}
@@ -63,6 +72,7 @@ def get_stock_list_info(instruments: list, start_date: str, end_date: str) -> tu
         )
 
     return list_date_map, delist_date_map
+    '''
 
 
 def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, num_worker=1):
@@ -90,13 +100,35 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     end_date = str(stock_returns.index.get_level_values('datetime').max())[:10]
 
     # 获取基准收益率
-    benchmark_df = get_qlib_data(
-        instruments=[benchmark], fields=['$change'],
-        start_date=start_date, end_date=end_date,
-    )
-    benchmark_ret = benchmark_df['$change']
-    if benchmark_ret.index.nlevels > 1:
-        benchmark_ret = benchmark_ret.droplevel('instrument')
+    try:
+        benchmark_df = get_qlib_data(
+            instruments=[benchmark], fields=['$change'],
+            start_date=start_date, end_date=end_date,
+        )
+        benchmark_ret = benchmark_df['$change']
+        if benchmark_ret.index.nlevels > 1:
+            benchmark_ret = benchmark_ret.droplevel('instrument')
+        
+        # 检查基准数据是否为空
+        if len(benchmark_ret.dropna()) == 0:
+            print(f"警告: 基准指数 {benchmark} 在指定时间范围内无有效数据")
+            # 尝试扩展时间范围
+            extended_start = str(pd.to_datetime(start_date) - pd.Timedelta(days=30))[:10]
+            extended_end = str(pd.to_datetime(end_date) + pd.Timedelta(days=30))[:10]
+            print(f"尝试扩展时间范围: {extended_start} 到 {extended_end}")
+            benchmark_df = get_qlib_data(
+                instruments=[benchmark], fields=['$change'],
+                start_date=extended_start, end_date=extended_end,
+            )
+            benchmark_ret = benchmark_df['$change']
+            if benchmark_ret.index.nlevels > 1:
+                benchmark_ret = benchmark_ret.droplevel('instrument')
+            
+            if len(benchmark_ret.dropna()) == 0:
+                raise ValueError(f"基准指数 {benchmark} 无有效数据")
+    except Exception as e:
+        print(f"获取基准数据失败: {e}")
+        raise
 
     # dict. 获取上市/退市日期
     list_date_map, delist_date_map = get_stock_list_info(
@@ -267,6 +299,123 @@ def _single_regression(window_y, window_x_vals, stks_to_regress, fill_args, weig
     sigma_series = pd.Series(vol, index=stks_to_regress, name=window_edate)
     
     return beta_series, alpha_series, sigma_series
+
+
+def cal_cmra(series, months=12, days_per_month=21, sentinel=SENTINEL):
+    """计算 Cumulative Return Range over Months (CMRA) 因子
+    
+    支持过滤 sentinel 标记的缺失值。
+    
+    Args:
+        series: array-like, 股票收益率序列（可能包含 sentinel 标记的缺失值）
+        months: int, 计算月份数，默认12个月
+        days_per_month: int, 每月交易日数，默认21天
+        sentinel: scalar, 缺失值标记，默认 SENTINEL
+    
+    Returns:
+        float: CMRA值
+    """
+    # 过滤 sentinel 缺失值
+    series = np.array(series)
+    valid_mask = series != sentinel
+    valid_series = series[valid_mask]
+    
+    # 数据不足时返回 NaN
+    if len(valid_series) < days_per_month:
+        return np.nan
+    
+    # 计算每个月的累计收益 Z_t
+    z = []
+    for i in range(1, months + 1):
+        end_idx = len(valid_series)
+        start_idx = max(0, end_idx - i * days_per_month)
+        month_sum = valid_series[start_idx:end_idx].sum()
+        z.append(month_sum)
+    
+    z = sorted(z)
+    return z[-1] - z[0]
+
+
+def weighted_std(series, weights):
+    """加权标准差
+    
+    Args:
+        series: array-like, 数据序列
+        weights: array-like, 权重（已归一化）
+    
+    Returns:
+        float: 加权标准差
+    """
+    return np.sqrt(np.sum((series - np.mean(series)) ** 2 * weights))
+
+
+def weighted_func(func, series, weights):
+    """加权函数分发：std走加权标准差，其余走 func(series * weights)
+    
+    Args:
+        func: numpy函数，如 np.std, np.sum 等
+        series: array-like, 有效数据序列
+        weights: array-like, 权重
+    
+    Returns:
+        加权计算结果
+    """
+    weights = weights / np.sum(weights)
+    if func.__name__ == 'std':
+        return weighted_std(series, weights)
+    else:
+        return func(series * weights)
+
+
+def nanfunc(series, func, sentinel=SENTINEL, weights=None):
+    """过滤 sentinel 缺失值后执行函数计算
+    
+    Args:
+        series: array-like, 输入序列
+        func: callable, numpy函数
+        sentinel: scalar, 缺失值标记
+        weights: array-like, 权重（可选）
+    
+    Returns:
+        函数计算结果
+    """
+    valid_idx = np.argwhere(series != sentinel)
+    if weights is not None:
+        return weighted_func(func, series[valid_idx], weights=weights[valid_idx])
+    else:
+        return func(series[valid_idx])
+
+
+def rolling_with_func(series, window, half_life=None, func_name='std', weights=None):
+    """通用滚动函数，通过 func_name 指定 numpy 聚合函数
+
+    Args:
+        series: pd.Series, 输入序列
+        window: int, 滚动窗口大小
+        half_life: int, 半衰期（可选）
+        func_name: str, numpy函数名（'std', 'sum', 'mean', 'max', 'min'等）
+        weights: array-like, 自定义权重（可选）
+    
+    Returns:
+        pd.Series: 计算结果序列
+    """
+    func = getattr(np, func_name, None)
+    if func is None:
+        raise AttributeError(
+            f"Search func:{func_name} from numpy failed, "
+            f"only numpy ufunc is supported currently, please retry."
+        )
+    
+    # 将 NaN 替换为 SENTINEL
+    series = series.where(pd.notnull(series), SENTINEL)
+    
+    if half_life or (weights is not None):
+        exp_wt = get_exp_weight(window, half_life) if half_life else weights
+        args = (func, SENTINEL, exp_wt)
+    else:
+        args = (func, SENTINEL)
+    # raw 表示传入 nanfunc 函数的为 array 数据，用于加速计算
+    return series.rolling(window=window).apply(nanfunc, args=args, raw=True)
 
 
 if __name__ == '__main__':
