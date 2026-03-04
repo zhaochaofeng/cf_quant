@@ -18,6 +18,7 @@ from .volatility import (
 
 # 动量因子
 from .momentum import (
+    STREV, SEASON, INDMOM, RSTR, HALPHA,
     MOM_10D, REVERSAL_5D, MOM_VOL_ADJ_10D
 )
 

@@ -1,9 +1,236 @@
 """
-    动量因子函数
+    动量因子 (Momentum Factors)
+    
+    基于 BARRA CNE6 模型实现：
+    - STREV: 短期反转因子
+    - SEASON: 季节因子（月度日历效应）
+    - INDMOM: 行业动量因子
+    - RSTR: 相对强度因子
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+
+from .utils import (
+    rolling_with_func, calc_seasonality,
+    capm_regress,
+    get_benchmark_ret
+)
+
+
+def STREV(df):
+    """
+    Formulation: STREV = sum(return * weight)
+    Description：【短期反转因子】过去1个月（21个交易日）的日收益率加权之和，
+        使用半衰期为5天的指数权重。该因子用于捕捉短期价格反转效应。
+    """
+    # 确保索引排序
+    df = df.sort_index()
+    
+    # 使用日收益率
+    daily_returns = df['$change']
+    
+    # 使用 rolling_with_func 计算加权收益率之和
+    # window=21, half_life=5, func_name='sum'
+    strev_series = daily_returns.groupby(level='instrument').apply(
+        lambda x: rolling_with_func(x, window=21, half_life=5, func_name='sum')
+    )
+    # 重置索引，确保格式正确
+    strev_series = strev_series.reset_index(level=0, drop=True)
+    
+    # 构造结果 DataFrame
+    result_df = pd.DataFrame({'STREV': strev_series})
+    result_df = result_df.dropna()
+    
+    return result_df
+
+
+def SEASON(df, nyears=5):
+    """
+    Formulation: SEASON = mean(R_stock - R_benchmark) over past Y years
+    Description：【季节因子】捕捉股票月度日历效应，衡量股票在特定月份
+        是否存在系统性的超额收益规律（如"一月效应"、"春节效应"等）。
+        计算过去Y年（默认5年）同月份相对于基准的超额收益均值。
+        
+    计算方法：
+        1. 计算对数收益率 ln(1+r)
+        2. 月度累计对数收益率（每月最后一个交易日的对数收益率累加）
+        3. 使用沪深300指数作为市场基准计算月度基准收益率
+        4. 计算超额收益 = 股票月度收益率 - 基准月度收益率
+        5. 对每个股票，按月份分组，计算过去nyears年同月份超额收益的均值
+        6. 将月度因子值扩展回日度
+    """
+    # 确保索引排序
+    df = df.sort_index()
+    
+    # 获取股票日收益率并计算对数收益率
+    stock_ret = df['$change']
+    log_ret = np.log(1 + stock_ret)
+    
+    # 计算月度累计对数收益率（每月最后一个交易日的对数收益率累加）
+    monthly_log_ret = log_ret.groupby(level='instrument').resample('ME', level='datetime').sum()
+
+    # 获取基准指数数据（沪深300）
+    start_date = str(df.index.get_level_values('datetime').min())[:10]
+    end_date = str(df.index.get_level_values('datetime').max())[:10]
+    benchmark_ret = get_benchmark_ret(start_date, end_date)
+    
+    # 计算基准的对数收益率并月度累计
+    benchmark_log_ret = np.log(1 + benchmark_ret)
+    benchmark_monthly_log_ret = benchmark_log_ret.resample('ME').sum()
+    
+    # 计算超额收益（股票月度对数收益 - 基准月度对数收益）
+    # 将基准数据对齐到股票数据并计算超额收益
+    benchmark_aligned = benchmark_monthly_log_ret.reindex(
+        monthly_log_ret.index.get_level_values('datetime')
+    ).values
+    excess_ret = monthly_log_ret - benchmark_aligned
+
+    # 准备超额收益数据
+    excess_ret.name = 'excess_ret'
+    excess_ret_df = excess_ret.reset_index()
+    excess_ret_df['month'] = excess_ret_df['datetime'].dt.month
+
+    # 按股票分组计算季节性。每只股票仅包含月末日期数据
+    # 列：[instrument, datetime, SEASON]
+    seasonality_list = [
+        calc_seasonality(group, nyears=nyears, value_col='excess_ret')
+        for _, group in excess_ret_df.groupby('instrument')
+    ]
+
+    if not seasonality_list:
+        return pd.DataFrame({'SEASON': []})
+    seasonality_monthly = pd.concat(seasonality_list, ignore_index=True)
+
+    # 月度数据扩展回日度：通过月末日期 merge
+    daily_index = stock_ret.index.to_frame().reset_index(drop=True)
+    daily_index['month_end'] = daily_index['datetime'] + pd.offsets.MonthEnd(0)
+    seasonality_monthly['month_end'] = seasonality_monthly['datetime'] + pd.offsets.MonthEnd(0)
+    # 先用daily_index 与 seasonality_monthly 进行merge，然后对缺失值进行前向填充
+    merged = daily_index.merge(
+        seasonality_monthly[['instrument', 'month_end', 'SEASON']],
+        on=['instrument', 'month_end'], how='left'
+    ).set_index(['instrument', 'datetime'])
+    merged['SEASON'] = merged.groupby(level='instrument')['SEASON'].ffill()
+
+    return merged[['SEASON']].dropna()
+
+
+def INDMOM(df):
+    """
+    Formulation: INDMOM = RS_industry - RS_stock * weight / sum(weight)
+    Description：【行业动量因子】6个月（126个交易日）行业动量减去个股动量的加权贡献，
+        用于捕捉行业层面的动量效应。使用半衰期为21天的指数权重。
+        权重为流通市值的平方根（cap_sqrt）。
+    """
+    # 确保索引排序
+    df = df.sort_index()
+    
+    # 获取日收益率、流通市值平方根（权重）、行业分类
+    daily_returns = df['$change']
+    cap_sqrt = np.sqrt(df['$circ_mv'])
+    industry = df['$ind_one'].fillna(-1).astype(int)
+
+    # 计算对数收益率
+    log_ret = np.log(1 + daily_returns)
+    
+    # 计算个股动量 rs（6个月，半衰期21天的加权对数收益率累计和）
+    rs = log_ret.groupby(level='instrument').apply(
+        lambda x: rolling_with_func(x, window=126, half_life=21, func_name='sum')
+    )
+    rs = rs.reset_index(level=0, drop=True)
+    
+    # 准备数据：合并 rs, cap_sqrt, industry
+    data = rs.reset_index()
+    data = data.merge(cap_sqrt.reset_index(), on=['instrument', 'datetime'])
+    data = data.merge(industry.reset_index(), on=['instrument', 'datetime'])
+    data.columns = ['instrument', 'datetime', 'rs', 'weight', 'ind']
+    
+    # 排除无效行业数据
+    data = data[data['ind'] >= 0]
+    
+    # 按日期和行业分组计算行业动量（个股 rolling momentum 的 cap_sqrt 加权平均）
+    def calc_ind_momentum(group):
+        w = group['weight']
+        return (group['rs'] * w).sum() / w.sum() if w.sum() > 0 else np.nan
+    
+    ind_mom = data.groupby(['datetime', 'ind']).apply(
+        calc_ind_momentum, include_groups=False
+    ).reset_index()
+    ind_mom.columns = ['datetime', 'ind', 'rs_ind']
+    
+    # 将行业动量合并回数据
+    data = data.merge(ind_mom, on=['datetime', 'ind'], how='left')
+    
+    # INDMOM = rs_ind - rs * weight / sum(weight)
+    data['INDMOM'] = data['rs_ind'] - data['rs'] * data['weight'] / data['weight'].sum()
+    
+    # 构造结果 DataFrame
+    result_df = data.set_index(['instrument', 'datetime'])[['INDMOM']]
+    result_df = result_df.dropna()
+    
+    return result_df
+
+
+def RSTR(df):
+    """
+    Formulation: RSTR = sum(excess_return * weight), then smooth with 11-day MA
+    Description：【相对强度因子】过去1年（252个交易日）的日超额收益率
+        （股票收益率 - 基准收益率）加权之和，使用半衰期为126天的指数权重，
+        最后进行11天的移动平均平滑。
+    """
+    # 确保索引排序
+    df = df.sort_index()
+    
+    # 获取股票日收益率
+    stock_ret = df['$change']
+    log_ret = np.log(1 + stock_ret)
+    
+    # 市场基准收益率
+    start_date = str(df.index.get_level_values('datetime').min())[:10]
+    end_date = str(df.index.get_level_values('datetime').max())[:10]
+    benchmark_ret = get_benchmark_ret(start_date, end_date)
+    benchmark_log_ret = np.log(1 + benchmark_ret)
+
+    # 计算超额收益
+    excess_ret = log_ret - benchmark_log_ret
+    
+    # 计算加权超额收益之和（252天窗口，半衰期126天）
+    rstr_raw = excess_ret.groupby(level='instrument').apply(
+        lambda x: rolling_with_func(x, window=252, half_life=126, func_name='sum')
+    )
+    # 重置索引，确保格式正确
+    rstr_raw = rstr_raw.reset_index(level=0, drop=True)
+    
+    # 11天移动平均平滑
+    rstr = rstr_raw.groupby(level='instrument').rolling(window=11, min_periods=1).mean()
+    rstr = rstr.reset_index(level=0, drop=True)
+    
+    # 构造结果 DataFrame
+    result_df = pd.DataFrame({'RSTR': rstr})
+    result_df = result_df.dropna()
+    
+    return result_df
+
+
+def HALPHA(df):
+    """
+    Formulation: 通过CAPM模型回归得到的截距项Alpha
+    """
+
+    df = df.sort_index()
+    stock_returns = df['$change']
+
+    # CAPM 回归
+    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=1)
+
+    # 构造结果 DataFrame
+    result_df = pd.DataFrame({'HALPHA': alpha})
+    result_df = result_df.dropna()
+
+    return result_df
+
+
 
 
 def MOM_10D(df):

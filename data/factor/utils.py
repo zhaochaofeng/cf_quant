@@ -23,6 +23,21 @@ def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_d
     return df
 
 
+def get_benchmark_ret(start_date: str, end_date: str) -> pd.Series:
+    """ 获取 Benchmark 收益率"""
+    try:
+        benchmark_df = get_qlib_data(
+            instruments=[BENCHMARK], fields=['$change'],
+            start_date=start_date, end_date=end_date,
+        )
+        benchmark_ret = benchmark_df['$change']
+        if benchmark_ret.index.nlevels > 1:
+            benchmark_ret = benchmark_ret.droplevel('instrument')
+    except Exception as e:
+        raise Exception(f"获取 Benchmark ret 数据失败: {e}")
+    return benchmark_ret
+
+
 def get_exp_weight(window, half_life):
     """ 半衰期权重 . 如：
     [0.04956612 0.05693652 0.06540289 0.07512819 0.08629962 0.09913224
@@ -453,6 +468,47 @@ def cal_liquidity(series, days_per_month=21, sentinel=SENTINEL):
         return np.nan
     
     return res
+
+
+def calc_seasonality(group, nyears=5, value_col='$change'):
+    """计算单个股票的季节性因子
+    
+    用于 SEASON 因子计算，计算过去 nyears 年同月份的超额收益均值。
+    
+    Args:
+        group: pd.DataFrame, 单个股票的数据，包含 'datetime', 'month' 和 value_col 列
+        nyears: int, 计算历史均值的年数，默认5年
+        value_col: str, 收益率列名，默认 '$change'
+    
+    Returns:
+        pd.DataFrame: 包含 'instrument', 'datetime', 'SEASON' 列的 DataFrame
+    """
+    group = group.sort_values('datetime')
+    result = []
+    
+    for idx, row in group.iterrows():
+        current_month = row['month']
+        current_date = row['datetime']
+        
+        # 获取过去同月份的数据（不包括当前月，因为当前月是被预测的对象）
+        historical = group[
+            (group['month'] == current_month) & 
+            (group['datetime'] < current_date)
+        ]
+        
+        # 取最近 nyears 年的均值
+        if len(historical) > 0:
+            season_val = historical.tail(nyears)[value_col].mean()
+        else:
+            season_val = np.nan
+        
+        result.append({
+            'instrument': row['instrument'],
+            'datetime': current_date,
+            'SEASON': season_val
+        })
+    
+    return pd.DataFrame(result)
 
 
 if __name__ == '__main__':
