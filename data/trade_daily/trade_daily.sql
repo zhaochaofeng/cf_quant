@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS trade_daily_ts(
     `change` DECIMAL(9, 2) COMMENT '收盘价涨跌额',
     pct_chg DECIMAL(6, 2) COMMENT '收盘价涨跌幅（%）',
     vol DECIMAL(15, 2) COMMENT '成交量（手）',
-    amount DECIMAL(15, 3) COMMENT '成交额（千元）',
+    amount DECIMAL(15, 3) COMMENT '成交额（千元）.每笔交易价格不同，从而不等于 close*vol',
     adj_factor DECIMAL(9, 4) COMMENT '复权因子',
     PRIMARY KEY (id),
     UNIQUE KEY uk_code_day(day, ts_code),
