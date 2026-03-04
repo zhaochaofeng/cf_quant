@@ -84,7 +84,7 @@ get_data_from_mysql(){
         SELECT 'basic_eps', t.basic_eps
       ) AS jt
     WHERE
-      t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}'
+      t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}' AND left(t.qlib_code, 2) in ('SZ', 'SH')
 
     UNION ALL
 
@@ -104,7 +104,31 @@ get_data_from_mysql(){
         SELECT 'c_pay_acq_const_fiolta', c.c_pay_acq_const_fiolta
       ) AS jc
     WHERE
-      c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}'
+      c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}' AND left(c.qlib_code, 2) in ('SZ', 'SH')
+
+    UNION ALL
+
+    SELECT
+      b.f_ann_date AS date,
+      b.end_date AS period,
+      lower(b.qlib_code) AS symbol,
+      jb.field,
+      jb.value
+    FROM
+      cf_quant.balance_ts b,   -- 资产负债表
+      LATERAL (
+        SELECT 'oth_eqt_tools_p_shr' AS field, b.oth_eqt_tools_p_shr AS value
+        UNION ALL
+        SELECT 'total_ncl', b.total_ncl
+        UNION ALL
+        SELECT 'total_hldr_eqy_exc_min_int', b.total_hldr_eqy_exc_min_int
+        UNION ALL
+        SELECT 'total_liab', b.total_liab
+        UNION ALL
+        SELECT 'total_assets', b.total_assets
+      ) AS jb
+    WHERE
+      b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH')
 EOF
 )
   echo "${sql}"
