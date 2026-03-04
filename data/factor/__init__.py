@@ -13,7 +13,7 @@ from .size import (
 
 # 波动率因子
 from .volatility import (
-    VOLATILITY_20D, BETA
+    VOLATILITY_20D, BETA, HSIGMA, DASTD, CMRA
 )
 
 # 动量因子
@@ -21,4 +21,8 @@ from .momentum import (
     MOM_10D, REVERSAL_5D, MOM_VOL_ADJ_10D
 )
 
+# 流动性因子
+from .liquidity import (
+    STOM, STOQ, STOA, ATVR
+)
 

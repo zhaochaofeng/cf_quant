@@ -418,6 +418,43 @@ def rolling_with_func(series, window, half_life=None, func_name='std', weights=N
     return series.rolling(window=window).apply(nanfunc, args=args, raw=True)
 
 
+def cal_liquidity(series, days_per_month=21, sentinel=SENTINEL):
+    """计算流动性因子的对数换手率均值
+    
+    用于 STOM、STOQ、STOA 等流动性因子计算。
+    
+    Args:
+        series: array-like, 换手率序列（可能包含 sentinel 标记的缺失值）
+        days_per_month: int, 每月交易日数，用于计算月份数
+        sentinel: scalar, 缺失值标记，默认 SENTINEL
+    
+    Returns:
+        float: ln(换手率均值)，如果数据不足返回 np.nan
+    """
+    # 过滤 sentinel 缺失值
+    series = np.array(series)
+    valid_mask = series != sentinel
+    valid_series = series[valid_mask]
+    
+    # 数据不足时返回 NaN（至少需要一个完整月的数据）
+    if len(valid_series) < days_per_month:
+        return np.nan
+    
+    # 计算月份数
+    freq = len(valid_series) // days_per_month
+    if freq == 0:
+        return np.nan
+    
+    # 计算对数换手率均值
+    res = np.log(np.nansum(valid_series) / freq)
+    
+    # 检查结果是否有效
+    if np.isinf(res) or np.isnan(res):
+        return np.nan
+    
+    return res
+
+
 if __name__ == '__main__':
     print(get_exp_weight(window=10, half_life=5))
 
