@@ -33,7 +33,7 @@ def main(path_in: str, path_out: str, start_date: str, end_date: str):
     except:
         error_msg = traceback.format_exc()
         print(error_msg)
-        send_email('Data:trade_daily:split_stock', error_msg)
+        send_email('Data:qlib_online:pit:split_stock', error_msg)
 
 
 if __name__ == '__main__':
