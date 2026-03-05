@@ -102,6 +102,14 @@ get_data_from_mysql(){
         SELECT 'n_cashflow_act', c.n_cashflow_act
         UNION ALL
         SELECT 'c_pay_acq_const_fiolta', c.c_pay_acq_const_fiolta
+        UNION ALL
+        SELECT 'depr_fa_coga_dpba', c.depr_fa_coga_dpba
+        UNION ALL
+        SELECT 'amort_intang_assets', c.amort_intang_assets
+        UNION ALL
+        SELECT 'lt_amort_deferred_exp', c.lt_amort_deferred_exp
+        UNION ALL
+        SELECT 'im_net_cashflow_oper_act', c.im_net_cashflow_oper_act
       ) AS jc
     WHERE
       c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}' AND left(c.qlib_code, 2) in ('SZ', 'SH')
@@ -126,6 +134,16 @@ get_data_from_mysql(){
         SELECT 'total_liab', b.total_liab
         UNION ALL
         SELECT 'total_assets', b.total_assets
+        UNION ALL
+        SELECT 'money_cap', b.money_cap
+        UNION ALL
+        SELECT 'st_borr', b.st_borr
+        UNION ALL
+        SELECT 'lt_borr', b.lt_borr
+        UNION ALL
+        SELECT 'non_cur_liab_due_1y', b.non_cur_liab_due_1y
+        UNION ALL
+        SELECT 'bond_payable', b.bond_payable
       ) AS jb
     WHERE
       b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH')
