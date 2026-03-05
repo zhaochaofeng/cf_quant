@@ -258,6 +258,40 @@ class PTTM(P):
 
     """优化版本：基于事件驱动的 TTM 计算"""
 
+    """
+    PTTM: 基于 Qlib PIT 系统的 TTM (Trailing Twelve Months) 操作符实现
+    实现 TTM 公式：
+       - Q4: TTM = 当前值（年报）
+       - Q1/Q2/Q3: TTM = 当前累计 + 去年Q4 - 去年同期
+
+    例子：
+    import qlib
+    from qlib.data import D
+    from qlib.config import REG_CN
+    from qlib.data.ops import Operators
+
+    # 初始化 Qlib
+    qlib.init(provider_uri="~/.qlib/qlib_data/cn_data", region=REG_CN)
+
+    # 注册 PTTM 操作符
+    Operators.register([PTTM])
+
+    instruments = ["SH600000"]
+    fields = [
+        "P($$roewa_q)",  # 原始季度值（YTD 累计）
+        "PTTM($$roewa_q)",  # TTM 值
+    ]
+
+    data = D.features(
+        instruments,
+        fields,
+        start_time="2009-01-01",
+        end_time="2020-01-01",
+        freq="day"
+    )
+    print(data)
+
+    """
     TTM_WINDOW_SIZE = 8
 
     def __str__(self):
