@@ -511,9 +511,259 @@ def calc_seasonality(group, nyears=5, value_col='$change'):
     return pd.DataFrame(result)
 
 
-if __name__ == '__main__':
-    print(get_exp_weight(window=10, half_life=5))
+def get_annual_data(series):
+    """从日频财务数据中提取年度数据（每年1月第一个非空值）
+    
+    Qlib的P()函数会将季度数据前向填充到日频。1月初时 P() 前向填充的值
+    来自上一年最后一个报告期，即上一年度的年报数据。
+    
+    本函数取每年1月的第一个非空值，并将 year 映射为对应的财报年份（year - 1）。
+    
+    Args:
+        series: pd.Series, MultiIndex (instrument, datetime)
+                Qlib P() 输出的日频财务数据
+    
+    Returns:
+        pd.Series: MultiIndex (instrument, year), 年度数据
+                   year 为财报年份（即数据实际归属的年份）
+    """
+    data = series.reset_index()
+    data.columns = ['instrument', 'datetime', 'value']
+    data['year'] = data['datetime'].dt.year
+    data['month'] = data['datetime'].dt.month
+    
+    # 取每年1月的第一个非空值（对应上一年年报）
+    jan_data = data[data['month'] == 1]
+    # 每只股票仅包含每年的第一个交易日数据
+    annual = jan_data.groupby(['instrument', 'year']).first().reset_index()
+    # 1月的数据代表上一年年报，report_year = year - 1
+    annual['report_year'] = annual['year'] - 1
+    annual = annual[['instrument', 'report_year', 'value']]
+    annual = annual.set_index(['instrument', 'report_year'])['value']
+    annual.index.names = ['instrument', 'year']
+    annual.name = series.name
+    return annual
 
 
+def get_annual_data_year_end(series):
+    """从日频数据中提取年度数据（每年最后一个交易日的值）
+    
+    与 get_annual_data 不同：本函数取每年最后一个交易日的值，
+    适用于日频交易数据（如市值、价格等），而非财务报告数据。
+    
+    Args:
+        series: pd.Series, MultiIndex (instrument, datetime)
+                日频数据（如 $circ_mv, $close 等）
+    
+    Returns:
+        pd.Series: MultiIndex (instrument, year), 年度数据
+                   year 为数据所在年份
+    """
+    data = series.reset_index()
+    data.columns = ['instrument', 'datetime', 'value']
+    data['year'] = data['datetime'].dt.year
+    
+    # 取每年最后一个交易日的值
+    annual = data.groupby(['instrument', 'year']).last().reset_index()
+    annual = annual.set_index(['instrument', 'year'])['value']
+    annual.index.names = ['instrument', 'year']
+    annual.name = series.name
+    return annual
 
 
+def calc_variation(series, window=5, min_periods=3):
+    """计算过去N年的变异系数（标准差/均值）
+    
+    Args:
+        series: pd.Series, MultiIndex (instrument, year) 年度数据
+        window: int, 窗口年数，默认5年
+        min_periods: int, 最小有效年数，默认3年
+    
+    Returns:
+        pd.Series: 变异系数
+    """
+    def _calc_cv(x):
+        valid = x.dropna()
+        if len(valid) < min_periods:
+            return np.nan
+        std = valid.std()
+        mean = valid.mean()
+        if mean == 0 or np.isnan(mean):
+            return np.nan
+        return std / mean
+    
+    return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(_calc_cv, raw=False)
+
+
+def calc_growth_rate_slope(series, window=5, min_periods=3):
+    """计算过去N年增长率（基于线性回归斜率/均值）
+    
+    Args:
+        series: pd.Series, MultiIndex (instrument, year) 年度数据
+        window: int, 窗口年数，默认5年
+        min_periods: int, 最小有效年数，默认3年
+    
+    Returns:
+        pd.Series: 增长率（斜率/均值）
+    """
+    def _calc_slope(y):
+        valid = y.dropna()
+        if len(valid) < min_periods:
+            return np.nan
+        x = np.arange(len(valid))
+        # 线性回归: y = a + b*x
+        coef = np.polyfit(x, valid, 1)
+        slope = coef[0]
+        mean_val = valid.mean()
+        if mean_val == 0 or np.isnan(mean_val):
+            return np.nan
+        return slope / mean_val
+    
+    return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(_calc_slope, raw=False)
+
+
+def calc_cv(series, window=5, min_periods=3):
+    """计算变异系数（Coefficient of Variation）
+    
+    变异系数 = 标准差 / 均值，用于衡量数据的相对波动程度。
+    常用于 VSAL、VERN、VFLO 等盈利波动率因子计算。
+    
+    Args:
+        series: pd.Series, MultiIndex (instrument, year) 年度数据
+        window: int, 窗口年数，默认5年
+        min_periods: int, 最小有效年数，默认3年
+    
+    Returns:
+        pd.Series: 变异系数
+    """
+    def calc_cv_inner(x):
+        valid = x.dropna()
+        if len(valid) < min_periods:
+            return np.nan
+        std = valid.std()
+        mean = valid.mean()
+        if mean == 0 or np.isnan(mean):
+            return np.nan
+        return std / mean
+    
+    return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(calc_cv_inner, raw=False)
+
+
+def map_annual_to_daily(annual_series, daily_index):
+    """将年度指标映射回日频
+    
+    将 (instrument, year) 索引的年度计算结果，按财年规则映射到每个交易日。
+    
+    映射规则：
+        get_annual_data 的 year 已是财报年份（report_year），
+        交易日 D 的 fiscal_year 即其应引用的财报年份，
+        两者直接匹配。
+    
+    Args:
+        annual_series: pd.Series, MultiIndex (instrument, year)
+            由 get_annual_data + calc_cv/calc_growth_rate_slope 产出的年度指标
+            year 为财报年份
+        daily_index: pd.MultiIndex (instrument, datetime)
+            目标日频索引
+    
+    Returns:
+        pd.Series: MultiIndex (instrument, datetime)，日频数据
+    """
+    # 构建交易日→fiscal_year 映射
+    instruments = daily_index.get_level_values('instrument')
+    datetimes = daily_index.get_level_values('datetime')
+    fiscal_years = datetimes.map(get_fiscal_year_for_date)
+
+    day_df = pd.DataFrame({
+        'instrument': instruments,
+        'datetime': datetimes,
+        'annual_year': fiscal_years,
+    })
+
+    annual_df = annual_series.reset_index()
+    annual_df.columns = ['instrument', 'annual_year', 'value']
+
+    merged = day_df.merge(annual_df, on=['instrument', 'annual_year'], how='left')
+    result = merged.set_index(['instrument', 'datetime'])['value']
+    result.name = annual_series.name
+    return result
+
+
+def get_fiscal_year_for_date(date):
+    """根据日期判断应使用的财政年度
+    
+    规则：
+    - 1月1日-4月30日：使用上上财年数据（year - 2）
+    - 5月1日及之后：使用上财年数据（year - 1）
+    
+    例：
+    - 2024-03-01 -> 2022年（上上财年）
+    - 2024-05-01 -> 2023年（上财年）
+    
+    Args:
+        date: datetime-like, 日期
+    
+    Returns:
+        int: 财政年度年份
+    """
+    date = pd.to_datetime(date)
+    year = date.year
+    month = date.month
+    
+    if month <= 4:
+        # 1-4月使用上上财年
+        return year - 2
+    else:
+        # 5-12月使用上财年
+        return year - 1
+
+
+def remap_lyr(series):
+    """将 Qlib P() 前向填充的日频财务数据按财年规则重映射
+    lyr :"Last Year Report"（上一财政年度）
+    P($$*_q) 自动将季度数据前向填充到日频，但杠杆因子需要的是
+    "上一财政年度" 的年报数据。本函数从日频数据中提取每年年末值，
+    再根据财年规则映射回每个交易日。
+
+    财年规则：
+        1-4月 → 使用 year-2 年报（上上财年）
+        5-12月 → 使用 year-1 年报（上财年）
+
+    Args:
+        series: pd.Series, MultiIndex (instrument, datetime)
+                Qlib P() 输出的日频财务数据
+
+    Returns:
+        pd.Series: MultiIndex (instrument, datetime)，按财年规则重映射后的数据
+    """
+    data = series.reset_index()
+    data.columns = ['instrument', 'datetime', 'value']
+
+    data['year'] = data['datetime'].dt.year
+    data['month'] = data['datetime'].dt.month
+
+    # 取每年 1 月第一个交易日的 P() 值作为上一年 Q4 年报的代理
+    # 原因：1 月初时 P() 前向填充的值来自上一年最后一个报告期（12-31），
+    #       即上一年度的年报数据
+    # ['instrument', 'datetime', 'value', 'year', 'month']
+    jan_data = data[data['month'] == 1]
+    annual = jan_data.groupby(['instrument', 'year']).first().reset_index()
+    annual['report_year'] = annual['year'] - 1  # 1月的值代表上一年年报
+    # 股票、财年、值
+    annual = annual[['instrument', 'report_year', 'value']]
+    annual.columns = ['instrument', 'report_year', 'annual_value']
+
+    # 计算每个交易日对应的财政年度
+    data['fiscal_year'] = data['datetime'].apply(get_fiscal_year_for_date)
+
+    # 合并年报数据
+    merged = data.merge(
+        annual,
+        left_on=['instrument', 'fiscal_year'],
+        right_on=['instrument', 'report_year'],
+        how='left',
+    )
+
+    result = merged.set_index(['instrument', 'datetime'])['annual_value']
+    result.name = series.name
+    return result
