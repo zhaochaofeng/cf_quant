@@ -82,6 +82,8 @@ get_data_from_mysql(){
         SELECT 'n_income_attr_p', t.n_income_attr_p
         UNION ALL
         SELECT 'basic_eps', t.basic_eps
+        UNION ALL
+        SELECT 'ebit', t.ebit
       ) AS jt
     WHERE
       t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}' AND left(t.qlib_code, 2) in ('SZ', 'SH')
