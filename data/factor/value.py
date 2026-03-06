@@ -24,8 +24,8 @@ def BTOP(df):
     oth_eqt_tools = df['P($$oth_eqt_tools_p_shr_q)']
     total_mv = df['$total_mv']  # 万元
     
-    # 计算普通股账面价值
-    bv = total_hldr_eqy.fillna(0) - oth_eqt_tools.fillna(0)
+    # 计算普通股账面价值（仅优先股缺失视为无优先股，权益缺失保留NaN）
+    bv = total_hldr_eqy - oth_eqt_tools.fillna(0)
     
     # BTOP = 账面价值 / 总市值（注意单位转换：total_mv 是万元）
     # 避免除以0
@@ -101,16 +101,16 @@ def EM(df):
     """
     df = df.sort_index()
 
-    ebit = df['P($$ebit_q)'].fillna(0)
-    # 带息债务
+    ebit = df['P($$ebit_q)']
+    # 带息债务（缺失视为无该类借款，fillna(0)）
     st_borr = df['P($$st_borr_q)'].fillna(0)
     lt_borr = df['P($$lt_borr_q)'].fillna(0)
     non_cur_liab = df['P($$non_cur_liab_due_1y_q)'].fillna(0)
     bond_payable = df['P($$bond_payable_q)'].fillna(0)
     
-    # 货币资金和总市值
-    cash = df['P($$money_cap_q)'].fillna(0)
-    total_mv = df['$total_mv'].fillna(0)  # 万元
+    # 货币资金和总市值（缺失保留NaN）
+    cash = df['P($$money_cap_q)']
+    total_mv = df['$total_mv']  # 万元
     
     # 计算总带息债务
     total_interest_bearing_debt = st_borr + lt_borr + non_cur_liab + bond_payable

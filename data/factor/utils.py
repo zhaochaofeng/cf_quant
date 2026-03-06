@@ -607,12 +607,14 @@ def calc_growth_rate_slope(series, window=5, min_periods=3):
         pd.Series: 增长率（斜率/均值）
     """
     def _calc_slope(y):
-        valid = y.dropna()
+        valid_mask = y.notna()
+        valid = y[valid_mask]
         if len(valid) < min_periods:
             return np.nan
-        x = np.arange(len(valid))
+        # 保留原始时间位置（与 barra_cne6_factor._cal_growth_rate 一致）
+        x = np.arange(1, len(y) + 1)[valid_mask.values]
         # 线性回归: y = a + b*x
-        coef = np.polyfit(x, valid, 1)
+        coef = np.polyfit(x, valid.values, 1)
         slope = coef[0]
         mean_val = valid.mean()
         if mean_val == 0 or np.isnan(mean_val):
