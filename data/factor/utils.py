@@ -47,47 +47,52 @@ def get_exp_weight(window, half_life):
     return exp_wt[::-1] / np.sum(exp_wt)
 
 
-def get_stock_list_info(instruments: list, start_date: str, end_date: str) -> tuple:
+def get_mysql_data(instrument: [], table: str, fields: [], start_date: str, end_date: str) -> pd.DataFrame:
+    from utils import sql_engine
+    engine = sql_engine()
+    fields += ['qlib_code']
+    sql = """ SELECT {} FROM {} WHERE day >= '{}' AND day <= '{}' AND qlib_code in ({}) """.\
+        format(','.join(fields), table, start_date, end_date, ','.join([f"'{i}'" for i in instrument]))
+    df = pd.read_sql(sql, engine)
+    df.set_index('qlib_code', inplace=True)
+    df.index.name = 'instrument'
+    return df
+
+
+def get_stock_list_info(instruments: list, date: str) -> tuple:
     """获取股票上市/退市日期信息
 
     Args:
         instruments: list, 股票代码列表
-        start_date: str, 开始日期
-        end_date: str, 结束日期
+        date: str, 查询日期
 
     Returns:
         tuple: (list_date_map, delist_date_map)
             - list_date_map: dict, instrument -> pd.Timestamp
             - delist_date_map: dict, instrument -> pd.Timestamp or pd.NaT
     """
-    # 待修复：list_date/delist_date 传入qlib后数据改变。如 SH600188 的 list_date从1998-07-01变为19980700
-    return {}, {}
-    '''
-    df = get_qlib_data(
-        instruments=instruments,
-        fields=['$list_date', '$delist_date'],
-        start_date=start_date,
-        end_date=end_date,
-    )
 
-    # df['$list_date'] = pd.to_datetime(df['$list_date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
-    # df['$delist_date'] = pd.to_datetime(df['$delist_date'], format='%Y%m%d').dt.strftime('%Y-%m-%d')
+    df = get_mysql_data(instruments, 'stock_info_ts', ['list_date', 'delist_date'], date, date)
+    # MySQL 中 list_date/delist_date 格式为 'YYYY-MM-DD'，直接解析为标准日期
+    df['list_date'] = pd.to_datetime(df['list_date'])
+    df['delist_date'] = pd.to_datetime(df['delist_date'])
 
     list_date_map = {}
     delist_date_map = {}
-    for inst in df.index.get_level_values('instrument').unique():
+    for inst in df.index.unique():
         inst_data = df.loc[inst]
-        list_val = inst_data['$list_date'].dropna()
-        delist_val = inst_data['$delist_date'].dropna()
+        list_val = inst_data['list_date']
+        delist_val = inst_data['delist_date']
+        # 处理 Series（多行）或标量（单行）的情况
         list_date_map[inst] = (
-            pd.to_datetime(list_val.iloc[0]) if len(list_val) > 0 else pd.NaT
-        )
+            pd.to_datetime(list_val.iloc[0]) if isinstance(list_val, pd.Series) else pd.to_datetime(list_val)
+        ) if pd.notna(list_val if isinstance(list_val, pd.Series) else list_val) else pd.NaT
         delist_date_map[inst] = (
-            pd.to_datetime(delist_val.iloc[0]) if len(delist_val) > 0 else pd.NaT
-        )
-
+            pd.to_datetime(delist_val.iloc[0]) if isinstance(delist_val, pd.Series) else pd.to_datetime(delist_val)
+        ) if pd.notna(delist_val if isinstance(delist_val, pd.Series) else delist_val) else pd.NaT
+    if len(list_date_map) == 0 or len(delist_date_map) == 0:
+        raise Exception('get_stock_list_info: 无法获取股票上市/退市日期信息')
     return list_date_map, delist_date_map
-    '''
 
 
 def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, num_worker=1):
@@ -147,7 +152,7 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
 
     # dict. 获取上市/退市日期
     list_date_map, delist_date_map = get_stock_list_info(
-        instruments=instruments, start_date=start_date, end_date=end_date,
+        instruments=instruments, date=end_date,
     )
 
     # 调用滚动回归
@@ -229,13 +234,13 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
         # 根据上市/退市日期过滤股票
         if list_date_map is not None and delist_date_map is not None\
                 and len(list_date_map) > 0 and len(delist_date_map) > 0:
+            # 排除在 [window_sdate, window_edate] 之间上市或退市的股票
             stks_to_regress = sorted([
                 s for s in stocks
                 if s in list_date_map
                 and pd.notna(list_date_map.get(s))
                 and list_date_map[s] <= window_sdate
-                and (pd.isna(delist_date_map.get(s))
-                     or delist_date_map[s] >= window_edate)
+                and (pd.isna(delist_date_map.get(s)) or delist_date_map[s] >= window_edate)
             ])
         else:
             stks_to_regress = stocks
