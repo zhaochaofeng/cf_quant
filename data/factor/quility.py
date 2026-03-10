@@ -320,7 +320,7 @@ def GP(df):
     sales_raw = df['P($$revenue_q)'].fillna(0)
     # 营业成本
     cogs_raw = df['P($$oper_cost_q)'].fillna(0)
-    ta_raw = df['P($$total_assets_q)'].fillna(0)
+    ta_raw = df['P($$total_assets_q)']
     
     sales = remap_lyr(sales_raw)
     cogs = remap_lyr(cogs_raw)
