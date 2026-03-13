@@ -30,7 +30,6 @@ def MIDCAP(df):
     midcap = lncap ** 3 - (alpha + beta[0] * lncap)
     midcap = winsorize(midcap, method='quantile', lower=0.01, upper=0.99)
     midcap = standardize(midcap)
-    midcap = midcap.to_frame()
     midcap.columns = ['MIDCAP']
 
     return midcap
