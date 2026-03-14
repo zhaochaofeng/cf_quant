@@ -1,0 +1,145 @@
+"""
+输出管理模块 - 风险指标CSV输出
+"""
+import pandas as pd
+import numpy as np
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from .config import OUTPUT_CONFIG
+
+
+class RiskOutputManager:
+    """风险指标输出管理器"""
+    
+    def __init__(self, output_dir: str = 'output'):
+        """
+        初始化输出管理器
+        
+        Args:
+            output_dir: 输出目录路径
+        """
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+    def save_stock_risk(self, mcar: pd.Series, rcar: pd.Series, 
+                       calc_date: str, filename: Optional[str] = None) -> str:
+        """
+        保存股票风险指标到CSV
+        
+        Args:
+            mcar: 主动风险边际贡献，Series index=instrument
+            rcar: 主动风险贡献，Series index=instrument
+            calc_date: 计算日期
+            filename: 自定义文件名，默认使用stock_risk_YYYYMMDD.csv
+            
+        Returns:
+            保存的文件路径
+        """
+        # 合并数据
+        df = pd.DataFrame({
+            'instrument': mcar.index,
+            'mcar': mcar.values,
+            'rcar': rcar.values,
+            'calc_date': calc_date
+        })
+        
+        # 按instrument升序排序
+        df = df.sort_values('instrument').reset_index(drop=True)
+        
+        # 格式化float精度
+        precision = OUTPUT_CONFIG['float_precision']
+        df['mcar'] = df['mcar'].round(precision)
+        df['rcar'] = df['rcar'].round(precision)
+        
+        # 生成文件名
+        if filename is None:
+            filename = OUTPUT_CONFIG['stock_risk_filename'].format(date=calc_date.replace('-', ''))
+        
+        filepath = self.output_dir / filename
+        
+        # 保存到CSV
+        df.to_csv(filepath, index=False, encoding=OUTPUT_CONFIG['encoding'])
+        
+        return str(filepath)
+    
+    def save_factor_risk(self, fmcar: pd.Series, frcar: pd.Series,
+                        factor_types: pd.Series, calc_date: str,
+                        filename: Optional[str] = None) -> str:
+        """
+        保存因子风险指标到CSV
+        
+        Args:
+            fmcar: 因子主动风险边际贡献，Series index=factor_name
+            frcar: 因子主动风险贡献，Series index=factor_name
+            factor_types: 因子类型，Series index=factor_name
+            calc_date: 计算日期
+            filename: 自定义文件名，默认使用factor_risk_YYYYMMDD.csv
+            
+        Returns:
+            保存的文件路径
+        """
+        # 合并数据
+        df = pd.DataFrame({
+            'factor_name': fmcar.index,
+            'fmcar': fmcar.values,
+            'frcar': frcar.values,
+            'factor_type': factor_types.reindex(fmcar.index).values,
+            'calc_date': calc_date
+        })
+        
+        # 按factor_type分组，组内按factor_name升序排序
+        df = df.sort_values(['factor_type', 'factor_name']).reset_index(drop=True)
+        
+        # 格式化float精度
+        precision = OUTPUT_CONFIG['float_precision']
+        df['fmcar'] = df['fmcar'].round(precision)
+        df['frcar'] = df['frcar'].round(precision)
+        
+        # 生成文件名
+        if filename is None:
+            filename = OUTPUT_CONFIG['factor_risk_filename'].format(date=calc_date.replace('-', ''))
+        
+        filepath = self.output_dir / filename
+        
+        # 保存到CSV
+        df.to_csv(filepath, index=False, encoding=OUTPUT_CONFIG['encoding'])
+        
+        return str(filepath)
+    
+    def load_stock_risk(self, calc_date: str) -> Optional[pd.DataFrame]:
+        """
+        加载股票风险指标
+        
+        Args:
+            calc_date: 计算日期
+            
+        Returns:
+            DataFrame或None（文件不存在）
+        """
+        filename = OUTPUT_CONFIG['stock_risk_filename'].format(date=calc_date.replace('-', ''))
+        filepath = self.output_dir / filename
+        
+        if filepath.exists():
+            return pd.read_csv(filepath, encoding=OUTPUT_CONFIG['encoding'])
+        else:
+            return None
+    
+    def load_factor_risk(self, calc_date: str) -> Optional[pd.DataFrame]:
+        """
+        加载因子风险指标
+        
+        Args:
+            calc_date: 计算日期
+            
+        Returns:
+            DataFrame或None（文件不存在）
+        """
+        filename = OUTPUT_CONFIG['factor_risk_filename'].format(date=calc_date.replace('-', ''))
+        filepath = self.output_dir / filename
+        
+        if filepath.exists():
+            return pd.read_csv(filepath, encoding=OUTPUT_CONFIG['encoding'])
+        else:
+            return None
