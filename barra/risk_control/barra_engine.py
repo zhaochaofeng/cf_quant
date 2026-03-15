@@ -110,27 +110,45 @@ class BarraRiskEngine:
         industry_df = self.data_loader.load_industry(instruments, start_date, end_date)
         market_cap_df = self.data_loader.load_market_cap(instruments, start_date, end_date)
         
+        # 保存中间结果目录
+        import os
+        debug_dir = Path('barra/risk_control/debug_output')
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        
         # 2. 构建因子暴露矩阵
         print("\n2. 构建因子暴露矩阵...")
         self.factor_exposure = self.factor_builder.build_exposure_matrix(
             raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs
         )
+        # 保存因子暴露矩阵
+        self.factor_exposure.to_csv(debug_dir / 'factor_exposure.csv')
+        print(f"   因子暴露矩阵已保存: {debug_dir}/factor_exposure.csv")
         
         # 3. 横截面回归估计因子收益率
         print("\n3. 横截面回归...")
         self.factor_returns = self.cross_sectional.fit_multi_periods(
             returns_df, self.factor_exposure, market_cap_df
         )
+        # 保存因子收益率
+        self.factor_returns.to_csv(debug_dir / 'factor_returns.csv')
+        print(f"   因子收益率已保存: {debug_dir}/factor_returns.csv")
         
         # 4. 估计因子协方差矩阵
         print("\n4. 估计因子协方差矩阵...")
         self.factor_covariance = self.covariance_estimator.estimate_sample_covariance(
             self.factor_returns
         )
+        # 保存协方差矩阵
+        self.factor_covariance.to_csv(debug_dir / 'factor_covariance.csv')
+        print(f"   因子协方差矩阵已保存: {debug_dir}/factor_covariance.csv")
         
         # 5. 估计特异风险矩阵
         print("\n5. 估计特异风险矩阵...")
         residuals_df = self.cross_sectional.get_residuals()
+        # 保存残差
+        residuals_df.to_csv(debug_dir / 'residuals.csv')
+        print(f"   残差已保存: {debug_dir}/residuals.csv")
+        
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
             residuals_df, self.factor_exposure
         )
@@ -140,6 +158,9 @@ class BarraRiskEngine:
             specific_risk_df['specific_var'].values,
             index=specific_risk_df['instrument']
         )
+        # 保存特异风险
+        self.specific_risk.to_csv(debug_dir / 'specific_risk.csv')
+        print(f"   特异风险已保存: {debug_dir}/specific_risk.csv")
         
         print("\n月频模型更新完成")
         print("=" * 70)

@@ -59,6 +59,11 @@ class CrossSectionalRegression:
         X = exposure.loc[common_index]
         mv = market_cap.loc[common_index]
         
+        # 强制转换为数值类型（关键修复）
+        r = pd.to_numeric(r, errors='coerce')
+        X = X.apply(lambda col: pd.to_numeric(col, errors='coerce'))
+        mv = pd.to_numeric(mv, errors='coerce')
+        
         # 处理缺失值
         valid_mask = r.notna() & X.notna().all(axis=1) & mv.notna()
         r = r[valid_mask]
@@ -68,6 +73,11 @@ class CrossSectionalRegression:
         if len(r) == 0 or X.shape[1] == 0:
             print(f"{date}: 无有效数据，跳过回归")
             return None
+        
+        # 再次确保数据类型为float
+        r = r.astype(float)
+        X = X.astype(float)
+        mv = mv.astype(float)
         
         # 计算权重
         weights = self.calculate_weights(mv)
