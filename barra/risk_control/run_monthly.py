@@ -84,7 +84,10 @@ def run_monthly_update(end_date: str, history_months: int = 120):
     # 运行月频更新
     engine.run_monthly_update(start_date, end_date)
     
-    # TODO: 保存模型数据到文件，供日频计算使用
+    # 保存模型数据到文件，供日频计算使用
+    print("\n保存模型数据...")
+    saved_files = engine.save_model_data('barra/risk_control/model_data')
+    print(f"模型数据已保存，共 {len(saved_files)} 个文件")
     
     print(f"\n{'='*70}")
     print("月度模型更新完成")

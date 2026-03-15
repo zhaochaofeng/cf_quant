@@ -165,6 +165,80 @@ class BarraRiskEngine:
         print("\n月频模型更新完成")
         print("=" * 70)
     
+    def save_model_data(self, model_dir: str) -> Dict[str, str]:
+        """
+        保存模型数据到Parquet文件，供日频计算使用
+        
+        Args:
+            model_dir: 模型数据保存目录
+            
+        Returns:
+            保存的文件路径字典
+        """
+        from datetime import datetime
+        
+        model_path = Path(model_dir)
+        model_path.mkdir(parents=True, exist_ok=True)
+        
+        # 使用calc_date作为文件后缀
+        date_suffix = self.calc_date.replace('-', '')
+        
+        saved_files = {}
+        
+        # 1. 保存因子暴露矩阵（最新一期）
+        if self.factor_exposure is not None:
+            # 提取最新日期的因子暴露
+            if isinstance(self.factor_exposure.index, pd.MultiIndex):
+                latest_date = self.factor_exposure.index.get_level_values(1).max()
+                latest_exposure = self.factor_exposure.xs(latest_date, level=1)
+            else:
+                latest_exposure = self.factor_exposure
+            
+            exposure_file = model_path / f'factor_exposure_{date_suffix}.parquet'
+            latest_exposure.to_parquet(exposure_file)
+            saved_files['factor_exposure'] = str(exposure_file)
+            print(f"   因子暴露矩阵已保存: {exposure_file}")
+        
+        # 2. 保存因子收益率历史
+        if self.factor_returns is not None and not self.factor_returns.empty:
+            returns_file = model_path / f'factor_returns_{date_suffix}.parquet'
+            self.factor_returns.to_parquet(returns_file)
+            saved_files['factor_returns'] = str(returns_file)
+            print(f"   因子收益率已保存: {returns_file}")
+        
+        # 3. 保存因子协方差矩阵
+        if self.factor_covariance is not None:
+            cov_file = model_path / f'factor_covariance_{date_suffix}.parquet'
+            self.factor_covariance.to_parquet(cov_file)
+            saved_files['factor_covariance'] = str(cov_file)
+            print(f"   因子协方差矩阵已保存: {cov_file}")
+        
+        # 4. 保存特异风险
+        if self.specific_risk is not None:
+            specific_file = model_path / f'specific_risk_{date_suffix}.parquet'
+            self.specific_risk.to_frame('specific_var').to_parquet(specific_file)
+            saved_files['specific_risk'] = str(specific_file)
+            print(f"   特异风险已保存: {specific_file}")
+        
+        # 5. 保存模型元数据
+        metadata = {
+            'calc_date': self.calc_date,
+            'market': self.market,
+            'n_factors': len(self.factor_covariance) if self.factor_covariance is not None else 0,
+            'n_stocks': len(self.specific_risk) if self.specific_risk is not None else 0,
+            'saved_files': saved_files,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        import json
+        metadata_file = model_path / f'metadata_{date_suffix}.json'
+        with open(metadata_file, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        saved_files['metadata'] = str(metadata_file)
+        print(f"   模型元数据已保存: {metadata_file}")
+        
+        return saved_files
+    
     def run_daily_risk(self, exposure: Optional[pd.DataFrame] = None,
                       factor_cov: Optional[pd.DataFrame] = None,
                       specific_risk: Optional[pd.Series] = None) -> dict:
