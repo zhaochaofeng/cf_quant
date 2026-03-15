@@ -177,9 +177,14 @@ class ModuleTests(BarraTestSuite):
               f"{lncap_result['LNCAP'].max():.2f}]")
         
         # 3.5 测试去极值函数
+        # 创建带MultiIndex的测试数据（模拟真实的instrument-datetime索引）
+        test_index = pd.MultiIndex.from_tuples(
+            [(f'Stock_{i}', '2024-03-01') for i in range(10)],
+            names=['instrument', 'datetime']
+        )
         test_data = pd.DataFrame({
             'factor': [1, 2, 3, 4, 5, 100, -100, 3, 4, 5]
-        })
+        }, index=test_index)
         winsorized = builder.winsorize_factors(test_data, method='median')
         self.assert_valid_dataframe(winsorized, min_rows=10)
         # 极值应该被截断
@@ -203,14 +208,17 @@ class ModuleTests(BarraTestSuite):
         print("\n测试协方差矩阵估计模块...")
         
         from barra.risk_control import FactorCovarianceEstimator
+        from barra.risk_control.config import STYLE_FACTOR_LIST
         
         # 4.1 创建模拟因子收益率数据
         np.random.seed(42)
         n_periods = 60  # 5年数据
-        n_factors = 10
+        
+        # 使用真实的CNE6因子名称（前10个）
+        factor_names = STYLE_FACTOR_LIST[:10]
+        n_factors = len(factor_names)
         
         dates = pd.date_range('2019-01-01', periods=n_periods, freq='M')
-        factor_names = [f'Factor_{i}' for i in range(n_factors)]
         
         # 生成相关因子收益率
         factor_returns = pd.DataFrame(
@@ -265,8 +273,13 @@ class ModuleTests(BarraTestSuite):
         from barra.risk_control import RiskAttributionAnalyzer
         
         # 5.1 创建模拟数据
+        from barra.risk_control.config import STYLE_FACTOR_LIST
+        
         n_stocks = 50
-        n_factors = 10
+        
+        # 使用真实的CNE6因子名称（前10个）
+        real_factors = STYLE_FACTOR_LIST[:10]
+        n_factors = len(real_factors)
         
         np.random.seed(42)
         
@@ -280,15 +293,15 @@ class ModuleTests(BarraTestSuite):
         # 因子协方差矩阵
         factor_cov = pd.DataFrame(
             np.eye(n_factors) * 0.01,
-            index=[f'Factor_{i}' for i in range(n_factors)],
-            columns=[f'Factor_{i}' for i in range(n_factors)]
+            index=real_factors,
+            columns=real_factors
         )
         
         # 因子暴露
         exposure = pd.DataFrame(
             np.random.randn(n_stocks, n_factors) * 0.1,
             index=asset_cov.index,
-            columns=factor_cov.index
+            columns=real_factors
         )
         
         # 组合权重
@@ -351,6 +364,9 @@ class ModuleTests(BarraTestSuite):
         # 6.1 创建模拟风险指标
         calc_date = TEST_CONFIG['calc_date']
         
+        # 使用真实的CNE6因子名称（前20个因子作为示例）
+        from barra.risk_control.config import STYLE_FACTOR_LIST, INDUSTRY_NAMES
+        
         mcar = pd.Series(
             np.random.randn(50) * 0.01,
             index=[f'Stock_{i}' for i in range(50)]
@@ -361,19 +377,33 @@ class ModuleTests(BarraTestSuite):
             index=mcar.index
         )
         
+        # 使用真实的CNE6因子：前10个风格因子 + 前10个行业
+        test_factors = STYLE_FACTOR_LIST[:10] + INDUSTRY_NAMES[:10]
+        
         fmcar = pd.Series(
             np.random.randn(20) * 0.01,
-            index=[f'Factor_{i}' for i in range(20)]
+            index=test_factors
         )
         
         frcar = pd.Series(
             np.random.randn(20) * 0.001,
-            index=fmcar.index
+            index=test_factors
         )
         
+        # 创建真实的因子类型映射
+        factor_type_map = {
+            'LNCAP': '规模', 'MIDCAP': '规模',
+            'BETA': '波动率', 'HSIGMA': '波动率', 'DASTD': '波动率', 'CMRA': '波动率',
+            'STOM': '流动性', 'STOQ': '流动性',
+            'STREV': '动量', 'SEASON': '动量',
+        }
+        # 行业因子
+        for industry in INDUSTRY_NAMES[:10]:
+            factor_type_map[industry] = '行业'
+        
         factor_types = pd.Series(
-            ['规模'] * 5 + ['价值'] * 5 + ['动量'] * 5 + ['行业'] * 5,
-            index=fmcar.index
+            [factor_type_map.get(factor, '其他') for factor in test_factors],
+            index=test_factors
         )
         
         # 6.2 测试保存功能

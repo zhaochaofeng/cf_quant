@@ -50,10 +50,16 @@ class BarraTestSuite:
         self.start_time = None
         
     def init_qlib(self, provider_uri: str = '~/.qlib/qlib_data/custom_data_hfq'):
-        """初始化qlib"""
+        """初始化qlib，注册PTTM自定义操作符"""
         try:
-            qlib.init(provider_uri=provider_uri)
-            print(f"✓ Qlib初始化成功")
+            # 导入PTTM操作符
+            from utils.qlib_ops import PTTM
+            # 初始化qlib并注册自定义操作符
+            qlib.init(
+                provider_uri=provider_uri,
+                custom_ops=[PTTM]
+            )
+            print(f"✓ Qlib初始化成功（已注册PTTM操作符）")
             return True
         except Exception as e:
             print(f"✗ Qlib初始化失败: {str(e)}")

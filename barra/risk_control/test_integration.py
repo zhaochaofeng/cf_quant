@@ -192,13 +192,17 @@ class IntegrationTests(BarraTestSuite):
             CrossSectionalRegression,
             FactorCovarianceEstimator
         )
+        from barra.risk_control.config import STYLE_FACTOR_LIST
         
         # 1. 测试风险归因数值
         print("\n步骤1: 测试风险归因数值...")
         np.random.seed(42)
         
         n_stocks = 10
-        n_factors = 5
+        
+        # 使用真实的CNE6因子名称（前5个）
+        real_factors = STYLE_FACTOR_LIST[:5]
+        n_factors = len(real_factors)
         
         # 创建简单的测试数据
         # 资产协方差：对角矩阵，方差=0.04（标准差=20%）
@@ -211,15 +215,15 @@ class IntegrationTests(BarraTestSuite):
         # 因子协方差：对角矩阵
         factor_cov = pd.DataFrame(
             np.eye(n_factors) * 0.01,
-            index=[f'Factor_{i}' for i in range(n_factors)],
-            columns=[f'Factor_{i}' for i in range(n_factors)]
+            index=real_factors,
+            columns=real_factors
         )
         
         # 因子暴露
         exposure = pd.DataFrame(
             np.eye(n_stocks, n_factors),  # 简化：前5只股票对应5个因子
             index=asset_cov.index,
-            columns=factor_cov.index
+            columns=real_factors
         )
         
         # 等权重组合
@@ -289,13 +293,19 @@ class IntegrationTests(BarraTestSuite):
         print("="*70)
         
         from barra.risk_control import RiskOutputManager
+        from barra.risk_control.config import STYLE_FACTOR_LIST, INDUSTRY_NAMES
         
         calc_date = TEST_CONFIG['calc_date']
         
         # 1. 创建模拟风险结果
         print("\n步骤1: 创建模拟风险结果...")
         n_stocks = 50
-        n_factors = 38 + 31  # 38风格 + 31行业
+        
+        # 使用真实的CNE6因子名称和行业名称
+        style_factors = STYLE_FACTOR_LIST  # 38个风格因子
+        industry_factors = INDUSTRY_NAMES   # 31个行业
+        all_factors = style_factors + industry_factors  # 69个因子
+        n_factors = len(all_factors)
         
         np.random.seed(42)
         
@@ -312,17 +322,35 @@ class IntegrationTests(BarraTestSuite):
         
         fmcar = pd.Series(
             np.random.randn(n_factors) * 0.01,
-            index=[f'Factor_{i}' for i in range(n_factors)]
+            index=all_factors
         )
         
         frcar = pd.Series(
             np.random.randn(n_factors) * 0.001,
-            index=fmcar.index
+            index=all_factors
         )
         
+        # 创建因子类型映射
+        factor_type_map = {
+            'LNCAP': '规模', 'MIDCAP': '规模',
+            'BETA': '波动率', 'HSIGMA': '波动率', 'DASTD': '波动率', 'CMRA': '波动率',
+            'STOM': '流动性', 'STOQ': '流动性', 'STOA': '流动性', 'ATVR': '流动性',
+            'STREV': '动量', 'SEASON': '动量', 'INDMOM': '动量', 'RSTR': '动量', 'HALPHA': '动量',
+            'MLEV': '质量-杠杆', 'BLEV': '质量-杠杆', 'DTOA': '质量-杠杆',
+            'VSAL': '质量-盈利波动', 'VERN': '质量-盈利波动', 'VFLO': '质量-盈利波动',
+            'ABS': '质量-盈利质量', 'ACF': '质量-盈利质量',
+            'ATO': '质量-盈利能力', 'GP': '质量-盈利能力', 'GPM': '质量-盈利能力', 'ROA': '质量-盈利能力',
+            'AGRO': '质量-投资质量', 'IGRO': '质量-投资质量', 'CXGRO': '质量-投资质量',
+            'BTOP': '价值', 'ETOP': '价值', 'CETOP': '价值', 'EM': '价值', 'LTRSTR': '价值', 'LTHALPHA': '价值',
+            'EGRO': '成长', 'SGRO': '成长',
+        }
+        # 行业因子类型都是'行业'
+        for industry in industry_factors:
+            factor_type_map[industry] = '行业'
+        
         factor_types = pd.Series(
-            ['规模'] * 2 + ['波动率'] * 4 + ['价值'] * 6 + ['行业'] * (n_factors - 12),
-            index=fmcar.index
+            [factor_type_map.get(factor, '其他') for factor in all_factors],
+            index=all_factors
         )
         
         # 2. 保存文件
