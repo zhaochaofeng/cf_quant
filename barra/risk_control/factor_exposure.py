@@ -232,33 +232,61 @@ class FactorExposureBuilder:
         
         return result_df
     
-    def _neutralize_single_factor(self, merged_df: pd.DataFrame, 
+    def _neutralize_single_factor(self, merged_df: pd.DataFrame,
                                   factor_name: str,
                                   industry_cols: List[str]) -> pd.Series:
         """
         对单个因子进行中性化
-        
+
         Returns:
             中性化后的因子序列
         """
         y = merged_df[factor_name]
+        # 确保 y 是数值类型
+        y = pd.to_numeric(y, errors='coerce')
+
         # 自变量：行业虚拟变量 + 对数市值
         X_cols = industry_cols + ['circ_mv']
         X = merged_df[X_cols].copy()
-        X['circ_mv'] = np.log(X['circ_mv'])
+
+        # 确保所有列都是数值类型
+        for col in X.columns:
+            X[col] = pd.to_numeric(X[col], errors='coerce')
+
+        # 计算对数市值，处理可能的inf和负数
+        X['circ_mv'] = np.log(X['circ_mv'].clip(lower=1e-10))
         X = sm.add_constant(X)
-        
+
         # 加权最小二乘（市值平方根加权）
-        weights = np.sqrt(merged_df['circ_mv'])
-        
-        # 拟合模型
-        model = sm.WLS(y, X, weights=weights, missing='drop')
-        results = model.fit()
-        
-        # 返回残差
-        resid = pd.Series(index=merged_df.index, dtype=float)
-        resid.loc[results.resid.index] = results.resid.values
-        
+        weights = np.sqrt(pd.to_numeric(merged_df['circ_mv'], errors='coerce').clip(lower=1e-10))
+
+        # 移除包含NaN的行
+        valid_idx = y.notna() & X.notna().all(axis=1) & weights.notna()
+        if valid_idx.sum() < len(X.columns) + 1:  # 至少需要比变量数多的样本
+            print(f"警告：因子{factor_name}有效样本不足，跳过中性化")
+            return pd.Series(np.nan, index=merged_df.index)
+
+        y_clean = y[valid_idx]
+        X_clean = X[valid_idx]
+        weights_clean = weights[valid_idx]
+
+        # 再次确保数据类型正确
+        y_clean = y_clean.astype(float)
+        X_clean = X_clean.astype(float)
+        weights_clean = weights_clean.astype(float)
+
+        try:
+            # 拟合模型
+            model = sm.WLS(y_clean, X_clean, weights=weights_clean)
+            results = model.fit()
+
+            # 返回残差
+            resid = pd.Series(np.nan, index=merged_df.index, dtype=float)
+            resid.loc[valid_idx] = results.resid.values
+        except Exception as e:
+            print(f"警告：因子{factor_name}中性化失败: {str(e)}")
+            resid = pd.Series(np.nan, index=merged_df.index, dtype=float)
+
         return resid
     
     def orthogonalize_factors(self, factor_df: pd.DataFrame,
@@ -438,7 +466,7 @@ class FactorExposureBuilder:
         # 2. 去极值
         winsorized = self.winsorize_factors(raw_factors, method='median')
         
-        # 3. 中性化
+        # 3. 中性化（行业、市值）
         neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
         
         # 4. 正交化
