@@ -105,7 +105,7 @@ class SpecificRiskEstimator:
         
         v_n(t) = sum_k(beta_k,n(t) * lambda_k(t)) + epsilon_n(t)
         
-        使用混合回归（多期横截面数据合并）
+        使用混合回归（多期横截面数据合并）- 内存优化版本
         
         Args:
             v_df: v_n(t)数据，index=(instrument, date)
@@ -116,18 +116,50 @@ class SpecificRiskEstimator:
         """
         print("进行面板回归...")
         
-        # 合并数据
-        merged = v_df.join(exposure_df, how='inner')
-        merged = merged.dropna()
+        # 获取所有日期
+        dates = v_df.index.get_level_values(1).unique()
+        print(f"   面板回归数据: {len(dates)} 个日期")
         
-        if len(merged) == 0:
+        # 分批处理：按日期分组进行回归
+        batch_size = 10  # 每批处理10个日期
+        all_y = []
+        all_X = []
+        
+        for i in range(0, len(dates), batch_size):
+            batch_dates = dates[i:i+batch_size]
+            batch_num = i // batch_size + 1
+            total_batches = (len(dates) + batch_size - 1) // batch_size
+            
+            # 获取当前批次的v_df数据
+            batch_v = v_df[v_df.index.get_level_values(1).isin(batch_dates)].copy()
+            
+            # 获取当前批次的exposure_df数据
+            batch_exposure = exposure_df[exposure_df.index.get_level_values(1).isin(batch_dates)].copy()
+            
+            # 合并当前批次数据
+            batch_merged = batch_v.join(batch_exposure, how='inner')
+            batch_merged = batch_merged.dropna()
+            
+            if len(batch_merged) > 0:
+                all_y.append(batch_merged['v'])
+                all_X.append(batch_merged[exposure_df.columns])
+            
+            # 释放内存
+            del batch_v, batch_exposure, batch_merged
+            import gc
+            gc.collect()
+        
+        if len(all_y) == 0:
             print("面板回归数据为空")
             return pd.Series(dtype=float)
         
-        # 准备回归变量
-        y = merged['v']
-        X = merged[exposure_df.columns]
+        # 合并所有批次数据
+        print(f"   合并 {len(all_y)} 批数据...")
+        y = pd.concat(all_y)
+        X = pd.concat(all_X)
         X = sm.add_constant(X)
+        
+        print(f"   回归数据形状: y={y.shape}, X={X.shape}")
         
         # 混合OLS回归
         try:

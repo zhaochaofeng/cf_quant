@@ -82,8 +82,8 @@ def main():
                        help='计算日期，格式YYYY-MM-DD')
     parser.add_argument('--portfolio', type=str, default='random',
                        help='投资组合：random(随机) 或 CSV文件路径')
-    parser.add_argument('--model-data', type=str, default=None,
-                       help='模型数据目录路径')
+    parser.add_argument('--model-data', type=str, default='barra/risk_control/model_data',
+                       help='模型数据目录路径，默认为 barra/risk_control/model_data')
     
     args = parser.parse_args()
     

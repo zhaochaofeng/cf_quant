@@ -483,6 +483,10 @@ class FactorExposureBuilder:
         
         # 保存结果
         if save_path:
+            import os
+            save_dir = os.path.dirname(save_path)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir, exist_ok=True)
             exposure_matrix.to_csv(save_path, encoding='utf-8')
             print(f"因子暴露矩阵已保存至: {save_path}")
         

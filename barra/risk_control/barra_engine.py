@@ -553,16 +553,29 @@ class BarraRiskEngine:
         
         # 股票风险贡献前10
         print("\n\n股票风险贡献(RCAR)前10:")
-        rcar_top10 = self.risk_results['rcar'].abs().nlargest(10)
-        for stock, rcar in rcar_top10.items():
-            actual_rcar = self.risk_results['rcar'].loc[stock]
-            print(f"  {stock}: {actual_rcar:.6f}")
+        rcar = self.risk_results['rcar']
+        if len(rcar) > 0 and rcar.dtype != object:
+            rcar_top10 = rcar.abs().nlargest(min(10, len(rcar)))
+            for stock, rcar_val in rcar_top10.items():
+                actual_rcar = rcar.loc[stock]
+                print(f"  {stock}: {actual_rcar:.6f}")
+        else:
+            print("  无数据或数据类型不支持")
         
         # 因子风险贡献前10
         print("\n\n因子风险贡献(FRCAR)前10:")
-        frcar_top10 = self.risk_results['frcar'].abs().nlargest(10)
-        for factor, frcar in frcar_top10.items():
-            actual_frcar = self.risk_results['frcar'].loc[factor]
-            print(f"  {factor}: {actual_frcar:.6f}")
+        frcar = self.risk_results['frcar']
+        if len(frcar) > 0:
+            # 确保数据类型为数值型
+            frcar_numeric = pd.to_numeric(frcar, errors='coerce')
+            if not frcar_numeric.isna().all():
+                frcar_top10 = frcar_numeric.abs().nlargest(min(10, len(frcar_numeric)))
+                for factor, frcar_val in frcar_top10.items():
+                    actual_frcar = frcar.loc[factor]
+                    print(f"  {factor}: {float(actual_frcar):.6f}")
+            else:
+                print("  所有FRCAR值为空")
+        else:
+            print("  无数据")
         
         print("\n" + "=" * 70)

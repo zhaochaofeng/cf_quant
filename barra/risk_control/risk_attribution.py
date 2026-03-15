@@ -40,8 +40,12 @@ class RiskAttributionAnalyzer:
         # 计算 V * h_PA
         Vh = V @ h_pa
         
-        # 计算 MCAR
-        mcar = Vh / active_risk
+        # 计算 MCAR - 防止除零
+        if active_risk < 1e-10:
+            print(f"警告：主动风险接近零 ({active_risk:.10f})，MCAR设为0")
+            mcar = np.zeros_like(Vh)
+        else:
+            mcar = Vh / active_risk
         
         mcar_series = pd.Series(mcar, index=common_idx)
         self.mcar = mcar_series
@@ -107,8 +111,12 @@ class RiskAttributionAnalyzer:
         # 计算 F * x_PA
         Fx = F @ x_pa
         
-        # 计算 FMCAR
-        fmcar = Fx / active_risk
+        # 计算 FMCAR - 防止除零
+        if active_risk < 1e-10:
+            print(f"警告：主动风险接近零 ({active_risk:.10f})，FMCAR设为0")
+            fmcar = np.zeros_like(Fx)
+        else:
+            fmcar = Fx / active_risk
         
         fmcar_series = pd.Series(fmcar, index=common_factors)
         self.fmcar = fmcar_series
