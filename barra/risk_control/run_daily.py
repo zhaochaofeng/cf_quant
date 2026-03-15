@@ -47,8 +47,12 @@ def run_daily_risk(calc_date: str, portfolio_input='random',
         n_jobs=1
     )
     
-    # TODO: 从文件加载预计算的模型数据
-    # 这里简化处理，实际应该加载月频更新的数据
+    # 从文件加载预计算的模型数据（如果提供了模型目录）
+    if model_data_dir:
+        print("\n加载预计算的模型数据...")
+        success = engine.load_model_data(model_data_dir, calc_date)
+        if not success:
+            print("警告：无法加载模型数据，将使用默认方式")
     
     # 运行日频风险计算
     risk_results = engine.run_daily_risk()

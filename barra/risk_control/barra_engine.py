@@ -239,6 +239,101 @@ class BarraRiskEngine:
         
         return saved_files
     
+    def load_model_data(self, model_dir: str, calc_date: str = None) -> bool:
+        """
+        从Parquet文件加载模型数据，供日频计算使用
+        
+        Args:
+            model_dir: 模型数据目录路径
+            calc_date: 计算日期，如果为None则使用self.calc_date
+            
+        Returns:
+            是否成功加载
+        """
+        from datetime import datetime
+        
+        if calc_date is None:
+            calc_date = self.calc_date
+        
+        model_path = Path(model_dir)
+        if not model_path.exists():
+            print(f"警告：模型数据目录不存在: {model_dir}")
+            return False
+        
+        # 尝试找到匹配calc_date的模型文件
+        date_suffix = calc_date.replace('-', '')
+        
+        # 如果没有精确匹配，找最新的模型文件
+        exposure_files = list(model_path.glob('factor_exposure_*.parquet'))
+        if not exposure_files:
+            print(f"警告：未找到模型数据文件")
+            return False
+        
+        # 如果精确日期存在，使用精确日期；否则使用最新日期
+        exposure_file = model_path / f'factor_exposure_{date_suffix}.parquet'
+        if not exposure_file.exists():
+            # 使用最新的模型文件
+            exposure_file = sorted(exposure_files)[-1]
+            # 从文件名提取日期
+            date_str = exposure_file.stem.split('_')[-1]
+            loaded_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+            print(f"   未找到 {calc_date} 的模型数据，使用最新模型: {loaded_date}")
+            calc_date = loaded_date
+        else:
+            loaded_date = calc_date
+        
+        date_suffix = loaded_date.replace('-', '')
+        
+        try:
+            # 1. 加载因子暴露矩阵
+            exposure_file = model_path / f'factor_exposure_{date_suffix}.parquet'
+            if exposure_file.exists():
+                self.factor_exposure = pd.read_parquet(exposure_file)
+                print(f"   因子暴露矩阵已加载: {exposure_file.name} ({self.factor_exposure.shape})")
+            else:
+                print(f"   警告：因子暴露矩阵文件不存在")
+                return False
+            
+            # 2. 加载因子收益率历史（可选，用于分析）
+            returns_file = model_path / f'factor_returns_{date_suffix}.parquet'
+            if returns_file.exists():
+                self.factor_returns = pd.read_parquet(returns_file)
+                print(f"   因子收益率历史已加载: {returns_file.name} ({self.factor_returns.shape})")
+            
+            # 3. 加载因子协方差矩阵（关键）
+            cov_file = model_path / f'factor_covariance_{date_suffix}.parquet'
+            if cov_file.exists():
+                self.factor_covariance = pd.read_parquet(cov_file)
+                print(f"   因子协方差矩阵已加载: {cov_file.name} ({self.factor_covariance.shape})")
+            else:
+                print(f"   警告：协方差矩阵文件不存在")
+                return False
+            
+            # 4. 加载特异风险（关键）
+            specific_file = model_path / f'specific_risk_{date_suffix}.parquet'
+            if specific_file.exists():
+                specific_df = pd.read_parquet(specific_file)
+                self.specific_risk = specific_df['specific_var']
+                print(f"   特异风险已加载: {specific_file.name} ({len(self.specific_risk)})")
+            else:
+                print(f"   警告：特异风险文件不存在")
+                return False
+            
+            # 5. 加载并显示元数据
+            metadata_file = model_path / f'metadata_{date_suffix}.json'
+            if metadata_file.exists():
+                import json
+                with open(metadata_file, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                print(f"   模型元数据: calc_date={metadata['calc_date']}, n_factors={metadata['n_factors']}")
+            
+            print(f"✓ 模型数据加载成功")
+            return True
+            
+        except Exception as e:
+            print(f"✗ 模型数据加载失败: {str(e)}")
+            return False
+    
     def run_daily_risk(self, exposure: Optional[pd.DataFrame] = None,
                       factor_cov: Optional[pd.DataFrame] = None,
                       specific_risk: Optional[pd.Series] = None) -> dict:
