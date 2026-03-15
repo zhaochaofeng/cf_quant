@@ -15,9 +15,13 @@ from barra.risk_control.barra_engine import BarraRiskEngine
 
 
 def init_qlib():
-    """初始化qlib"""
-    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
-    print("Qlib初始化完成")
+    """初始化qlib，注册PTTM自定义操作符"""
+    from utils.qlib_ops import PTTM
+    qlib.init(
+        provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+        custom_ops=[PTTM]
+    )
+    print("Qlib初始化完成（已注册PTTM操作符）")
 
 
 def run_daily_risk(calc_date: str, portfolio_input='random', 
