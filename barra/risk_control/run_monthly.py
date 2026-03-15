@@ -4,8 +4,9 @@ Barra CNE6 风险模型 - 每月运行脚本
 """
 import sys
 import argparse
+import calendar
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
@@ -25,6 +26,35 @@ def init_qlib():
     print("Qlib初始化完成（已注册PTTM操作符）")
 
 
+def subtract_months(end_dt: datetime, months: int) -> datetime:
+    """
+    从指定日期减去指定月份数
+    
+    准确处理月份计算，考虑不同月份的天数差异：
+    - 3月31日 - 1个月 = 2月28/29日
+    - 5月31日 - 1个月 = 4月30日
+    
+    Args:
+        end_dt: 结束日期
+        months: 要减去的月份数
+        
+    Returns:
+        计算后的开始日期
+    """
+    # 计算目标年份和月份
+    total_months = end_dt.year * 12 + end_dt.month - 1  # 0-based month index
+    target_months = total_months - months
+    
+    year = target_months // 12
+    month = target_months % 12 + 1  # 转换回1-based
+    
+    # 处理日期：如果目标月份天数不足，取该月最后一天
+    max_day = calendar.monthrange(year, month)[1]
+    day = min(end_dt.day, max_day)
+    
+    return datetime(year, month, day)
+
+
 def run_monthly_update(end_date: str, history_months: int = 120):
     """
     运行月度模型更新
@@ -33,9 +63,9 @@ def run_monthly_update(end_date: str, history_months: int = 120):
         end_date: 数据截止日期
         history_months: 历史数据月数，默认120（10年）
     """
-    # 计算开始日期
+    # 计算开始日期（准确计算月份，考虑不同月份的天数差异）
     end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-    start_dt = end_dt - timedelta(days=history_months * 30)
+    start_dt = subtract_months(end_dt, history_months)
     start_date = start_dt.strftime('%Y-%m-%d')
     
     print(f"\n{'='*70}")
