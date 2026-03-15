@@ -334,6 +334,49 @@ class BarraRiskEngine:
             print(f"✗ 模型数据加载失败: {str(e)}")
             return False
     
+    def calculate_daily_exposure(self, calc_date: str, n_jobs: int = 1) -> pd.DataFrame:
+        """
+        计算指定日期的因子暴露矩阵（用于日频风险计算）
+        
+        日频计算需要：
+        1. 使用最新的模型参数（协方差矩阵F、特异风险Δ）- 从月频模型加载
+        2. 重新计算指定日期的因子暴露 X_t - 本方法实现
+        3. 组合使用：V = X_t * F * X_t^T + Δ
+        
+        Args:
+            calc_date: 计算日期，格式'YYYY-MM-DD'
+            n_jobs: 并行进程数
+            
+        Returns:
+            因子暴露矩阵，index=instrument, columns=factors
+        """
+        print(f"\n计算 {calc_date} 的因子暴露矩阵...")
+        
+        # 1. 加载当日数据
+        print("   加载当日市场数据...")
+        instruments = self.data_loader.get_instruments(calc_date, calc_date)
+        print(f"   股票数量: {len(instruments)}")
+        
+        raw_data = self.data_loader.load_factor_data(instruments, calc_date, calc_date)
+        industry_df = self.data_loader.load_industry(instruments, calc_date, calc_date)
+        market_cap_df = self.data_loader.load_market_cap(instruments, calc_date, calc_date)
+        
+        # 2. 构建因子暴露矩阵（使用缓存目录保存中间结果）
+        exposure = self.factor_builder.build_exposure_matrix(
+            raw_data, industry_df, market_cap_df, 
+            save_path=f'barra/risk_control/cache/exposure_{calc_date}.csv',
+            n_jobs=n_jobs
+        )
+        
+        # 3. 提取指定日期的暴露
+        if isinstance(exposure.index, pd.MultiIndex):
+            daily_exposure = exposure.xs(calc_date, level=1)
+        else:
+            daily_exposure = exposure
+        
+        print(f"   因子暴露矩阵: {daily_exposure.shape}")
+        return daily_exposure
+    
     def run_daily_risk(self, exposure: Optional[pd.DataFrame] = None,
                       factor_cov: Optional[pd.DataFrame] = None,
                       specific_risk: Optional[pd.Series] = None) -> dict:

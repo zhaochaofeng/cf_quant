@@ -49,10 +49,16 @@ def run_daily_risk(calc_date: str, portfolio_input='random',
     
     # 从文件加载预计算的模型数据（如果提供了模型目录）
     if model_data_dir:
-        print("\n加载预计算的模型数据...")
+        print("\n加载预计算的模型参数（协方差矩阵、特异风险）...")
         success = engine.load_model_data(model_data_dir, calc_date)
         if not success:
             print("警告：无法加载模型数据，将使用默认方式")
+        else:
+            # 重新计算指定日期的因子暴露
+            print(f"\n重新计算 {calc_date} 的因子暴露矩阵...")
+            daily_exposure = engine.calculate_daily_exposure(calc_date)
+            # 更新引擎中的因子暴露
+            engine.factor_exposure = daily_exposure
     
     # 运行日频风险计算
     risk_results = engine.run_daily_risk()
