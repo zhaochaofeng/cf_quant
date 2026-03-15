@@ -29,7 +29,7 @@ from data.factor import (
     EGRO, SGRO,
 )
 
-from ..config import STYLE_FACTOR_LIST, INDUSTRY_CODES, INDUSTRY_MAPPING, MODEL_PARAMS
+from .config import STYLE_FACTOR_LIST, INDUSTRY_CODES, INDUSTRY_MAPPING, MODEL_PARAMS
 
 
 # 因子计算函数字典
