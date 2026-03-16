@@ -67,15 +67,17 @@ class SpecificRiskEstimator:
         print(f"分解完成，S(t)序列长度: {len(S_series)}")
         return S_series, v_df
     
-    def fit_arma(self, S_series: pd.Series) -> float:
+    def fit_arma(self, S_series: pd.Series) -> pd.Series:
         """
-        对S(t)序列建立ARMA模型并预测
+        对S(t)序列建立ARMA模型并返回拟合值
+        
+        拟合ARMA模型，并返回与输入序列相同长度的拟合值序列
         
         Args:
             S_series: S(t)序列
             
         Returns:
-            S(t+1)预测值
+            pd.Series: S(t)拟合值序列，与输入S_series相同shape和index
         """
         print(f"拟合ARMA{self.arma_order}模型...")
         
@@ -84,19 +86,19 @@ class SpecificRiskEstimator:
             model = ARIMA(S_series, order=(self.arma_order[0], 0, self.arma_order[1]))
             results = model.fit()
             
-            # 预测下一期
-            forecast = results.forecast(steps=1)
-            S_forecast = forecast.iloc[0]
+            # 获取拟合值（与S_series相同长度和index）
+            fitted_values = results.fittedvalues
             
             print(f"ARMA模型拟合完成，AIC={results.aic:.2f}")
-            print(f"S(t+1)预测值: {S_forecast:.6f}")
+            print(f"拟合值序列长度: {len(fitted_values)}")
             
         except Exception as e:
-            print(f"ARMA拟合失败: {str(e)}，使用历史均值代替")
-            S_forecast = S_series.mean()
+            print(f"ARMA拟合失败: {str(e)}，使用历史均值序列")
+            # 如果拟合失败，返回均值序列（保持相同shape和index）
+            fitted_values = pd.Series(S_series.mean(), index=S_series.index)
         
-        self.S_forecast = S_forecast
-        return S_forecast
+        self.S_forecast = fitted_values
+        return fitted_values
     
     def panel_regression(self, v_df: pd.DataFrame, 
                         exposure_df: pd.DataFrame) -> pd.Series:
@@ -194,14 +196,14 @@ class SpecificRiskEstimator:
         
         完整流程：
         1. 分解特异方差
-        2. ARMA预测S(t+1)
-        3. 面板回归预测v_n(t+1)
-        4. 合成u_n^2(t+1) = S(t+1) * [1 + v_n(t+1)]
+        2. ARMA预测S(t)
+        3. 面板回归预测v_n(t)
+        4. 合成u_n^2(t) = S(t) * [1 + v_n(t)]
         5. 构建对角矩阵Δ
         
         Args:
             residuals_df: 残差数据
-            exposure_df: 因子暴露数据
+            exposure_df: 因子暴露数据(包含行业因子)
             
         Returns:
             特异风险矩阵（对角矩阵）
@@ -212,10 +214,10 @@ class SpecificRiskEstimator:
         # 1. 分解特异方差
         S_series, v_df = self.decompose_specific_variance(residuals_df)
         
-        # 2. ARMA预测S(t+1)
+        # 2. ARMA预测S(t)
         S_forecast = self.fit_arma(S_series)
         
-        # 3. 面板回归预测v_n(t+1)
+        # 3. 面板回归预测v_n(t)
         v_forecast = self.panel_regression(v_df, exposure_df)
         
         # 4. 合成未来特异方差
