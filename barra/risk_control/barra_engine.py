@@ -153,8 +153,37 @@ class BarraRiskEngine:
         self.factor_exposure.to_csv(debug_dir / 'factor_exposure.csv')
         print(f"   因子暴露矩阵已保存: {debug_dir}/factor_exposure.csv")
         
-        # 3. 横截面回归估计因子收益率
-        print("\n3. 横截面回归...")
+        # 3. 筛选月初样本并对齐数据
+        print("\n3. 筛选月初样本并对齐数据...")
+        regression_dates = get_monthly_first_trade_days(start_date, end_date)
+        regression_dates_ts = pd.to_datetime(regression_dates)
+        
+        # 筛选三个数据集的月初样本
+        self.factor_exposure = self.factor_exposure[
+            self.factor_exposure.index.get_level_values(1).isin(regression_dates_ts)
+        ]
+        returns_df = returns_df[
+            returns_df.index.get_level_values(1).isin(regression_dates_ts)
+        ]
+        market_cap_df = market_cap_df[
+            market_cap_df.index.get_level_values(1).isin(regression_dates_ts)
+        ]
+        
+        # 检查是否为空
+        if self.factor_exposure.empty or returns_df.empty or market_cap_df.empty:
+            print(f"   ⚠️  警告：筛选后的数据为空")
+            print(f"      因子暴露为空: {self.factor_exposure.empty}")
+            print(f"      收益率为空: {returns_df.empty}")
+            print(f"      市值为空: {market_cap_df.empty}")
+        
+        print(f"   对齐后的数据:")
+        print(f"      日期数量: {len(regression_dates)}")
+        print(f"      因子暴露: {self.factor_exposure.shape}")
+        print(f"      收益率: {returns_df.shape}")
+        print(f"      市值: {market_cap_df.shape}")
+        
+        # 4. 横截面回归估计因子收益率
+        print("\n4. 横截面回归...")
         self.factor_returns = self.cross_sectional.fit_multi_periods(
             returns_df, self.factor_exposure, market_cap_df
         )
@@ -178,16 +207,9 @@ class BarraRiskEngine:
         residuals_df.to_csv(debug_dir / 'residuals.csv')
         print(f"   残差已保存: {debug_dir}/residuals.csv")
         
-        # 提取与残差日期对齐的月初因子暴露（保证时间维度一致性）
-        monthly_residual_dates = residuals_df.index.get_level_values(1).unique()
-        print(f"   残差日期数量: {len(monthly_residual_dates)}")
-        monthly_factor_exposure = self.factor_exposure[
-            self.factor_exposure.index.get_level_values(1).isin(monthly_residual_dates)
-        ]
-        print(f"   对齐后的因子暴露: {monthly_factor_exposure.shape}")
-        
+        # 因子暴露已与残差日期对齐（在步骤3中完成）
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
-            residuals_df, monthly_factor_exposure
+            residuals_df, self.factor_exposure
         )
         
         # 将特异风险转换为Series
