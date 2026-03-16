@@ -113,8 +113,8 @@ class CrossSectionalRegression:
     
     def fit_multi_periods(self, returns_df: pd.DataFrame,
                          exposure_df: pd.DataFrame,
-                         market_cap_df: pd.DataFrame,
-                         freq: str = 'month') -> pd.DataFrame:
+                         market_cap_df: pd.DataFrame
+                         ) -> pd.DataFrame:
         """
         多期横截面回归
         
@@ -124,31 +124,17 @@ class CrossSectionalRegression:
             returns_df: 收益率数据，index=(instrument, date)
             exposure_df: 因子暴露数据，index=(instrument, date)
             market_cap_df: 市值数据，index=(instrument, date)
-            freq: 回归频率，'month'为月频（默认），'day'为日频
             
         Returns:
             因子收益率矩阵，index=date, columns=factors
         """
-        print(f"开始多期横截面回归（频率: {freq}）...")
-        
+        print(f"开始多期横截面回归...")
+
         # 获取所有日期
-        dates = returns_df.index.get_level_values(1).unique()
-        
-        if freq == 'month':
-            # 按月频：只取每月第一个交易日
-            dates_df = pd.DataFrame({'date': dates})
-            dates_df['year_month'] = dates_df['date'].dt.to_period('M')
-            # 取每月第一天
-            monthly_dates = dates_df.groupby('year_month')['date'].min()
-            regression_dates = monthly_dates.tolist()
-            print(f"   月频模式：从 {len(dates)} 个交易日中选取 {len(regression_dates)} 个月初日期")
-        else:
-            # 按日频：所有交易日（不建议，仅用于测试）
-            regression_dates = dates.tolist()
-            print(f"   日频模式：共 {len(regression_dates)} 个交易日")
-        
+        dates = returns_df.index.get_level_values(1).unique().tolist()
+
         results_list = []
-        for date in regression_dates:
+        for date in dates:
             # 提取当期数据
             r = returns_df.xs(date, level=1).iloc[:, 0]
             X = exposure_df.xs(date, level=1)
