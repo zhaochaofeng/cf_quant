@@ -103,62 +103,32 @@ class SpecificRiskEstimator:
     def panel_regression(self, v_df: pd.DataFrame, 
                         exposure_df: pd.DataFrame) -> pd.Series:
         """
-        面板回归预测v_n(t+1)
+        面板回归拟合v_n(t)
         
-        v_n(t) = sum_k(beta_k,n(t) * lambda_k(t)) + epsilon_n(t)
-        
-        使用混合回归（多期横截面数据合并）- 内存优化版本
+        使用混合回归，返回拟合值序列
         
         Args:
             v_df: v_n(t)数据，index=(instrument, date)
-            exposure_df: 因子暴露数据，index=(instrument, date)
+            exposure_df: 因子暴露数据（包含行业因子bool类型）
             
         Returns:
-            v_n(t+1)预测值
+            v_n(t)拟合值序列，与v_df['v']相同shape和index
         """
         print("进行面板回归...")
         
-        # 获取所有日期
-        dates = v_df.index.get_level_values(1).unique()
-        print(f"   面板回归数据: {len(dates)} 个日期")
+        # 关键：将bool类型转换为数值类型
+        exposure_df_numeric = exposure_df.astype(float)
         
-        # 分批处理：按日期分组进行回归
-        batch_size = 10  # 每批处理10个日期
-        all_y = []
-        all_X = []
+        # 合并数据
+        merged_df = v_df.join(exposure_df_numeric, how='inner').dropna()
         
-        for i in range(0, len(dates), batch_size):
-            batch_dates = dates[i:i+batch_size]
-            batch_num = i // batch_size + 1
-            total_batches = (len(dates) + batch_size - 1) // batch_size
-            
-            # 获取当前批次的v_df数据
-            batch_v = v_df[v_df.index.get_level_values(1).isin(batch_dates)].copy()
-            
-            # 获取当前批次的exposure_df数据
-            batch_exposure = exposure_df[exposure_df.index.get_level_values(1).isin(batch_dates)].copy()
-            
-            # 合并当前批次数据
-            batch_merged = batch_v.join(batch_exposure, how='inner')
-            batch_merged = batch_merged.dropna()
-            
-            if len(batch_merged) > 0:
-                all_y.append(batch_merged['v'])
-                all_X.append(batch_merged[exposure_df.columns])
-            
-            # 释放内存
-            del batch_v, batch_exposure, batch_merged
-            import gc
-            gc.collect()
-        
-        if len(all_y) == 0:
+        if len(merged_df) == 0:
             print("面板回归数据为空")
             return pd.Series(dtype=float)
         
-        # 合并所有批次数据
-        print(f"   合并 {len(all_y)} 批数据...")
-        y = pd.concat(all_y)
-        X = pd.concat(all_X)
+        # 准备数据
+        y = merged_df['v']
+        X = merged_df[exposure_df_numeric.columns]
         X = sm.add_constant(X)
         
         print(f"   回归数据形状: y={y.shape}, X={X.shape}")
@@ -168,26 +138,16 @@ class SpecificRiskEstimator:
             model = sm.OLS(y, X).fit()
             print(f"面板回归完成，R²={model.rsquared:.4f}")
             
-            # 获取回归系数
-            lambda_coef = model.params.drop('const', errors='ignore')
+            # 使用model.predict获取拟合值（方案B）
+            v_fitted = model.predict(X)
             
         except Exception as e:
             print(f"面板回归失败: {str(e)}")
-            return pd.Series(dtype=float)
+            # 异常处理：返回均值序列（保持index）
+            v_fitted = pd.Series(y.mean(), index=y.index)
         
-        # 预测v_n(t+1) - 使用最新一期的因子暴露
-        latest_date = exposure_df.index.get_level_values(1).max()
-        latest_exposure = exposure_df.xs(latest_date, level=1)
-        
-        v_forecast = latest_exposure.dot(lambda_coef)
-        
-        # 去极值
-        v_forecast = v_forecast.clip(lower=-0.5, upper=1.0)
-        
-        self.v_forecast = v_forecast
-        print(f"v_n(t+1)预测完成，共{len(v_forecast)}只股票")
-        
-        return v_forecast
+        print(f"面板回归拟合完成，共{len(v_fitted)}个观测值")
+        return v_fitted
     
     def estimate_specific_risk(self, residuals_df: pd.DataFrame,
                                exposure_df: pd.DataFrame) -> pd.DataFrame:
