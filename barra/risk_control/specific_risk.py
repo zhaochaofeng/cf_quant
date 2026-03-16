@@ -183,11 +183,11 @@ class SpecificRiskEstimator:
         # 4. 对齐日期索引并合成未来特异方差
         # S_forecast: index=date, v_forecast: index=(instrument, date)
         # 将S_forecast按照日期对齐到v_forecast的每个股票
-        v_dates = v_forecast.index.get_level_values(1)
-        S_aligned = S_forecast.reindex(v_dates)
+        S_dates = S_forecast.index.get_level_values(1)
+        v_aligned = S_forecast.reindex(S_dates)
         
         # 逐元素相乘: u_n^2(t) = S(t) * [1 + v_n(t)]
-        specific_var_values = S_aligned.values * (1 + v_forecast.values)
+        specific_var_values = S_forecast.values * (1 + v_aligned.values)
         specific_var_forecast = pd.Series(specific_var_values, index=v_forecast.index)
         
         # 确保非负
