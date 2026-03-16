@@ -207,9 +207,17 @@ class BarraRiskEngine:
         residuals_df.to_csv(debug_dir / 'residuals.csv')
         print(f"   残差已保存: {debug_dir}/residuals.csv")
         
-        # 因子暴露已与残差日期对齐（在步骤3中完成）
+        # 提取与残差日期对齐的因子暴露（重要！因为横截面回归可能跳过某些日期）
+        residual_dates = residuals_df.index.get_level_values(1).unique()
+        aligned_factor_exposure = self.factor_exposure[
+            self.factor_exposure.index.get_level_values(1).isin(residual_dates)
+        ]
+        print(f"   残差日期数量: {len(residual_dates)}")
+        print(f"   对齐后的因子暴露: {aligned_factor_exposure.shape}")
+        
+        # 特异风险协方差矩阵 Delta
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
-            residuals_df, self.factor_exposure
+            residuals_df, aligned_factor_exposure
         )
         
         # 将特异风险转换为Series
@@ -337,7 +345,6 @@ class BarraRiskEngine:
             date_str = exposure_file.stem.split('_')[-1]
             loaded_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
             print(f"   未找到 {calc_date} 的模型数据，使用最新模型: {loaded_date}")
-            calc_date = loaded_date
         else:
             loaded_date = calc_date
         
