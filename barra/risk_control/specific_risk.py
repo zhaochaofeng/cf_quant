@@ -180,8 +180,15 @@ class SpecificRiskEstimator:
         # 3. 面板回归预测v_n(t)
         v_forecast = self.panel_regression(v_df, exposure_df)
         
-        # 4. 合成未来特异方差
-        specific_var_forecast = S_forecast * (1 + v_forecast)
+        # 4. 对齐日期索引并合成未来特异方差
+        # S_forecast: index=date, v_forecast: index=(instrument, date)
+        # 将S_forecast按照日期对齐到v_forecast的每个股票
+        v_dates = v_forecast.index.get_level_values(1)
+        S_aligned = S_forecast.reindex(v_dates)
+        
+        # 逐元素相乘: u_n^2(t) = S(t) * [1 + v_n(t)]
+        specific_var_values = S_aligned.values * (1 + v_forecast.values)
+        specific_var_forecast = pd.Series(specific_var_values, index=v_forecast.index)
         
         # 确保非负
         specific_var_forecast = specific_var_forecast.clip(lower=1e-8)
