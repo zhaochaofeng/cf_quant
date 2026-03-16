@@ -135,13 +135,13 @@ class CrossSectionalRegression:
         dates = returns_df.index.get_level_values(1).unique()
         
         if freq == 'month':
-            # 按月频：只取每月最后一个交易日
+            # 按月频：只取每月第一个交易日
             dates_df = pd.DataFrame({'date': dates})
             dates_df['year_month'] = dates_df['date'].dt.to_period('M')
-            # 取每月最后一天
-            monthly_dates = dates_df.groupby('year_month')['date'].max()
+            # 取每月第一天
+            monthly_dates = dates_df.groupby('year_month')['date'].min()
             regression_dates = monthly_dates.tolist()
-            print(f"   月频模式：从 {len(dates)} 个交易日中选取 {len(regression_dates)} 个月末日期")
+            print(f"   月频模式：从 {len(dates)} 个交易日中选取 {len(regression_dates)} 个月初日期")
         else:
             # 按日频：所有交易日（不建议，仅用于测试）
             regression_dates = dates.tolist()

@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, List
 
 # 导入各模块
 from .data_loader import DataLoader
@@ -19,6 +19,34 @@ from .risk_model import AssetCovarianceCalculator
 from .risk_attribution import RiskAttributionAnalyzer
 from .output import RiskOutputManager
 from .config import MODEL_PARAMS, STYLE_FACTOR_LIST, INDUSTRY_MAPPING
+
+# 导入工具函数
+import sys
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+from utils import get_trade_cal_inter
+
+
+def get_monthly_first_trade_days(start_date: str, end_date: str) -> List[str]:
+    """
+    获取时间区间内每月的第一个交易日
+    
+    Args:
+        start_date: 开始日期，格式'YYYY-MM-DD'
+        end_date: 结束日期，格式'YYYY-MM-DD'
+        
+    Returns:
+        每月第一个交易日列表（已排序），格式['YYYY-MM-DD', ...]
+    """
+    # 获取所有交易日
+    trade_dates = get_trade_cal_inter(start_date, end_date)
+    
+    # 按年月分组，取每月第一个交易日
+    dates_df = pd.DataFrame({'date': pd.to_datetime(trade_dates)})
+    dates_df['year_month'] = dates_df['date'].dt.to_period('M')
+    monthly_first = dates_df.groupby('year_month')['date'].min()
+    
+    return [d.strftime('%Y-%m-%d') for d in monthly_first.tolist()]
 
 
 class BarraRiskEngine:
@@ -90,7 +118,8 @@ class BarraRiskEngine:
         """
         月频更新：估计因子收益率、协方差矩阵、特异风险
         
-        这是月度任务，需要历史数据来计算模型参数
+        这是月度任务，需要历史数据来计算模型参数。
+        使用全量历史数据以保证因子计算有足够的时间窗口。
         
         Args:
             start_date: 历史数据开始日期
@@ -100,8 +129,8 @@ class BarraRiskEngine:
         print("开始月频模型更新...")
         print(f"历史数据区间: {start_date} 至 {end_date}")
         
-        # 1. 加载数据
-        print("\n1. 加载数据...")
+        # 1. 加载数据（一次性获取全量历史数据，保证因子计算有足够的时间窗口）
+        print("\n1. 加载全量历史数据...")
         instruments = self.data_loader.get_instruments(start_date, end_date)
         print(f"   股票数量: {len(instruments)}")
         
