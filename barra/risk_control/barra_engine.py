@@ -178,8 +178,16 @@ class BarraRiskEngine:
         residuals_df.to_csv(debug_dir / 'residuals.csv')
         print(f"   残差已保存: {debug_dir}/residuals.csv")
         
+        # 提取与残差日期对齐的月初因子暴露（保证时间维度一致性）
+        monthly_residual_dates = residuals_df.index.get_level_values(1).unique()
+        print(f"   残差日期数量: {len(monthly_residual_dates)}")
+        monthly_factor_exposure = self.factor_exposure[
+            self.factor_exposure.index.get_level_values(1).isin(monthly_residual_dates)
+        ]
+        print(f"   对齐后的因子暴露: {monthly_factor_exposure.shape}")
+        
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
-            residuals_df, self.factor_exposure
+            residuals_df, monthly_factor_exposure
         )
         
         # 将特异风险转换为Series
