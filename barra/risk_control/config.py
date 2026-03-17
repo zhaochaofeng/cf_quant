@@ -113,3 +113,58 @@ BENCHMARK_CONFIG = {
         'name': '沪深300',
     }
 }
+
+# Qlib 字段。分组存放
+FIELD_GROUPS = [
+    # 第1组: 基础交易数据（7个字段）
+    {
+        'name': '基础交易数据',
+        'fields': [
+            '$ind_one', '$change', '$close', '$circ_mv',
+            '$total_mv', '$total_share', '$amount'
+        ]
+    },
+    # 第2组: 资产负债表（6个字段）
+    {
+        'name': '资产负债表',
+        'fields': [
+            'P($$oth_eqt_tools_p_shr_q)', 'P($$total_ncl_q)',
+            'P($$total_hldr_eqy_exc_min_int_q)', 'P($$total_assets_q)',
+            'P($$total_liab_q)', 'P($$money_cap_q)'
+        ]
+    },
+    # 第3组: 利润表（5个字段）
+    {
+        'name': '利润表',
+        'fields': [
+            'P($$revenue_q)', 'P($$n_income_attr_p_q)',
+            'P($$oper_cost_q)', 'P($$basic_eps_q)', 'P($$ebit_q)'
+        ]
+    },
+    # 第4组: 现金流量表（5个字段）
+    {
+        'name': '现金流量表',
+        'fields': [
+            'P($$n_cashflow_act_q)', 'P($$depr_fa_coga_dpba_q)',
+            'P($$amort_intang_assets_q)', 'P($$lt_amort_deferred_exp_q)',
+            'P($$c_pay_acq_const_fiolta_q)'
+        ]
+    },
+    # 第5组: 借款相关（4个字段）
+    {
+        'name': '借款相关',
+        'fields': [
+            'P($$st_borr_q)', 'P($$lt_borr_q)',
+            'P($$non_cur_liab_due_1y_q)', 'P($$bond_payable_q)'
+        ]
+    },
+    # 第6组: TTM数据（3个字段）
+    {
+        'name': 'TTM数据',
+        'fields': [
+            'PTTM($$revenue_q)', 'PTTM($$n_income_attr_p_q)',
+            'PTTM($$n_cashflow_act_q)'
+        ]
+    },
+]
+

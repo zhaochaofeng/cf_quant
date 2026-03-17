@@ -1,6 +1,7 @@
 """
 输出管理模块 - 风险指标CSV输出
 """
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -8,6 +9,9 @@ from pathlib import Path
 from typing import Optional
 
 from .config import OUTPUT_CONFIG
+from utils import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 
 class RiskOutputManager:
@@ -143,3 +147,24 @@ class RiskOutputManager:
             return pd.read_csv(filepath, encoding=OUTPUT_CONFIG['encoding'])
         else:
             return None
+
+    def save_data(self, data: pd.DataFrame, path: str, type: str = 'csv'):
+        '''
+        将数据保存到指定位置
+
+        Parameters
+        ----------
+        data: 数据对象
+        path: 保存路径
+        type: 保存的数据类型. csv/parquet
+        '''
+        logger.info('Saving data to {}...'.format(path))
+        path = Path(os.path.join(self.output_dir, path))
+        os.makedirs(path.parent, exist_ok=True)
+        if type == 'csv':
+            data.to_csv(path)
+        elif type == 'parquet':
+            data.to_parquet(path)
+        else:
+            raise ValueError("Invalid type. Supported types: 'csv', 'parquet'")
+        logger.info('Data saved success ')

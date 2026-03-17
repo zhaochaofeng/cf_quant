@@ -2,6 +2,7 @@
 Barra CNE6 风险模型主引擎
 整合所有模块，提供统一接口
 """
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -116,11 +117,7 @@ class BarraRiskEngine:
     
     def run_monthly_update(self, start_date: str, end_date: str) -> None:
         """
-        月频更新：估计因子收益率、协方差矩阵、特异风险
-        
-        这是月度任务，需要历史数据来计算模型参数。
-        使用全量历史数据以保证因子计算有足够的时间窗口。
-        
+        月频更新：估计因子收益率、因子协方差矩阵、特异风险协方差矩阵
         Args:
             start_date: 历史数据开始日期
             end_date: 历史数据结束日期
@@ -134,13 +131,19 @@ class BarraRiskEngine:
         instruments = self.data_loader.get_instruments(start_date, end_date)
         print(f"   股票数量: {len(instruments)}")
         
-        raw_data = self.data_loader.load_factor_data(instruments, start_date, end_date)
+        raw_data = self.data_loader.load_fields_data(instruments, start_date, end_date)
         returns_df = self.data_loader.load_returns(instruments, start_date, end_date)
         industry_df = self.data_loader.load_industry(instruments, start_date, end_date)
         market_cap_df = self.data_loader.load_market_cap(instruments, start_date, end_date)
-        
+
+        self.output_manager.save_data(raw_data, 'debug/raw_data.csv', type='csv')
+        self.output_manager.save_data(returns_df, 'debug/returns_data.csv', type='csv')
+        self.output_manager.save_data(industry_df, 'debug/industry_data.csv', type='csv')
+        self.output_manager.save_data(market_cap_df, 'debug/market_cap_data.csv', type='csv')
+
+        '''
+
         # 保存中间结果目录
-        import os
         debug_dir = Path('barra/risk_control/debug_output')
         debug_dir.mkdir(parents=True, exist_ok=True)
         
@@ -231,7 +234,8 @@ class BarraRiskEngine:
         
         print("\n月频模型更新完成")
         print("=" * 70)
-    
+        '''
+
     def save_model_data(self, model_dir: str) -> Dict[str, str]:
         """
         保存模型数据到Parquet文件，供日频计算使用
