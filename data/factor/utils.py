@@ -4,7 +4,9 @@ import numpy as np
 import qlib
 from qlib.data import D
 from utils import WLS, multiprocessing_wrapper
+from utils import LoggerFactory
 
+logger = LoggerFactory.get_logger(__name__)
 
 provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 
@@ -128,26 +130,13 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
         benchmark_ret = benchmark_df['$change']
         if benchmark_ret.index.nlevels > 1:
             benchmark_ret = benchmark_ret.droplevel('instrument')
-        
         # 检查基准数据是否为空
         if len(benchmark_ret.dropna()) == 0:
-            print(f"警告: 基准指数 {benchmark} 在指定时间范围内无有效数据")
-            # 尝试扩展时间范围
-            extended_start = str(pd.to_datetime(start_date) - pd.Timedelta(days=30))[:10]
-            extended_end = str(pd.to_datetime(end_date) + pd.Timedelta(days=30))[:10]
-            print(f"尝试扩展时间范围: {extended_start} 到 {extended_end}")
-            benchmark_df = get_qlib_data(
-                instruments=[benchmark], fields=['$change'],
-                start_date=extended_start, end_date=extended_end,
-            )
-            benchmark_ret = benchmark_df['$change']
-            if benchmark_ret.index.nlevels > 1:
-                benchmark_ret = benchmark_ret.droplevel('instrument')
-            
-            if len(benchmark_ret.dropna()) == 0:
-                raise ValueError(f"基准指数 {benchmark} 无有效数据")
+            err_msg = f"基准指数 {benchmark} 在指定时间范围内无有效数据"
+            logger.error(err_msg)
+            raise Exception(err_msg)
     except Exception as e:
-        print(f"获取基准数据失败: {e}")
+        logger.error(f"获取基准数据失败: {e}")
         raise
 
     # dict. 获取上市/退市日期
