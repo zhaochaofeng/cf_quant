@@ -25,8 +25,9 @@ from .config import MODEL_PARAMS, STYLE_FACTOR_LIST, INDUSTRY_MAPPING
 import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-from utils import get_trade_cal_inter
+from utils import get_trade_cal_inter, LoggerFactory
 
+logger = LoggerFactory.get_logger(__name__)
 
 def get_monthly_first_trade_days(start_date: str, end_date: str) -> List[str]:
     """
@@ -57,7 +58,7 @@ class BarraRiskEngine:
                  portfolio_input: Union[str, Dict, pd.Series] = 'random',
                  market: str = 'csi300',
                  output_dir: str = 'output',
-                 cache_dir: Optional[str] = None,
+                 cache_dir: Optional[str] = 'debug',
                  n_jobs: int = 1):
         """
         初始化风险模型引擎
@@ -81,7 +82,7 @@ class BarraRiskEngine:
         # 初始化各模块
         self.data_loader = DataLoader(market=market)
         self.portfolio_manager = PortfolioManager(market=market)
-        self.factor_builder = FactorExposureBuilder(cache_dir=cache_dir)
+        self.factor_builder = FactorExposureBuilder()
         self.cross_sectional = CrossSectionalRegression()
         self.covariance_estimator = FactorCovarianceEstimator(
             history_window=MODEL_PARAMS['history_window']
@@ -115,12 +116,13 @@ class BarraRiskEngine:
         else:
             return self.portfolio_manager.load_portfolio(portfolio_input, self.calc_date)
     
-    def run_monthly_update(self, start_date: str, end_date: str) -> None:
+    def run_monthly_update(self, start_date: str, end_date: str, use_cache: bool = False) -> None:
         """
         月频更新：估计因子收益率、因子协方差矩阵、特异风险协方差矩阵
         Args:
             start_date: 历史数据开始日期
             end_date: 历史数据结束日期
+            use_cache: 是否使用缓存数据
         """
         print("\n" + "=" * 70)
         print("开始月频模型更新...")
@@ -130,31 +132,44 @@ class BarraRiskEngine:
         print("\n1. 加载全量历史数据...")
         instruments = self.data_loader.get_instruments(start_date, end_date)
         print(f"   股票数量: {len(instruments)}")
-        
-        raw_data = self.data_loader.load_fields_data(instruments, start_date, end_date)
-        returns_df = self.data_loader.load_returns(instruments, start_date, end_date)
-        industry_df = self.data_loader.load_industry(instruments, start_date, end_date)
-        market_cap_df = self.data_loader.load_market_cap(instruments, start_date, end_date)
 
-        self.output_manager.save_data(raw_data, 'debug/raw_data.csv', type='csv')
-        self.output_manager.save_data(returns_df, 'debug/returns_data.csv', type='csv')
-        self.output_manager.save_data(industry_df, 'debug/industry_data.csv', type='csv')
-        self.output_manager.save_data(market_cap_df, 'debug/market_cap_data.csv', type='csv')
+        if use_cache:
+            print('use cache data ...')
+            raw_data = self.output_manager.load_data('debug/raw_data.csv')
+            returns_df = self.output_manager.load_data('debug/returns_data.csv')
+            industry_df = self.output_manager.load_data('debug/industry_data.csv')
+            market_cap_df = self.output_manager.load_data('debug/market_cap_data.csv')
+            raw_data.set_index(keys=['instrument', 'datetime'], inplace=True)
+            returns_df.set_index(keys=['instrument', 'datetime'], inplace=True)
+            industry_df.set_index(keys=['instrument', 'datetime'], inplace=True)
+            market_cap_df.set_index(keys=['instrument', 'datetime'], inplace=True)
+        else:
+            raw_data = self.data_loader.load_fields_data(instruments, start_date, end_date)
+            returns_df = self.data_loader.load_returns(instruments, start_date, end_date)
+            industry_df = self.data_loader.load_industry(instruments, start_date, end_date)
+            market_cap_df = self.data_loader.load_market_cap(instruments, start_date, end_date)
 
-        '''
+            self.output_manager.save_data(raw_data, 'debug/raw_data.csv', type='csv')
+            self.output_manager.save_data(returns_df, 'debug/returns_data.csv', type='csv')
+            self.output_manager.save_data(industry_df, 'debug/industry_data.csv', type='csv')
+            self.output_manager.save_data(market_cap_df, 'debug/market_cap_data.csv', type='csv')
 
-        # 保存中间结果目录
-        debug_dir = Path('barra/risk_control/debug_output')
-        debug_dir.mkdir(parents=True, exist_ok=True)
-        
+        print('raw_data shape: {}'.format(raw_data.shape))
+        print('returns_df shape: {}'.format(returns_df.shape))
+        print('industry_df shape: {}'.format(industry_df.shape))
+        print('market_cap_df shape: {}'.format(market_cap_df.shape))
+        print(raw_data.head())
+
         # 2. 构建因子暴露矩阵
         print("\n2. 构建因子暴露矩阵...")
         self.factor_exposure = self.factor_builder.build_exposure_matrix(
-            raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs
+            raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs,
+            output_manager=self.output_manager
         )
-        # 保存因子暴露矩阵
-        self.factor_exposure.to_csv(debug_dir / 'factor_exposure.csv')
-        print(f"   因子暴露矩阵已保存: {debug_dir}/factor_exposure.csv")
+
+
+
+        '''
         
         # 3. 筛选月初样本并对齐数据
         print("\n3. 筛选月初样本并对齐数据...")

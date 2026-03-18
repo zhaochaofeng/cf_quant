@@ -2,95 +2,31 @@
 因子暴露矩阵构建模块
 包含：原始因子计算、去极值、中性化、正交化、标准化、行业因子合并
 """
-import pandas as pd
-import numpy as np
-import statsmodels.api as sm
-from typing import List, Dict, Optional
-from pathlib import Path
 import sys
+from pathlib import Path
+from typing import List, Optional
+
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+
+from .output import RiskOutputManager
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from utils import winsorize as utils_winsorize, standardize as utils_standardize
 from utils.multiprocess import multiprocessing_wrapper
-from data.factor import (
-    LNCAP, MIDCAP,
-    BETA, HSIGMA, DASTD, CMRA,
-    STOM, STOQ, STOA, ATVR,
-    STREV, SEASON, INDMOM, RSTR, HALPHA,
-    MLEV, BLEV, DTOA,
-    VSAL, VERN, VFLO,
-    ABS, ACF,
-    ATO, GP, GPM, ROA,
-    AGRO, IGRO, CXGRO,
-    BTOP, ETOP, CETOP, EM, LTRSTR, LTHALPHA,
-    EGRO, SGRO,
-)
 
-from .config import STYLE_FACTOR_LIST, INDUSTRY_CODES, INDUSTRY_MAPPING, MODEL_PARAMS
-
-
-# 因子计算函数字典
-FACTOR_FUNCTIONS = {
-    'LNCAP': LNCAP,
-    'MIDCAP': MIDCAP,
-    'BETA': BETA,
-    'HSIGMA': HSIGMA,
-    'DASTD': DASTD,
-    'CMRA': CMRA,
-    'STOM': STOM,
-    'STOQ': STOQ,
-    'STOA': STOA,
-    'ATVR': ATVR,
-    'STREV': STREV,
-    'SEASON': SEASON,
-    'INDMOM': INDMOM,
-    'RSTR': RSTR,
-    'HALPHA': HALPHA,
-    'MLEV': MLEV,
-    'BLEV': BLEV,
-    'DTOA': DTOA,
-    'VSAL': VSAL,
-    'VERN': VERN,
-    'VFLO': VFLO,
-    'ABS': ABS,
-    'ACF': ACF,
-    'ATO': ATO,
-    'GP': GP,
-    'GPM': GPM,
-    'ROA': ROA,
-    'AGRO': AGRO,
-    'IGRO': IGRO,
-    'CXGRO': CXGRO,
-    'BTOP': BTOP,
-    'ETOP': ETOP,
-    'CETOP': CETOP,
-    'EM': EM,
-    'LTRSTR': LTRSTR,
-    'LTHALPHA': LTHALPHA,
-    'EGRO': EGRO,
-    'SGRO': SGRO,
-}
+from .config import STYLE_FACTOR_LIST, FACTOR_FUNCTIONS, INDUSTRY_MAPPING
 
 
 class FactorExposureBuilder:
     """因子暴露矩阵构建器"""
-    
-    def __init__(self, cache_dir: Optional[str] = None):
-        """
-        初始化因子暴露构建器
-        
-        Args:
-            cache_dir: 缓存目录路径，用于保存中间结果
-        """
-        self.cache_dir = Path(cache_dir) if cache_dir else None
-        if self.cache_dir:
-            self.cache_dir.mkdir(parents=True, exist_ok=True)
-    
-    def calculate_raw_factors(self, raw_data: pd.DataFrame, 
-                             n_jobs: int = 1) -> pd.DataFrame:
+
+    def calculate_raw_factors(self, raw_data: pd.DataFrame,
+                              n_jobs: int = 1
+                              ) -> pd.DataFrame:
         """
         计算原始CNE6因子值
         
@@ -137,6 +73,7 @@ class FactorExposureBuilder:
             factor_df[factor_name] = series
         
         print(f"原始因子计算完成，共{len(factor_df.columns)}个因子")
+
         return factor_df
     
     def _compute_single_factor(self, raw_data: pd.DataFrame, 
@@ -144,6 +81,9 @@ class FactorExposureBuilder:
                                factor_func) -> tuple:
         """
         计算单个因子（用于并行）
+        raw_data：原始字段数据
+        factor_name：因子名称
+        factor_func：因子计算函数
         
         Returns:
             (factor_name, series)
@@ -154,8 +94,10 @@ class FactorExposureBuilder:
                 series = result.iloc[:, 0]  # 取第一列
                 return factor_name, series
         except Exception as e:
-            print(f"因子{factor_name}计算失败: {str(e)}")
-        return factor_name, None
+            err_msg = f"因子{factor_name}计算失败: {str(e)}"
+            # raise Exception(err_msg)
+            print(err_msg)
+            return factor_name, None
     
     def winsorize_factors(self, factor_df: pd.DataFrame, 
                          method: str = 'median') -> pd.DataFrame:
@@ -435,7 +377,9 @@ class FactorExposureBuilder:
                              industry_df: pd.DataFrame,
                              market_cap_df: pd.DataFrame,
                              save_path: Optional[str] = None,
-                             n_jobs: int = 1) -> pd.DataFrame:
+                             n_jobs: int = 1,
+                             output_manager: RiskOutputManager = None
+                              ) -> pd.DataFrame:
         """
         构建完整的因子暴露矩阵
         
@@ -462,7 +406,9 @@ class FactorExposureBuilder:
         
         # 1. 计算原始因子
         raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
-        
+        output_manager.save_data(raw_factors, 'debug/raw_factors', type='csv')
+
+        '''
         # 2. 去极值
         winsorized = self.winsorize_factors(raw_factors, method='median')
         
@@ -499,3 +445,4 @@ class FactorExposureBuilder:
         print("=" * 60)
         
         return exposure_matrix
+        '''

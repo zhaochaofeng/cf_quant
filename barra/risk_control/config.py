@@ -2,6 +2,77 @@
 Barra CNE6 风险模型配置
 """
 
+
+from data.factor import (
+    LNCAP, MIDCAP,
+    BETA, HSIGMA, DASTD, CMRA,
+    STOM, STOQ, STOA, ATVR,
+    STREV, SEASON, INDMOM, RSTR, HALPHA,
+    MLEV, BLEV, DTOA,
+    VSAL, VERN, VFLO,
+    ABS, ACF,
+    ATO, GP, GPM, ROA,
+    AGRO, IGRO, CXGRO,
+    BTOP, ETOP, CETOP, EM, LTRSTR, LTHALPHA,
+    EGRO, SGRO,
+)
+
+
+# Qlib 字段。分组存放
+FIELD_GROUPS = [
+    # 第1组: 基础交易数据（7个字段）
+    {
+        'name': '基础交易数据',
+        'fields': [
+            '$ind_one', '$change', '$close', '$circ_mv',
+            '$total_mv', '$total_share', '$amount'
+        ]
+    },
+    # 第2组: 资产负债表（6个字段）
+    {
+        'name': '资产负债表',
+        'fields': [
+            'P($$oth_eqt_tools_p_shr_q)', 'P($$total_ncl_q)',
+            'P($$total_hldr_eqy_exc_min_int_q)', 'P($$total_assets_q)',
+            'P($$total_liab_q)', 'P($$money_cap_q)'
+        ]
+    },
+    # 第3组: 利润表（5个字段）
+    {
+        'name': '利润表',
+        'fields': [
+            'P($$revenue_q)', 'P($$n_income_attr_p_q)',
+            'P($$oper_cost_q)', 'P($$basic_eps_q)', 'P($$ebit_q)'
+        ]
+    },
+    # 第4组: 现金流量表（5个字段）
+    {
+        'name': '现金流量表',
+        'fields': [
+            'P($$n_cashflow_act_q)', 'P($$depr_fa_coga_dpba_q)',
+            'P($$amort_intang_assets_q)', 'P($$lt_amort_deferred_exp_q)',
+            'P($$c_pay_acq_const_fiolta_q)'
+        ]
+    },
+    # 第5组: 借款相关（4个字段）
+    {
+        'name': '借款相关',
+        'fields': [
+            'P($$st_borr_q)', 'P($$lt_borr_q)',
+            'P($$non_cur_liab_due_1y_q)', 'P($$bond_payable_q)'
+        ]
+    },
+    # 第6组: TTM数据（3个字段）
+    {
+        'name': 'TTM数据',
+        'fields': [
+            'PTTM($$revenue_q)', 'PTTM($$n_income_attr_p_q)',
+            'PTTM($$n_cashflow_act_q)'
+        ]
+    },
+]
+
+
 # CNE6 风格因子定义（共38个）
 CNE6_STYLE_FACTORS = {
     # 规模因子
@@ -28,10 +99,56 @@ CNE6_STYLE_FACTORS = {
     'growth': ['EGRO', 'SGRO'],
 }
 
-# 展平因子列表
+# 因子名称列表
 STYLE_FACTOR_LIST = []
 for category, factors in CNE6_STYLE_FACTORS.items():
     STYLE_FACTOR_LIST.extend(factors)
+
+# 因子计算函数字典
+FACTOR_FUNCTIONS = {
+    'LNCAP': LNCAP,
+    'MIDCAP': MIDCAP,
+    'BETA': BETA,
+    'HSIGMA': HSIGMA,
+    'DASTD': DASTD,
+    'CMRA': CMRA,
+    'STOM': STOM,
+    'STOQ': STOQ,
+    'STOA': STOA,
+    'ATVR': ATVR,
+    'STREV': STREV,
+    'SEASON': SEASON,
+    'INDMOM': INDMOM,
+    'RSTR': RSTR,
+    'HALPHA': HALPHA,
+    'MLEV': MLEV,
+    'BLEV': BLEV,
+    'DTOA': DTOA,
+    'VSAL': VSAL,
+    'VERN': VERN,
+    'VFLO': VFLO,
+    'ABS': ABS,
+    'ACF': ACF,
+    'ATO': ATO,
+    'GP': GP,
+    'GPM': GPM,
+    'ROA': ROA,
+    'AGRO': AGRO,
+    'IGRO': IGRO,
+    'CXGRO': CXGRO,
+    'BTOP': BTOP,
+    'ETOP': ETOP,
+    'CETOP': CETOP,
+    'EM': EM,
+    'LTRSTR': LTRSTR,
+    'LTHALPHA': LTHALPHA,
+    'EGRO': EGRO,
+    'SGRO': SGRO,
+}
+
+
+
+
 
 # 行业代码映射（申万一级行业）
 INDUSTRY_MAPPING = {
@@ -114,57 +231,4 @@ BENCHMARK_CONFIG = {
     }
 }
 
-# Qlib 字段。分组存放
-FIELD_GROUPS = [
-    # 第1组: 基础交易数据（7个字段）
-    {
-        'name': '基础交易数据',
-        'fields': [
-            '$ind_one', '$change', '$close', '$circ_mv',
-            '$total_mv', '$total_share', '$amount'
-        ]
-    },
-    # 第2组: 资产负债表（6个字段）
-    {
-        'name': '资产负债表',
-        'fields': [
-            'P($$oth_eqt_tools_p_shr_q)', 'P($$total_ncl_q)',
-            'P($$total_hldr_eqy_exc_min_int_q)', 'P($$total_assets_q)',
-            'P($$total_liab_q)', 'P($$money_cap_q)'
-        ]
-    },
-    # 第3组: 利润表（5个字段）
-    {
-        'name': '利润表',
-        'fields': [
-            'P($$revenue_q)', 'P($$n_income_attr_p_q)',
-            'P($$oper_cost_q)', 'P($$basic_eps_q)', 'P($$ebit_q)'
-        ]
-    },
-    # 第4组: 现金流量表（5个字段）
-    {
-        'name': '现金流量表',
-        'fields': [
-            'P($$n_cashflow_act_q)', 'P($$depr_fa_coga_dpba_q)',
-            'P($$amort_intang_assets_q)', 'P($$lt_amort_deferred_exp_q)',
-            'P($$c_pay_acq_const_fiolta_q)'
-        ]
-    },
-    # 第5组: 借款相关（4个字段）
-    {
-        'name': '借款相关',
-        'fields': [
-            'P($$st_borr_q)', 'P($$lt_borr_q)',
-            'P($$non_cur_liab_due_1y_q)', 'P($$bond_payable_q)'
-        ]
-    },
-    # 第6组: TTM数据（3个字段）
-    {
-        'name': 'TTM数据',
-        'fields': [
-            'PTTM($$revenue_q)', 'PTTM($$n_income_attr_p_q)',
-            'PTTM($$n_cashflow_act_q)'
-        ]
-    },
-]
 

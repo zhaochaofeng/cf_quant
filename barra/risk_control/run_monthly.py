@@ -28,7 +28,9 @@ def init_qlib():
 
 def run_monthly_update(end_date: str, history_months: int = 120,
                        output_dir: str = 'output',
-                       n_jobs: int = 4):
+                       n_jobs: int = 4,
+                       use_cache: bool = True
+                       ):
     """
     运行月度模型更新
     
@@ -54,7 +56,7 @@ def run_monthly_update(end_date: str, history_months: int = 120,
     )
     
     # 运行月频更新
-    engine.run_monthly_update(start_date, end_date)
+    engine.run_monthly_update(start_date, end_date, use_cache)
 
     '''
     # 保存模型数据到文件，供日频计算使用
@@ -77,9 +79,11 @@ def main():
                        help='输出路径')
     parser.add_argument('--n-jobs', type=int, default=4,
                        help='并行计算核心数，默认4')
+    parser.add_argument('--use-cache', action='store_false', help='是否使用缓存，用于实验阶段')
     
     args = parser.parse_args()
-    
+    print(args)
+
     # 初始化qlib
     init_qlib()
     
@@ -88,8 +92,11 @@ def main():
         end_date=args.end_date,
         history_months=args.history_months,
         output_dir=args.output_dir,
-        n_jobs=args.n_jobs
+        n_jobs=args.n_jobs,
+        use_cache=args.use_cache
     )
+
+
 
 
 if __name__ == '__main__':
