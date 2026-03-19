@@ -611,7 +611,7 @@ def calc_growth_rate_slope(series, window=5, min_periods=3):
         coef = np.polyfit(x, valid.values, 1)
         slope = coef[0]
         mean_val = valid.mean()
-        if mean_val == 0 or np.isnan(mean_val):
+        if np.abs(mean_val) < 1e-6 or np.isnan(mean_val):
             return np.nan
         return slope / mean_val
     
