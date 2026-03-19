@@ -10,16 +10,17 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-from .output import RiskOutputManager
-
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+from .output import RiskOutputManager
+
 from utils.multiprocess import multiprocessing_wrapper
 
 from .config import STYLE_FACTOR_LIST, FACTOR_FUNCTIONS, INDUSTRY_MAPPING
-
+from utils import LoggerFactory, winsorize, neutralize, standardize
+logger = LoggerFactory.get_logger(__name__)
 
 class FactorExposureBuilder:
     """因子暴露矩阵构建器"""
@@ -37,7 +38,7 @@ class FactorExposureBuilder:
         Returns:
             DataFrame, index=(instrument, datetime), columns=因子名称
         """
-        print("开始计算原始因子值...")
+        logger.info("开始计算原始因子值...")
         raw_data = raw_data.sort_index()
         
         # 准备并行计算任务
@@ -72,7 +73,7 @@ class FactorExposureBuilder:
         for factor_name, series in factor_results.items():
             factor_df[factor_name] = series
         
-        print(f"原始因子计算完成，共{len(factor_df.columns)}个因子")
+        logger.info(f"原始因子计算完成，共{len(factor_df.columns)}个因子")
 
         return factor_df
     
@@ -95,10 +96,10 @@ class FactorExposureBuilder:
                 return factor_name, series
         except Exception as e:
             err_msg = f"因子{factor_name}计算失败: {str(e)}"
-            # raise Exception(err_msg)
-            print(err_msg)
-            return factor_name, None
-    
+            logger.error(err_msg)
+            raise Exception(err_msg)
+            # return factor_name, None
+
     def winsorize_factors(self, factor_df: pd.DataFrame, 
                          method: str = 'median') -> pd.DataFrame:
         """
@@ -111,7 +112,7 @@ class FactorExposureBuilder:
         Returns:
             去极值后的因子数据
         """
-        print("进行中位数去极值...")
+        logger.info("进行中位数去极值...")
         result_df = pd.DataFrame(index=factor_df.index)
         
         # 按日期分组处理
@@ -143,93 +144,68 @@ class FactorExposureBuilder:
                           market_cap_df: pd.DataFrame) -> pd.DataFrame:
         """
         行业/市值中性化
-        
-        参考jqfactor_analyzer的实现逻辑：
-        对每个因子，用行业和市值做回归，取残差
+        对每个因子，用行业和对数市值做回归，取残差
+        去掉一个行业，添加截距项
+        按照因子顺序(STYLE_FACTOR_LIST)中性化，第一个因子仅需行业和对数市值中性化，后续因子还需对前面所有因子进行中性化
         
         Args:
-            factor_df: 因子数据
+            factor_df: 因子数据，index=(instrument, datetime), columns=因子名
             industry_df: 行业数据，index=(instrument, datetime), 值为行业代码
             market_cap_df: 市值数据，index=(instrument, datetime), columns包含'circ_mv'
-            
+
         Returns:
             中性化后的因子数据
         """
-        print("进行行业/市值中性化...")
+        logger.info("进行行业/市值中性化...")
+
+        # 行业哑变量：bool → float，去掉第一列避免与截距项共线
+        industry_dummies = pd.get_dummies(
+            industry_df.iloc[:, 0], prefix='ind'
+        ).iloc[:, 1:].astype(float)
+
+        # 对数市值
+        log_mv = np.log(market_cap_df[['circ_mv']].clip(lower=1e-10))
+        log_mv.columns = ['log_mv']
+
+        # 基础自变量：行业哑变量 + 对数市值
+        base_x = industry_dummies.join(log_mv, how='inner')
+
+        # 按 STYLE_FACTOR_LIST 顺序中性化
+        factor_order = [f for f in STYLE_FACTOR_LIST if f in factor_df.columns]
         result_df = pd.DataFrame(index=factor_df.index)
-        
-        # 准备行业虚拟变量
-        industry_dummies = pd.get_dummies(industry_df.iloc[:, 0], prefix='ind')
-        
-        # 合并数据
-        merged_df = factor_df.join(industry_dummies, how='inner')
-        merged_df = merged_df.join(market_cap_df[['circ_mv']], how='inner')
-        
-        # 对每个因子进行中性化
-        for factor in factor_df.columns:
-            neutralized = self._neutralize_single_factor(
-                merged_df, factor, industry_dummies.columns.tolist()
+
+        for i, factor_name in enumerate(factor_order):
+            y = factor_df[factor_name]
+
+            if i == 0:
+                # 第一个因子：仅行业 + 对数市值
+                x = base_x
+            else:
+                # 后续因子：行业 + 对数市值 + 前面已中性化的因子
+                prev_factors = result_df[factor_order[:i]]
+                x = base_x.join(prev_factors, how='inner')
+
+            # 对齐索引，去除 NaN
+            common_idx = y.index.intersection(x.index)
+            y_aligned = y.loc[common_idx]
+            x_aligned = x.loc[common_idx]
+            valid_mask = y_aligned.notna() & x_aligned.notna().all(axis=1)
+
+            if valid_mask.sum() < x_aligned.shape[1] + 1:
+                err_msg = f"因子{factor_name}有效样本不足，跳过中性化"
+                logger.error(err_msg)
+                raise Exception(err_msg)
+
+            resid = neutralize(
+                y_aligned[valid_mask], x_aligned.loc[valid_mask], intercept=True
             )
-            result_df[factor] = neutralized
-        
+
+            # 残差写回，NaN 位置保留
+            result_col = pd.Series(np.nan, index=factor_df.index, dtype=float)
+            result_col.loc[resid.index] = resid
+            result_df[factor_name] = result_col
+
         return result_df
-    
-    def _neutralize_single_factor(self, merged_df: pd.DataFrame,
-                                  factor_name: str,
-                                  industry_cols: List[str]) -> pd.Series:
-        """
-        对单个因子进行中性化
-
-        Returns:
-            中性化后的因子序列
-        """
-        y = merged_df[factor_name]
-        # 确保 y 是数值类型
-        y = pd.to_numeric(y, errors='coerce')
-
-        # 自变量：行业虚拟变量 + 对数市值
-        X_cols = industry_cols + ['circ_mv']
-        X = merged_df[X_cols].copy()
-
-        # 确保所有列都是数值类型
-        for col in X.columns:
-            X[col] = pd.to_numeric(X[col], errors='coerce')
-
-        # 计算对数市值，处理可能的inf和负数
-        X['circ_mv'] = np.log(X['circ_mv'].clip(lower=1e-10))
-        X = sm.add_constant(X)
-
-        # 加权最小二乘（市值平方根加权）
-        weights = np.sqrt(pd.to_numeric(merged_df['circ_mv'], errors='coerce').clip(lower=1e-10))
-
-        # 移除包含NaN的行
-        valid_idx = y.notna() & X.notna().all(axis=1) & weights.notna()
-        if valid_idx.sum() < len(X.columns) + 1:  # 至少需要比变量数多的样本
-            print(f"警告：因子{factor_name}有效样本不足，跳过中性化")
-            return pd.Series(np.nan, index=merged_df.index)
-
-        y_clean = y[valid_idx]
-        X_clean = X[valid_idx]
-        weights_clean = weights[valid_idx]
-
-        # 再次确保数据类型正确
-        y_clean = y_clean.astype(float)
-        X_clean = X_clean.astype(float)
-        weights_clean = weights_clean.astype(float)
-
-        try:
-            # 拟合模型
-            model = sm.WLS(y_clean, X_clean, weights=weights_clean)
-            results = model.fit()
-
-            # 返回残差
-            resid = pd.Series(np.nan, index=merged_df.index, dtype=float)
-            resid.loc[valid_idx] = results.resid.values
-        except Exception as e:
-            print(f"警告：因子{factor_name}中性化失败: {str(e)}")
-            resid = pd.Series(np.nan, index=merged_df.index, dtype=float)
-
-        return resid
     
     def orthogonalize_factors(self, factor_df: pd.DataFrame,
                              factor_order: Optional[List[str]] = None) -> pd.DataFrame:
@@ -246,7 +222,7 @@ class FactorExposureBuilder:
         Returns:
             正交化后的因子数据
         """
-        print("进行因子正交化...")
+        logger.info("进行因子正交化...")
         if factor_order is None:
             factor_order = [f for f in STYLE_FACTOR_LIST if f in factor_df.columns]
         
@@ -283,7 +259,7 @@ class FactorExposureBuilder:
         Returns:
             标准化后的因子数据（均值0，标准差1）
         """
-        print("进行标准化...")
+        logger.info("进行标准化...")
         result_df = pd.DataFrame(index=factor_df.index)
         
         # 按日期分组标准化
@@ -313,7 +289,7 @@ class FactorExposureBuilder:
         Returns:
             是否通过正交性检验
         """
-        print("验证因子正交性...")
+        logger.info("验证因子正交性...")
         # 计算相关系数矩阵
         corr_matrix = factor_df.corr().abs()
         
@@ -321,10 +297,10 @@ class FactorExposureBuilder:
         np.fill_diagonal(corr_matrix.values, 0)
         max_corr = corr_matrix.max().max()
         
-        print(f"最大相关系数: {max_corr:.4f}")
+        logger.info(f"最大相关系数: {max_corr:.4f}")
         
         if max_corr > threshold:
-            print(f"警告：存在相关系数超过阈值{threshold}的因子对")
+            logger.warning(f"警告：存在相关系数超过阈值{threshold}的因子对")
             # 打印高相关因子对
             high_corr_pairs = []
             for i in range(len(corr_matrix.columns)):
@@ -336,10 +312,10 @@ class FactorExposureBuilder:
                             corr_matrix.iloc[i, j]
                         ))
             for f1, f2, corr in high_corr_pairs[:5]:  # 只显示前5个
-                print(f"  {f1} - {f2}: {corr:.4f}")
+                logger.info(f"  {f1} - {f2}: {corr:.4f}")
             return False
         
-        print("正交性检验通过")
+        logger.info("正交性检验通过")
         return True
     
     def merge_industry_factors(self, style_factors: pd.DataFrame,
@@ -354,7 +330,7 @@ class FactorExposureBuilder:
         Returns:
             合并后的因子暴露矩阵
         """
-        print("合并行业因子...")
+        logger.info("合并行业因子...")
         # 创建行业虚拟变量（one-hot编码）
         industry_codes = industry_df.iloc[:, 0].astype(str)
         industry_dummies = pd.get_dummies(industry_codes, prefix='ind')
@@ -367,9 +343,9 @@ class FactorExposureBuilder:
         # 合并风格因子和行业因子
         merged = style_factors.join(industry_dummies, how='inner')
         
-        print(f"合并完成，共{len(style_factors.columns)}个风格因子 + "
-              f"{len(industry_dummies.columns)}个行业因子 = "
-              f"{len(merged.columns)}个因子")
+        logger.info(f"合并完成，共{len(style_factors.columns)}个风格因子 + "
+                    f"{len(industry_dummies.columns)}个行业因子 = "
+                    f"{len(merged.columns)}个因子")
         
         return merged
     
@@ -401,48 +377,53 @@ class FactorExposureBuilder:
         Returns:
             完整的因子暴露矩阵
         """
-        print("=" * 60)
-        print("开始构建因子暴露矩阵...")
+        logger.info("=" * 60)
+        logger.info("开始构建因子暴露矩阵...")
         
         # 1. 计算原始因子
-        raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
-        output_manager.save_data(raw_factors, 'debug/raw_factors', type='csv')
+        if 1:
+            raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
+            output_manager.save_data(raw_factors, 'debug/raw_factors.parquet', type='parquet')
+        else:
+            print('load raw_factors ...')
+            raw_factors = output_manager.load_data('debug/raw_factors.parquet', type='parquet')
 
-        '''
         # 2. 去极值
-        winsorized = self.winsorize_factors(raw_factors, method='median')
-        
-        # 3. 中性化（行业、市值）
-        neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
-        
+        if 1:
+            winsorized = winsorize(raw_factors, method='median', level='datetime')
+            output_manager.save_data(winsorized, 'debug/winsorized.parquet', type='parquet')
+        else:
+            print('load winsorized ...')
+            winsorized = output_manager.load_data('debug/winsorized.parquet', type='parquet')
+
+        # 3. 行业、市值中性化，因子间正交化
+        if 1:
+            neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
+            output_manager.save_data(neutralized, 'debug/neutralized.parquet', type='parquet')
+        else:
+            print('load neutralized ...')
+            neutralized = output_manager.load_data('debug/neutralized.parquet', type='parquet')
+
         # 4. 正交化
-        orthogonalized = self.orthogonalize_factors(neutralized)
+        # orthogonalized = self.orthogonalize_factors(neutralized)
         
         # 5. 标准化
-        standardized = self.standardize_factors(orthogonalized)
-        
+        # standardized = self.standardize_factors(neutralized)
+        if 1:
+            standardized = standardize(neutralized, method='zscore', level='datetime')
+            output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
+        else:
+            print('load standardized ...')
+            standardized = output_manager.load_data('debug/standardized.parquet', type='parquet')
+
         # 6. 验证正交性
         self.verify_orthogonality(standardized)
-        
+
         # 7. 合并行业因子
         exposure_matrix = self.merge_industry_factors(standardized, industry_df)
-        
-        # 保存结果
-        if save_path:
-            import os
-            save_dir = os.path.dirname(save_path)
-            if save_dir and not os.path.exists(save_dir):
-                os.makedirs(save_dir, exist_ok=True)
-            exposure_matrix.to_csv(save_path, encoding='utf-8')
-            print(f"因子暴露矩阵已保存至: {save_path}")
-        
-        if self.cache_dir:
-            cache_file = self.cache_dir / 'exposure_matrix.csv'
-            exposure_matrix.to_csv(cache_file, encoding='utf-8')
-            print(f"已缓存至: {cache_file}")
+        output_manager.save_data(exposure_matrix, 'debug/exposure_matrix.parquet', type='parquet')
         
         print("因子暴露矩阵构建完成")
         print("=" * 60)
         
         return exposure_matrix
-        '''

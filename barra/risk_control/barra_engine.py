@@ -135,30 +135,29 @@ class BarraRiskEngine:
 
         if use_cache:
             print('use cache data ...')
-            raw_data = self.output_manager.load_data('debug/raw_data.csv')
-            returns_df = self.output_manager.load_data('debug/returns_data.csv')
-            industry_df = self.output_manager.load_data('debug/industry_data.csv')
-            market_cap_df = self.output_manager.load_data('debug/market_cap_data.csv')
-            raw_data.set_index(keys=['instrument', 'datetime'], inplace=True)
-            returns_df.set_index(keys=['instrument', 'datetime'], inplace=True)
-            industry_df.set_index(keys=['instrument', 'datetime'], inplace=True)
-            market_cap_df.set_index(keys=['instrument', 'datetime'], inplace=True)
+            raw_data = self.output_manager.load_data('debug/raw_data.parquet')
+            returns_df = self.output_manager.load_data('debug/returns_data.parquet')
+            industry_df = self.output_manager.load_data('debug/industry_data.parquet')
+            market_cap_df = self.output_manager.load_data('debug/market_cap_data.parquet')
         else:
             raw_data = self.data_loader.load_fields_data(instruments, start_date, end_date)
             returns_df = self.data_loader.load_returns(instruments, start_date, end_date)
             industry_df = self.data_loader.load_industry(instruments, start_date, end_date)
             market_cap_df = self.data_loader.load_market_cap(instruments, start_date, end_date)
 
-            self.output_manager.save_data(raw_data, 'debug/raw_data.csv', type='csv')
-            self.output_manager.save_data(returns_df, 'debug/returns_data.csv', type='csv')
-            self.output_manager.save_data(industry_df, 'debug/industry_data.csv', type='csv')
-            self.output_manager.save_data(market_cap_df, 'debug/market_cap_data.csv', type='csv')
+            self.output_manager.save_data(raw_data, 'debug/raw_data.parquet', type='parquet')
+            self.output_manager.save_data(returns_df, 'debug/returns_data.parquet', type='parquet')
+            self.output_manager.save_data(industry_df, 'debug/industry_data.parquet', type='parquet')
+            self.output_manager.save_data(market_cap_df, 'debug/market_cap_data.parquet', type='parquet')
 
         print('raw_data shape: {}'.format(raw_data.shape))
         print('returns_df shape: {}'.format(returns_df.shape))
         print('industry_df shape: {}'.format(industry_df.shape))
         print('market_cap_df shape: {}'.format(market_cap_df.shape))
-        print(raw_data.head())
+
+        # 有些公司在没有上市前就披露财报，导致 raw_data 数据量比 returns_df 多. 需要做一个对齐
+        raw_data = raw_data.reindex(returns_df.index)
+        print('raw_data reindex shape: {}'.format(raw_data.shape))
 
         # 2. 构建因子暴露矩阵
         print("\n2. 构建因子暴露矩阵...")
@@ -166,8 +165,6 @@ class BarraRiskEngine:
             raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs,
             output_manager=self.output_manager
         )
-
-
 
         '''
         
