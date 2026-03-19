@@ -75,6 +75,7 @@ class DataLoader:
         fields = ['$circ_mv', '$total_mv']
         df = D.features(instruments, fields, start_time=start_time, end_time=end_time)
         df.columns = ['circ_mv', 'total_mv']
+        df = df * 10000  # 万元转元
         return df
     
     def load_industry(self, instruments: List[str], start_time: str, end_time: str) -> pd.DataFrame:
