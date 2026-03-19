@@ -4,7 +4,7 @@
 import numpy as np
 import pandas as pd
 from typing import Optional, Union
-from utils import WLS
+from .stats import WLS
 
 
 def _compute_bounds(df: pd.DataFrame, method: str, k: float,
@@ -151,10 +151,33 @@ def winsorize(
     return df.groupby(level=level, group_keys=False).apply(_group_winsorize)
 
 
+def _standardize_df(df: pd.DataFrame, method: str, axis: int) -> pd.DataFrame:
+    """对 DataFrame 执行标准化计算
+
+    Args:
+        df: 输入数据
+        method: 'zscore' 或 'minmax'
+        axis: 计算轴向
+
+    Returns:
+        pd.DataFrame: 标准化后的数据
+    """
+    if method == 'zscore':
+        mean = df.mean(axis=axis)
+        std = df.std(axis=axis)
+        return df.subtract(mean, axis=1 - axis).div(std, axis=1 - axis)
+    if method == 'minmax':
+        min_val = df.min(axis=axis)
+        max_val = df.max(axis=axis)
+        return df.subtract(min_val, axis=1 - axis).div(max_val - min_val, axis=1 - axis)
+    raise ValueError(f"method 必须为 'zscore' 或 'minmax'，当前值: {method}")
+
+
 def standardize(
     data: Union[np.ndarray, pd.Series, pd.DataFrame],
     method: str = 'zscore',
-    axis: int = 0
+    axis: int = 0,
+    level: Optional[Union[int, str]] = None
 ) -> pd.DataFrame:
     """标准化处理。
 
@@ -163,23 +186,26 @@ def standardize(
         method: 标准化方式
             'zscore': Z-Score标准化，(x - mean) / std
             'minmax': Min-Max归一化，(x - min) / (max - min)，映射到[0, 1]
-        axis: 计算轴向，0=按列，1=按行
+        axis: 计算轴向，0=按列，1=按行（level 模式下忽略此参数）
+        level: 分组索引层级（int 或 str），按该层级 groupby 后分组标准化。
+               None 表示不分组，对全量数据标准化
 
     Returns:
         pd.DataFrame: 标准化后的数据
     """
     df = _to_dataframe(data)
 
-    if method == 'zscore':
-        mean = df.mean(axis=axis)
-        std = df.std(axis=axis)
-        return df.subtract(mean, axis=1 - axis).div(std, axis=1 - axis)
-    elif method == 'minmax':
-        min_val = df.min(axis=axis)
-        max_val = df.max(axis=axis)
-        return df.subtract(min_val, axis=1 - axis).div(max_val - min_val, axis=1 - axis)
-    else:
-        raise ValueError(f"method 必须为 'zscore' 或 'minmax'，当前值: {method}")
+    # 无分组：全局标准化
+    if level is None:
+        return _standardize_df(df, method, axis)
+
+    # 有分组：校验索引 → groupby 分组标准化
+    _validate_groupby_index(df, level)
+
+    def _group_standardize(group: pd.DataFrame) -> pd.DataFrame:
+        return _standardize_df(group, method, axis=0)
+
+    return df.groupby(level=level, group_keys=False).apply(_group_standardize)
 
 
 def neutralize(
