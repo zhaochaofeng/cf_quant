@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 from typing import Optional, Union
+from utils import WLS
 
 
 def _compute_bounds(df: pd.DataFrame, method: str, k: float,
@@ -61,6 +62,24 @@ def _apply_bounds(df: pd.DataFrame, lower_bound, upper_bound,
     return df.where(df == clipped, np.nan)
 
 
+def _to_dataframe(data: Union[np.ndarray, pd.Series, pd.DataFrame]) -> pd.DataFrame:
+    """将输入数据统一转换为 DataFrame
+
+    Args:
+        data: 输入数据，支持 np.ndarray / pd.Series / pd.DataFrame
+
+    Returns:
+        pd.DataFrame: 转换后的数据（DataFrame 输入会被复制以避免副作用）
+    """
+    if isinstance(data, np.ndarray):
+        return pd.DataFrame(data)
+    if isinstance(data, pd.Series):
+        return data.to_frame()
+    if isinstance(data, pd.DataFrame):
+        return data.copy()
+    raise TypeError(f'不支持的数据类型: {type(data)}')
+
+
 def _validate_groupby_index(df: pd.DataFrame, level: Union[int, str]) -> None:
     """校验 DataFrame 索引是否满足 groupby(level=...) 的执行条件
 
@@ -115,14 +134,7 @@ def winsorize(
     Returns:
         pd.DataFrame: 去极值后的数据
     """
-    if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data)
-    elif isinstance(data, pd.Series):
-        df = data.to_frame()
-    elif isinstance(data, pd.DataFrame):
-        df = data.copy()
-    else:
-        raise TypeError(f'不支持的数据类型: {type(data)}')
+    df = _to_dataframe(data)
 
     # 无分组：全局去极值
     if level is None:
@@ -156,14 +168,7 @@ def standardize(
     Returns:
         pd.DataFrame: 标准化后的数据
     """
-    if isinstance(data, np.ndarray):
-        df = pd.DataFrame(data)
-    elif isinstance(data, pd.Series):
-        df = data.to_frame()
-    elif isinstance(data, pd.DataFrame):
-        df = data.copy()
-    else:
-        raise TypeError(f'不支持的数据类型: {type(data)}')
+    df = _to_dataframe(data)
 
     if method == 'zscore':
         mean = df.mean(axis=axis)
@@ -176,4 +181,42 @@ def standardize(
     else:
         raise ValueError(f"method 必须为 'zscore' 或 'minmax'，当前值: {method}")
 
+
+def neutralize(
+    y: Union[np.ndarray, pd.Series, pd.DataFrame],
+    x: Union[np.ndarray, pd.Series, pd.DataFrame],
+    weight: Union[np.ndarray, float] = 1,
+    intercept: bool = True
+) -> Union[np.ndarray, pd.Series, pd.DataFrame]:
+    """中性化处理：用x对y进行线性回归，取残差
+
+    通过WLS回归拟合y，返回残差（实际值 - 预测值），即剔除x影响后的y。
+
+    Args:
+        y: 因变量，支持 array/Series/DataFrame
+        x: 自变量，支持 array/Series/DataFrame，可以是1列或多列
+        weight: 权重，默认等权
+        intercept: 是否包含截距项，默认True
+
+    Returns:
+        中性化后的残差，维度和类型与y一致
+    """
+    is_series = isinstance(y, pd.Series)
+    is_1d_array = isinstance(y, np.ndarray) and y.ndim == 1
+    is_nd_array = isinstance(y, np.ndarray) and y.ndim > 1
+
+    y_df = _to_dataframe(y)
+    x_df = _to_dataframe(x)
+
+    # 调用WLS获取残差
+    _, _, resid = WLS(y_df, x_df, intercept=intercept, weight=weight, verbose=True)
+
+    # 恢复原始类型
+    if is_series:
+        return resid.iloc[:, 0]
+    if is_1d_array:
+        return resid.values.flatten()
+    if is_nd_array:
+        return resid.values
+    return resid
 
