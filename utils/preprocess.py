@@ -40,6 +40,27 @@ def _compute_bounds(df: pd.DataFrame, method: str, k: float,
     return lower_bound, upper_bound
 
 
+def _apply_bounds(df: pd.DataFrame, lower_bound, upper_bound,
+                  axis: int, inclusive: bool) -> pd.DataFrame:
+    """根据 inclusive 参数对超出边界的值进行截断或置 NaN
+
+    Args:
+        df: 输入数据
+        lower_bound: 下界
+        upper_bound: 上界
+        axis: 计算轴向（clip 时使用 1 - axis）
+        inclusive: True 截断到边界值，False 置为 NaN
+
+    Returns:
+        pd.DataFrame: 处理后的数据
+    """
+    clipped = df.clip(lower=lower_bound, upper=upper_bound, axis=1 - axis)
+    if inclusive:
+        return clipped
+    # inclusive=False: 被截断的位置置为 NaN
+    return df.where(df == clipped, np.nan)
+
+
 def _validate_groupby_index(df: pd.DataFrame, level: Union[int, str]) -> None:
     """校验 DataFrame 索引是否满足 groupby(level=...) 的执行条件
 
@@ -75,9 +96,10 @@ def winsorize(
     lower: float = 0.01,
     upper: float = 0.99,
     axis: int = 0,
-    level: Optional[Union[int, str]] = None
+    level: Optional[Union[int, str]] = None,
+    inclusive: bool = True
 ) -> pd.DataFrame:
-    """去极值处理，将超出边界的值截断到边界值。
+    """去极值处理。
 
     Args:
         data: 输入数据，支持 np.ndarray / pd.Series / pd.DataFrame
@@ -88,6 +110,7 @@ def winsorize(
         axis: 计算轴向，0=按列，1=按行（level 模式下忽略此参数）
         level: 分组索引层级（int 或 str），按该层级 groupby 后分组去极值。
                None 表示不分组，对全量数据去极值
+        inclusive: True 将超出边界的值截断到边界值，False 将超出边界的值置为 NaN
 
     Returns:
         pd.DataFrame: 去极值后的数据
@@ -104,14 +127,14 @@ def winsorize(
     # 无分组：全局去极值
     if level is None:
         lower_bound, upper_bound = _compute_bounds(df, method, k, lower, upper, axis)
-        return df.clip(lower=lower_bound, upper=upper_bound, axis=1 - axis)
+        return _apply_bounds(df, lower_bound, upper_bound, axis, inclusive)
 
     # 有分组：校验索引 → groupby 分组去极值
     _validate_groupby_index(df, level)
 
     def _group_winsorize(group: pd.DataFrame) -> pd.DataFrame:
         lb, ub = _compute_bounds(group, method, k, lower, upper, axis=0)
-        return group.clip(lower=lb, upper=ub, axis=1)
+        return _apply_bounds(group, lb, ub, axis=0, inclusive=inclusive)
 
     return df.groupby(level=level, group_keys=False).apply(_group_winsorize)
 
