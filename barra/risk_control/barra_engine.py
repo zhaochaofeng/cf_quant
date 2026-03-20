@@ -161,14 +161,14 @@ class BarraRiskEngine:
 
         # 2. 构建因子暴露矩阵
         print("\n2. 构建因子暴露矩阵...")
-        if 0:
+        if use_cache:
+            print('load exposure matrix...')
+            self.factor_exposure = self.output_manager.load_data('debug/exposure_matrix.parquet', type='parquet')
+        else:
             self.factor_exposure = self.factor_builder.build_exposure_matrix(
                 raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs,
                 output_manager=self.output_manager
             )
-        else:
-            print('load exposure matrix...')
-            self.factor_exposure = self.output_manager.load_data('debug/exposure_matrix.parquet', type='parquet')
 
         # 选择最近252个交易日
         regression_dates = get_trade_cal_inter(start_date, end_date)[-MODEL_PARAMS['window']: -1]
@@ -199,15 +199,11 @@ class BarraRiskEngine:
         print(f"      市值: {market_cap_df.shape}")
         
         # 4. 横截面回归估计因子收益率
-        if 1:
-            print("\n4. 横截面回归...")
-            self.factor_returns = self.cross_sectional.fit_multi_periods(
-                returns_df, self.factor_exposure, market_cap_df
-            )
-            self.output_manager.save_data(self.factor_returns, 'model/factor_returns.parquet', type='parquet')
-        else:
-            print('load factor returns...')
-            self.factor_returns = self.output_manager.load_data('model/factor_returns.parquet', type='parquet')
+        print("\n4. 横截面回归...")
+        self.factor_returns = self.cross_sectional.fit_multi_periods(
+            returns_df, self.factor_exposure, market_cap_df
+        )
+        self.output_manager.save_data(self.factor_returns, 'model/factor_returns.parquet', type='parquet')
 
         # 4. 估计因子协方差矩阵
         print("\n4. 估计因子协方差矩阵...")
@@ -313,7 +309,7 @@ class BarraRiskEngine:
         
         return saved_files
     
-    def load_model_data(self, model_dir: str, calc_date: str = None) -> bool:
+    def load_model_data(self, calc_date: str = None) -> bool:
         """
         从Parquet文件加载模型数据，供日频计算使用
         
@@ -328,7 +324,7 @@ class BarraRiskEngine:
         if calc_date is None:
             calc_date = self.calc_date
         
-        model_path = Path(model_dir)
+        model_path = Path()
         if not model_path.exists():
             print(f"警告：模型数据目录不存在: {model_dir}")
             return False

@@ -275,40 +275,25 @@ class FactorExposureBuilder:
         logger.info("开始构建因子暴露矩阵...")
 
         # 1. 计算原始因子
-        if 1:
-            raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
-            output_manager.save_data(raw_factors, 'debug/raw_factors.parquet', type='parquet')
-        else:
-            print('load raw_factors ...')
-            raw_factors = output_manager.load_data('debug/raw_factors.parquet', type='parquet')
+        raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
+        output_manager.save_data(raw_factors, 'debug/raw_factors.parquet', type='parquet')
 
         # 2. 去极值
-        if 1:
-            winsorized = winsorize(raw_factors, method='median', level='datetime')
-            output_manager.save_data(winsorized, 'debug/winsorized.parquet', type='parquet')
-        else:
-            print('load winsorized ...')
-            winsorized = output_manager.load_data('debug/winsorized.parquet', type='parquet')
+        winsorized = winsorize(raw_factors, method='median', level='datetime')
+        output_manager.save_data(winsorized, 'debug/winsorized.parquet', type='parquet')
 
         # 3. 行业、市值中性化，因子间正交化
-        if 1:
-            neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
-            output_manager.save_data(neutralized, 'debug/neutralized.parquet', type='parquet')
-        else:
-            print('load neutralized ...')
-            neutralized = output_manager.load_data('debug/neutralized.parquet', type='parquet')
+        neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
+        output_manager.save_data(neutralized, 'debug/neutralized.parquet', type='parquet')
 
-        if 1:
-            standardized = standardize(neutralized, method='zscore', level='datetime')
-            output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
-        else:
-            print('load standardized ...')
-            standardized = output_manager.load_data('debug/standardized.parquet', type='parquet')
+        # 4. 标准化
+        standardized = standardize(neutralized, method='zscore', level='datetime')
+        output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
 
-        # 6. 验证正交性
+        # 5. 验证正交性
         self.verify_orthogonality(standardized)
 
-        # 7. 合并行业因子
+        # 6. 合并行业因子
         industry_dummies = get_industry_dummies(industry_df, drop_first=False, prefix='ind')
         industry_dummies.drop(columns=['ind_nan'], inplace=True)
         exposure_matrix = self.merge_industry_factors(standardized, industry_dummies)

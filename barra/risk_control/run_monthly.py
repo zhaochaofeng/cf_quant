@@ -12,7 +12,8 @@ sys.path.insert(0, str(project_root))
 
 import qlib
 from barra.risk_control.barra_engine import BarraRiskEngine
-from utils import dt, LoggerFactory
+from utils import dt, LoggerFactory, send_email
+import traceback
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -70,33 +71,35 @@ def run_monthly_update(end_date: str, history_months: int = 120,
     '''
 
 def main():
-    parser = argparse.ArgumentParser(description='Barra CNE6 月度模型更新')
-    parser.add_argument('--end-date', type=str, required=True,
-                       help='数据截止日期，格式YYYY-MM-DD')
-    parser.add_argument('--history-months', type=int, default=1,
-                       help='历史数据月数，默认72(1+5年)')
-    parser.add_argument('--output_dir', type=str, default='output',
-                       help='输出路径')
-    parser.add_argument('--n-jobs', type=int, default=4,
-                       help='并行计算核心数，默认4')
-    parser.add_argument('--use-cache', action='store_true', help='是否使用缓存，用于实验阶段')
-    
-    args = parser.parse_args()
-    print(args)
+    try:
+        parser = argparse.ArgumentParser(description='Barra CNE6 月度模型更新')
+        parser.add_argument('--end-date', type=str, required=True,
+                           help='数据截止日期，格式YYYY-MM-DD')
+        parser.add_argument('--history-months', type=int, default=72,
+                           help='历史数据月数，默认72(1+5年)')
+        parser.add_argument('--output_dir', type=str, default='output',
+                           help='输出路径')
+        parser.add_argument('--n-jobs', type=int, default=4,
+                           help='并行计算核心数，默认4')
+        parser.add_argument('--use-cache', action='store_true', help='是否使用缓存，用于实验阶段')
 
-    # 初始化qlib
-    init_qlib()
-    
-    # 运行月度更新
-    run_monthly_update(
-        end_date=args.end_date,
-        history_months=args.history_months,
-        output_dir=args.output_dir,
-        n_jobs=args.n_jobs,
-        use_cache=args.use_cache
-    )
+        args = parser.parse_args()
+        print(args)
 
+        # 初始化qlib
+        init_qlib()
 
+        # 运行月度更新
+        run_monthly_update(
+            end_date=args.end_date,
+            history_months=args.history_months,
+            output_dir=args.output_dir,
+            n_jobs=args.n_jobs,
+            use_cache=args.use_cache
+        )
+    except Exception as e:
+        logger.error(f"运行月度更新时出错：{e}")
+        send_email(f"Barra CNE6 模型更新出错", traceback.format_exc())
 
 
 if __name__ == '__main__':
