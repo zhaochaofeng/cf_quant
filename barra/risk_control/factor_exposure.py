@@ -100,46 +100,8 @@ class FactorExposureBuilder:
             raise Exception(err_msg)
             # return factor_name, None
 
-    def winsorize_factors(self, factor_df: pd.DataFrame, 
-                         method: str = 'median') -> pd.DataFrame:
-        """
-        因子去极值处理（中位数去极值）
-        
-        Args:
-            factor_df: 因子数据
-            method: 去极值方法，'median'或'quantile'
-            
-        Returns:
-            去极值后的因子数据
-        """
-        logger.info("进行中位数去极值...")
-        result_df = pd.DataFrame(index=factor_df.index)
-        
-        # 按日期分组处理
-        for date, group in factor_df.groupby(level=1):
-            for factor in factor_df.columns:
-                values = group[factor].dropna()
-                if len(values) == 0:
-                    continue
-                
-                if method == 'median':
-                    # 中位数去极值
-                    median = values.median()
-                    mad = np.median(np.abs(values - median))
-                    lower_bound = median - 5 * 1.4826 * mad
-                    upper_bound = median + 5 * 1.4826 * mad
-                else:
-                    # 分位数去极值
-                    lower_bound = values.quantile(0.01)
-                    upper_bound = values.quantile(0.99)
-                
-                # 截断
-                clipped = values.clip(lower=lower_bound, upper=upper_bound)
-                result_df.loc[group.index, factor] = clipped
-        
-        return result_df
-    
-    def neutralize_factors(self, factor_df: pd.DataFrame, 
+
+    def neutralize_factors(self, factor_df: pd.DataFrame,
                           industry_df: pd.DataFrame,
                           market_cap_df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -150,7 +112,7 @@ class FactorExposureBuilder:
         
         Args:
             factor_df: 因子数据，index=(instrument, datetime), columns=因子名
-            industry_df: 行业数据，index=(instrument, datetime), 值为行业代码
+            industry_df: 行业数据，index=(instrument, datetime)
             market_cap_df: 市值数据，index=(instrument, datetime), columns包含'circ_mv'
 
         Returns:
@@ -158,10 +120,12 @@ class FactorExposureBuilder:
         """
         logger.info("进行行业/市值中性化...")
 
-        # 行业哑变量：bool → float，去掉第一列避免与截距项共线
-        industry_dummies = pd.get_dummies(
-            industry_df.iloc[:, 0], prefix='ind'
-        ).iloc[:, 1:].astype(float)
+        # # 行业哑变量：bool → float，去掉第一列避免与截距项共线
+        # industry_dummies = pd.get_dummies(
+        #     industry_df.iloc[:, 0], prefix='ind', drop_first=True, dtype='float'
+        # )
+        industry_dummies = get_industry_dummies(industry_df, drop_first=True, prefix='ind')
+        industry_dummies.drop(columns=['ind_nan'], inplace=True)
 
         # 对数市值
         log_mv = np.log(market_cap_df[['circ_mv']].clip(lower=1e-10))
@@ -206,77 +170,7 @@ class FactorExposureBuilder:
             result_df[factor_name] = result_col
 
         return result_df
-    
-    def orthogonalize_factors(self, factor_df: pd.DataFrame,
-                             factor_order: Optional[List[str]] = None) -> pd.DataFrame:
-        """
-        因子正交化
-        
-        按照指定顺序，从第2个因子开始，以当前因子为因变量，
-        排在前面的因子为自变量，进行多元线性回归拟合，取回归残差
-        
-        Args:
-            factor_df: 因子数据
-            factor_order: 因子顺序列表，默认使用STYLE_FACTOR_LIST
-            
-        Returns:
-            正交化后的因子数据
-        """
-        logger.info("进行因子正交化...")
-        if factor_order is None:
-            factor_order = [f for f in STYLE_FACTOR_LIST if f in factor_df.columns]
-        
-        result_df = pd.DataFrame(index=factor_df.index)
-        
-        for i, factor_name in enumerate(factor_order):
-            if factor_name not in factor_df.columns:
-                continue
-            
-            if i == 0:
-                # 第一个因子保持不变
-                result_df[factor_name] = factor_df[factor_name]
-            else:
-                # 对前面的因子进行回归
-                y = factor_df[factor_name]
-                X = result_df.iloc[:, :i]  # 前面已正交化的因子
-                X = sm.add_constant(X)
-                
-                # 回归并取残差
-                model = sm.OLS(y, X, missing='drop').fit()
-                resid = pd.Series(index=factor_df.index, dtype=float)
-                resid.loc[model.resid.index] = model.resid.values
-                result_df[factor_name] = resid
-        
-        return result_df
-    
-    def standardize_factors(self, factor_df: pd.DataFrame) -> pd.DataFrame:
-        """
-        因子标准化（Z-Score）
-        
-        Args:
-            factor_df: 因子数据
-            
-        Returns:
-            标准化后的因子数据（均值0，标准差1）
-        """
-        logger.info("进行标准化...")
-        result_df = pd.DataFrame(index=factor_df.index)
-        
-        # 按日期分组标准化
-        for date, group in factor_df.groupby(level=1):
-            for factor in factor_df.columns:
-                values = group[factor].dropna()
-                if len(values) < 2:
-                    continue
-                
-                mean = values.mean()
-                std = values.std()
-                if std > 0:
-                    standardized = (values - mean) / std
-                    result_df.loc[group.index, factor] = standardized
-        
-        return result_df
-    
+
     def verify_orthogonality(self, factor_df: pd.DataFrame, 
                             threshold: float = 0.1) -> bool:
         """
@@ -293,6 +187,7 @@ class FactorExposureBuilder:
         # 计算相关系数矩阵
         corr_matrix = factor_df.corr().abs()
         
+        # 对角线元素填充为0
         # 检查非对角元素
         np.fill_diagonal(corr_matrix.values, 0)
         max_corr = corr_matrix.max().max()
@@ -311,7 +206,7 @@ class FactorExposureBuilder:
                             corr_matrix.columns[j], 
                             corr_matrix.iloc[i, j]
                         ))
-            for f1, f2, corr in high_corr_pairs[:5]:  # 只显示前5个
+            for f1, f2, corr in high_corr_pairs:  # 只显示前5个
                 logger.info(f"  {f1} - {f2}: {corr:.4f}")
             return False
         
@@ -319,27 +214,27 @@ class FactorExposureBuilder:
         return True
     
     def merge_industry_factors(self, style_factors: pd.DataFrame,
-                               industry_df: pd.DataFrame) -> pd.DataFrame:
+                               industry_dummies: pd.DataFrame) -> pd.DataFrame:
         """
         合并风格因子和行业因子
         
         Args:
             style_factors: 风格因子数据（已预处理）
-            industry_df: 行业数据，index=(instrument, datetime), 值为行业代码
+            industry_dummies: 行业数据，index=(instrument, datetime)
             
         Returns:
             合并后的因子暴露矩阵
         """
         logger.info("合并行业因子...")
         # 创建行业虚拟变量（one-hot编码）
-        industry_codes = industry_df.iloc[:, 0].astype(str)
-        industry_dummies = pd.get_dummies(industry_codes, prefix='ind')
-        
-        # 重命名列为行业名称
-        industry_name_map = {f"ind_{code}": name 
-                            for code, name in INDUSTRY_MAPPING.items()}
-        industry_dummies = industry_dummies.rename(columns=industry_name_map)
-        
+        # industry_codes = industry_df.iloc[:, 0].astype(str)
+        # industry_dummies = pd.get_dummies(industry_codes, prefix='ind', dtype='float')
+        #
+        # # 重命名列为行业名称
+        # industry_name_map = {f"ind_{code}": name
+        #                     for code, name in INDUSTRY_MAPPING.items()}
+        # industry_dummies = industry_dummies.rename(columns=industry_name_map)
+        #
         # 合并风格因子和行业因子
         merged = style_factors.join(industry_dummies, how='inner')
         
@@ -352,7 +247,6 @@ class FactorExposureBuilder:
     def build_exposure_matrix(self, raw_data: pd.DataFrame,
                              industry_df: pd.DataFrame,
                              market_cap_df: pd.DataFrame,
-                             save_path: Optional[str] = None,
                              n_jobs: int = 1,
                              output_manager: RiskOutputManager = None
                               ) -> pd.DataFrame:
@@ -379,7 +273,7 @@ class FactorExposureBuilder:
         """
         logger.info("=" * 60)
         logger.info("开始构建因子暴露矩阵...")
-        
+
         # 1. 计算原始因子
         if 1:
             raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
@@ -404,11 +298,6 @@ class FactorExposureBuilder:
             print('load neutralized ...')
             neutralized = output_manager.load_data('debug/neutralized.parquet', type='parquet')
 
-        # 4. 正交化
-        # orthogonalized = self.orthogonalize_factors(neutralized)
-        
-        # 5. 标准化
-        # standardized = self.standardize_factors(neutralized)
         if 1:
             standardized = standardize(neutralized, method='zscore', level='datetime')
             output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
@@ -420,10 +309,24 @@ class FactorExposureBuilder:
         self.verify_orthogonality(standardized)
 
         # 7. 合并行业因子
-        exposure_matrix = self.merge_industry_factors(standardized, industry_df)
+        industry_dummies = get_industry_dummies(industry_df, drop_first=False, prefix='ind')
+        industry_dummies.drop(columns=['ind_nan'], inplace=True)
+        exposure_matrix = self.merge_industry_factors(standardized, industry_dummies)
         output_manager.save_data(exposure_matrix, 'debug/exposure_matrix.parquet', type='parquet')
-        
+
         print("因子暴露矩阵构建完成")
         print("=" * 60)
         
         return exposure_matrix
+
+
+def get_industry_dummies(industry_df: pd.DataFrame, drop_first=False, prefix='ind') -> pd.DataFrame:
+    '''  行业哑变量 '''
+    industry_dummies = pd.get_dummies(
+        industry_df.iloc[:, 0], prefix=prefix, drop_first=drop_first, dtype='float'
+    )
+    industry_name_map = {f"ind_{code}": name
+                         for code, name in INDUSTRY_MAPPING.items()}
+    industry_dummies = industry_dummies.rename(columns=industry_name_map)
+    return industry_dummies
+
