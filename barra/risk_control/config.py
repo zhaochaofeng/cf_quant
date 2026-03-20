@@ -228,7 +228,8 @@ BENCHMARK_CONFIG = {
     'csi300': {
         'market': 'csi300',
         'name': '沪深300',
-    }
+    },
+    'BENCHMARK': 'SH000300'
 }
 
 
