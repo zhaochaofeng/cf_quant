@@ -147,9 +147,6 @@ FACTOR_FUNCTIONS = {
 }
 
 
-
-
-
 # 行业代码映射（申万一级行业）
 INDUSTRY_MAPPING = {
     '801780': '银行',
@@ -190,20 +187,11 @@ INDUSTRY_NAMES = list(INDUSTRY_MAPPING.values())
 
 # 模型参数
 MODEL_PARAMS = {
-    # 历史窗口（月）
-    'history_window': 120,  # 10年
+    # 日期窗口（日）
+    'window': 252,
     # ARMA模型阶数
     'arma_p': 1,
     'arma_q': 1,
-    # 加权回归权重
-    'weight_type': 'sqrt_market_cap',  # 市值平方根
-    # 去极值参数
-    'winsorize_method': 'median',  # 中位数去极值
-    'winsorize_lower': 0.01,
-    'winsorize_upper': 0.99,
-    # 标准化参数
-    'standardize_mean': 0,
-    'standardize_std': 1,
 }
 
 # 输出配置
