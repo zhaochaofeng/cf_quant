@@ -9,19 +9,14 @@ from typing import Optional
 class FactorCovarianceEstimator:
     """因子协方差矩阵估计器"""
     
-    def __init__(self, history_window: int = 120):
+    def __init__(self):
         """
         初始化协方差矩阵估计器
-        
-        Args:
-            history_window: 历史窗口月数，默认120（10年）
         """
-        self.history_window = history_window
         self.covariance_matrix = None
         self.mean_returns = None
     
-    def estimate_sample_covariance(self, factor_returns: pd.DataFrame,
-                                   min_periods: Optional[int] = None) -> pd.DataFrame:
+    def estimate_sample_covariance(self, factor_returns: pd.DataFrame) -> pd.DataFrame:
         """
         估计样本协方差矩阵
         
@@ -35,14 +30,10 @@ class FactorCovarianceEstimator:
             协方差矩阵DataFrame，index和columns都是因子名称
         """
         print("估计因子协方差矩阵...")
-        
-        # 使用最近的历史窗口
-        if len(factor_returns) > self.history_window:
-            factor_returns = factor_returns.iloc[-self.history_window:]
-        
-        # 计算样本协方差矩阵
-        # pandas的cov默认使用N-1作为分母（无偏估计）
-        cov_matrix = factor_returns.cov(min_periods=min_periods)
+
+        # 计算样本协方差矩阵。样本数 >= 因子数
+        col_len = factor_returns.shape[1]
+        cov_matrix = factor_returns.cov(min_periods=col_len)
         
         self.covariance_matrix = cov_matrix
         self.mean_returns = factor_returns.mean()
@@ -69,9 +60,6 @@ class FactorCovarianceEstimator:
         print(f"估计指数加权协方差矩阵（半衰期={halflife}个月）...")
         
         T = len(factor_returns)
-        if T > self.history_window:
-            factor_returns = factor_returns.iloc[-self.history_window:]
-            T = len(factor_returns)
         
         # 计算指数权重
         decay = 0.5 ** (1 / halflife)
