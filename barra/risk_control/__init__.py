@@ -87,10 +87,6 @@ from .memory_utils import (
     suggest_workers_by_memory,
 )
 
-from .factor_exposure_optimized import FactorExposureBuilder
-from .cross_sectional_optimized import CrossSectionalRegression
-from .barra_engine_optimized import BarraRiskEngine
-
 # 如果需要原始版本，可以直接导入：
 # from .factor_exposure import FactorExposureBuilder as FactorExposureBuilderOriginal
 # from .cross_sectional import CrossSectionalRegression as CrossSectionalRegressionOriginal
@@ -112,11 +108,8 @@ __all__ = [
     'optimize_dataframe_memory',
     'suggest_workers_by_memory',
     # 核心模块（内存优化版本）
-    'BarraRiskEngine',
     'DataLoader',
     'PortfolioManager',
-    'FactorExposureBuilder',
-    'CrossSectionalRegression',
     'FactorCovarianceEstimator',
     'SpecificRiskEstimator',
     'AssetCovarianceCalculator',
