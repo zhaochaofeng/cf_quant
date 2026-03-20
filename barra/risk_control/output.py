@@ -168,3 +168,33 @@ class RiskOutputManager:
         else:
             raise ValueError("Invalid type. Supported types: 'csv', 'parquet'")
         logger.info('Data saved success ')
+
+    def load_data(self, path: str, type: str = 'csv'):
+        '''
+        从指定位置加载数据
+
+        Parameters
+        ----------
+        path: 加载路径
+        type: 数据类型. csv/parquet
+
+        Returns
+        -------
+        DataFrame或None（文件不存在）
+        '''
+        logger.info('Loading data from {}...'.format(path))
+        path = Path(os.path.join(self.output_dir, path))
+
+        if not path.exists():
+            logger.warning('File not found: {}'.format(path))
+            return None
+
+        if type == 'csv':
+            data = pd.read_csv(path, encoding=OUTPUT_CONFIG['encoding'])
+        elif type == 'parquet':
+            data = pd.read_parquet(path)
+        else:
+            raise ValueError("Invalid type. Supported types: 'csv', 'parquet'")
+
+        logger.info('Data loaded success, shape: {}'.format(data.shape))
+        return data
