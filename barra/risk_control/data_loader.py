@@ -4,7 +4,7 @@
 import pandas as pd
 import numpy as np
 from qlib.data import D
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from datetime import datetime
 
 from .config import QLIB_FIELDS, FIELD_GROUPS
@@ -42,7 +42,7 @@ class DataLoader:
         )
         return instruments
     
-    def load_returns(self, instruments: List[str], start_time: str, end_time: str) -> pd.DataFrame:
+    def load_returns(self, instruments: Union[List[str], str], start_time: str, end_time: str) -> pd.DataFrame:
         """
         加载股票收益率数据
         
@@ -54,6 +54,8 @@ class DataLoader:
         Returns:
             DataFrame, index=(instrument, datetime), columns=['return']
         """
+        if isinstance(instruments, str):
+            instruments = [instruments]
         fields = ['$change']
         df = D.features(instruments, fields, start_time=start_time, end_time=end_time)
         df.columns = ['return']
