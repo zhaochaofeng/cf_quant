@@ -1,214 +1,110 @@
-"""
-横截面回归模块 - 加权最小二乘估计因子收益率
-"""
-import pandas as pd
-import numpy as np
-import statsmodels.api as sm
-from typing import Tuple, Optional
+"""横截面回归模块 - 加权最小二乘估计因子收益率"""
+import sys
+from pathlib import Path
 
+import numpy as np
+import pandas as pd
+
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+from utils import WLS
+from utils import LoggerFactory
+logger = LoggerFactory.get_logger(__name__)
 
 class CrossSectionalRegression:
-    """横截面回归估计器"""
-    
-    def __init__(self, weight_type: str = 'sqrt_market_cap'):
-        """
-        初始化横截面回归器
-        
-        Args:
-            weight_type: 权重类型，默认'市值平方根'
-        """
-        self.weight_type = weight_type
-        self.factor_returns = {}  # 存储各期因子收益率
-        self.residuals = {}       # 存储各期残差
-    
-    def calculate_weights(self, market_cap: pd.Series) -> pd.Series:
-        """
-        计算回归权重（市值平方根）
-        
-        Args:
-            market_cap: 市值序列
-            
-        Returns:
-            权重序列
-        """
-        # 市值平方根加权
-        weights = np.sqrt(market_cap)
-        # 归一化（可选）
-        # weights = weights / weights.sum()
-        return weights
-    
-    def fit(self, date: str, returns: pd.Series, 
-            exposure: pd.DataFrame, market_cap: pd.Series) -> dict:
-        """
-        单期横截面回归
-        
-        模型：r_t = X_t * b_t + u_t
-        
-        Args:
-            date: 日期
-            returns: 股票收益率序列，index=instrument
-            exposure: 因子暴露矩阵，index=instrument, columns=factors
-            market_cap: 市值序列，index=instrument
-            
-        Returns:
-            回归结果字典，包含factor_returns, residuals, r_squared等
-        """
-        # 对齐数据
-        common_index = returns.index.intersection(exposure.index).intersection(market_cap.index)
-        r = returns.loc[common_index]
-        X = exposure.loc[common_index]
-        mv = market_cap.loc[common_index]
-        
-        # 强制转换为数值类型（关键修复）
-        r = pd.to_numeric(r, errors='coerce')
-        X = X.apply(lambda col: pd.to_numeric(col, errors='coerce'))
-        mv = pd.to_numeric(mv, errors='coerce')
-        
-        # 处理缺失值
-        valid_mask = r.notna() & X.notna().all(axis=1) & mv.notna()
-        r = r[valid_mask]
-        X = X[valid_mask]
-        mv = mv[valid_mask]
-        
-        if len(r) == 0 or X.shape[1] == 0:
-            print(f"{date}: 无有效数据，跳过回归")
-            return None
-        
-        # 再次确保数据类型为float
-        r = r.astype(float)
-        X = X.astype(float)
-        mv = mv.astype(float)
-        
-        # 计算权重
-        weights = self.calculate_weights(mv)
-        
-        # 加权最小二乘回归
-        # 注意：statsmodels的WLS需要权重矩阵的对角线元素
-        model = sm.WLS(r, X, weights=weights)
-        
-        try:
-            results = model.fit()
-        except Exception as e:
-            print(f"{date}: 回归失败 - {str(e)}")
-            return None
-        
-        # 提取结果
-        factor_returns = results.params
-        residuals = results.resid
-        
-        # 保存结果
-        self.factor_returns[date] = factor_returns
-        self.residuals[date] = residuals
-        
-        return {
-            'date': date,
-            'factor_returns': factor_returns,
-            'residuals': residuals,
-            'r_squared': results.rsquared,
-            'adj_r_squared': results.rsquared_adj,
-            'n_obs': results.nobs,
-            'f_statistic': results.fvalue,
-            'f_pvalue': results.f_pvalue,
-        }
-    
+    """横截面回归估计器
+
+    使用加权最小二乘（WLS）进行横截面回归，估计因子收益率。
+    权重为流通市值平方根。
+    """
+
+    def __init__(self):
+        self.factor_returns_dict = {}  # {date: Series(factor -> return)}
+        self.residuals_dict = {}       # {date: Series(instrument -> residual)}
+
     def fit_multi_periods(self, returns_df: pd.DataFrame,
                          exposure_df: pd.DataFrame,
-                         market_cap_df: pd.DataFrame
-                         ) -> pd.DataFrame:
-        """
-        多期横截面回归
-        
-        在Barra模型中，横截面回归应该按月进行，只在每月最后一个交易日回归一次。
-        
+                         market_cap_df: pd.DataFrame) -> pd.DataFrame:
+        """多期横截面回归，逐日期使用 WLS 估计因子收益率
+
+        模型：r_t = X_t * b_t + u_t
+        权重：sqrt(circ_mv)
+
         Args:
-            returns_df: 收益率数据，index=(instrument, date)
-            exposure_df: 因子暴露数据，index=(instrument, date)
-            market_cap_df: 市值数据，index=(instrument, date)
-            
+            returns_df: 收益率，索引 (instrument, datetime)，单列
+            exposure_df: 因子暴露，索引 (instrument, datetime)，多列为各因子
+            market_cap_df: 市值数据，索引 (instrument, datetime)，含 'circ_mv' 列
+
         Returns:
-            因子收益率矩阵，index=date, columns=factors
+            因子收益率矩阵，index=datetime, columns=factors
         """
-        print(f"开始多期横截面回归...")
+        logger.info('开始多期横截面回归...')
+        self.factor_returns_dict.clear()
+        self.residuals_dict.clear()
 
-        # 获取所有日期
-        dates = returns_df.index.get_level_values(1).unique().tolist()
+        ret_col = returns_df.columns[0]
+        dates = returns_df.index.get_level_values('datetime').unique()
 
-        results_list = []
         for date in dates:
-            # 提取当期数据
-            r = returns_df.xs(date, level=1).iloc[:, 0]
-            X = exposure_df.xs(date, level=1)
-            mv = market_cap_df.xs(date, level=1).iloc[:, 0]
-            
-            result = self.fit(str(date), r, X, mv)
-            if result:
-                results_list.append(result)
-        
-        # 构建因子收益率DataFrame
-        if results_list:
-            factor_returns_df = pd.DataFrame(
-                {r['date']: r['factor_returns'] for r in results_list}
-            ).T
-            factor_returns_df.index.name = 'date'
+            # 提取当期截面数据
+            r = returns_df.xs(date, level='datetime')[ret_col]
+            X = exposure_df.xs(date, level='datetime')
+            mv = market_cap_df.xs(date, level='datetime')['circ_mv']
+
+            # 对齐三组数据的 instrument
+            common_idx = r.index.intersection(X.index).intersection(mv.index)
+            r, X, mv = r.loc[common_idx], X.loc[common_idx], mv.loc[common_idx]
+
+            # 去除含 NaN 的行
+            valid = r.notna() & X.notna().all(axis=1) & mv.notna() & (mv > 0)
+            r, X, mv = r[valid], X[valid], mv[valid]
+
+            if len(r) == 0:
+                err_msg = f'  {date}: 无有效数据，跳过'
+                logger.warning(err_msg)
+                continue
+
+            # 流通市值平方根作为权重
+            weight = np.sqrt(mv.astype(float))
+
+            try:
+                # Barra 模型不加截距（行业哑变量已充当截距）
+                params, _, resid = WLS(
+                    r.to_frame(), X.copy(), intercept=False, weight=weight, verbose=True
+                )
+                self.factor_returns_dict[date] = params.squeeze()
+                self.residuals_dict[date] = resid.squeeze()
+            except Exception as e:
+                err_msg = f'  {date}: 回归失败 - {e}'
+                logger.error(err_msg)
+                raise Exception(err_msg)
+
+        # 构建因子收益率 DataFrame
+        if self.factor_returns_dict:
+            factor_returns_df = pd.DataFrame(self.factor_returns_dict).T
+            factor_returns_df.index.name = 'datetime'
         else:
             factor_returns_df = pd.DataFrame()
-        
-        print(f"横截面回归完成，共{len(results_list)}期")
+
+        logger.info(f'横截面回归完成，共 {len(self.factor_returns_dict)} 期')
         return factor_returns_df
-    
-    def get_factor_returns(self) -> pd.DataFrame:
-        """
-        获取所有期的因子收益率
-        
-        Returns:
-            DataFrame, index=date, columns=factors
-        """
-        if not self.factor_returns:
-            return pd.DataFrame()
-        
-        df = pd.DataFrame(self.factor_returns).T
-        df.index.name = 'date'
-        return df
-    
+
     def get_residuals(self) -> pd.DataFrame:
-        """
-        获取所有期的残差
-        
+        """获取所有期的残差
+
         Returns:
-            DataFrame, index=(instrument, date), columns=['residual']
+            DataFrame, 索引 (instrument, datetime)，列 ['residual']
         """
-        if not self.residuals:
+        if not self.residuals_dict:
             return pd.DataFrame()
-        
-        # 构建DataFrame
-        resid_list = []
-        for date, resid in self.residuals.items():
-            temp_df = pd.DataFrame({
-                'instrument': resid.index,
-                'date': date,
-                'residual': resid.values
-            })
-            resid_list.append(temp_df)
-        
-        df = pd.concat(resid_list, ignore_index=True)
-        df = df.set_index(['instrument', 'date'])
-        return df
-    
-    def calculate_residual_variance(self, date: str) -> pd.Series:
-        """
-        计算特异方差
-        
-        Args:
-            date: 日期
-            
-        Returns:
-            特异方差序列
-        """
-        if date not in self.residuals:
-            return pd.Series(dtype=float)
-        
-        residuals = self.residuals[date]
-        # 特异方差 = 残差平方
-        specific_var = residuals ** 2
-        
-        return specific_var
+
+        frames = []
+        for date, resid in self.residuals_dict.items():
+            s = resid.rename('residual')
+            s.index.name = 'instrument'
+            df = s.to_frame()
+            df['datetime'] = date
+            frames.append(df)
+
+        result = pd.concat(frames).set_index('datetime', append=True)
+        return result
