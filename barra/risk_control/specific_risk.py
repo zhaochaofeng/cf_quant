@@ -7,6 +7,8 @@ import statsmodels.api as sm
 from statsmodels.tsa.arima.model import ARIMA
 from typing import Tuple, Optional
 
+from utils import WLS
+
 
 class SpecificRiskEstimator:
     """特异风险矩阵估计器"""
@@ -44,22 +46,12 @@ class SpecificRiskEstimator:
         specific_var.columns = ['specific_var']
         
         # 计算 S(t) = 平均特异方差
-        S_series = specific_var.groupby(level=1)['specific_var'].mean()
+        S_series = specific_var.groupby(level='datetime')['specific_var'].mean()
         
         # 计算 v_n(t) = u_n^2(t) / S(t) - 1
-        v_list = []
-        for date in specific_var.index.get_level_values(1).unique():
-            date_var = specific_var.xs(date, level=1)['specific_var']
-            S_t = S_series.loc[date]
-            v_t = date_var / S_t - 1
-            v_t.name = 'v'
-            v_df = pd.DataFrame(v_t)
-            v_df['date'] = date
-            v_list.append(v_df)
-        
-        v_df = pd.concat(v_list)
-        v_df = v_df.set_index('date', append=True)
-        v_df = v_df.reorder_levels(['instrument', 'date'])
+        v_df = specific_var.groupby(level='datetime')['specific_var'].transform(
+            lambda x: x / x.mean() - 1
+        ).to_frame('v')
         
         self.S_series = S_series
         self.v_data = v_df
@@ -67,38 +59,33 @@ class SpecificRiskEstimator:
         print(f"分解完成，S(t)序列长度: {len(S_series)}")
         return S_series, v_df
     
-    def fit_arma(self, S_series: pd.Series) -> pd.Series:
+    def fit_arma(self, S_series: pd.Series) -> float:
         """
-        对S(t)序列建立ARMA模型并返回拟合值
-        
-        拟合ARMA模型，并返回与输入序列相同长度的拟合值序列
+        对S(t)序列建立ARMA模型，预测S(t+1)
         
         Args:
-            S_series: S(t)序列
+            S_series: S(t)序列, index=datetime
             
         Returns:
-            pd.Series: S(t)拟合值序列，与输入S_series相同shape和index
+            float: S(t+1)预测值
         """
         print(f"拟合ARMA{self.arma_order}模型...")
         
         try:
-            # 拟合ARMA模型
             model = ARIMA(S_series, order=(self.arma_order[0], 0, self.arma_order[1]))
             results = model.fit()
-            
-            # 获取拟合值（与S_series相同长度和index）
-            fitted_values = results.fittedvalues
+            forecast = results.forecast(steps=1)
+            S_t1 = forecast.iloc[0]
             
             print(f"ARMA模型拟合完成，AIC={results.aic:.2f}")
-            print(f"拟合值序列长度: {len(fitted_values)}")
+            print(f"S(t+1)预测值: {S_t1:.6f}")
             
         except Exception as e:
-            print(f"ARMA拟合失败: {str(e)}，使用历史均值序列")
-            # 如果拟合失败，返回均值序列（保持相同shape和index）
-            fitted_values = pd.Series(S_series.mean(), index=S_series.index)
+            print(f"ARMA拟合失败: {str(e)}，使用历史均值")
+            S_t1 = S_series.mean()
         
-        self.S_forecast = fitted_values
-        return fitted_values
+        self.S_forecast = S_t1
+        return S_t1
     
     def panel_regression(self, v_df: pd.DataFrame, 
                         exposure_df: pd.DataFrame) -> pd.Series:
@@ -155,57 +142,79 @@ class SpecificRiskEstimator:
         估计特异风险矩阵
         
         完整流程：
-        1. 分解特异方差
-        2. ARMA预测S(t)
-        3. 面板回归预测v_n(t)
-        4. 合成u_n^2(t) = S(t) * [1 + v_n(t)]
-        5. 构建对角矩阵Δ
+        1. 对齐residuals_df和exposure_df索引
+        2. 按时间划分训练集（历史）和预测集（最近日期）
+        3. 分解训练集特异方差 -> S_series, v_df
+        4. ARMA预测S(t+1)
+        5. WLS回归预测v_n(t+1)
+        6. 合成u_n^2(t+1) = S(t+1) * [1 + v_n(t+1)]
+        7. 构建N×N对角矩阵Δ
         
         Args:
-            residuals_df: 残差数据
-            exposure_df: 因子暴露数据(包含行业因子)
+            residuals_df: 残差数据, index=<instrument, datetime>
+            exposure_df: 因子暴露数据(包含行业因子), index=<instrument, datetime>
             
         Returns:
-            特异风险矩阵（对角矩阵）
+            pd.DataFrame: N×N对角矩阵，行列索引均为instrument
         """
-        print("=" * 60)
-        print("开始估计特异风险矩阵...")
+        print('=' * 60)
+        print('开始估计特异风险矩阵...')
         
-        # 1. 分解特异方差
-        S_series, v_df = self.decompose_specific_variance(residuals_df)
+        # 1. 按索引<instrument, datetime>对齐
+        common_idx = residuals_df.index.intersection(exposure_df.index)
+        residuals_df = residuals_df.loc[common_idx]
+        exposure_df = exposure_df.loc[common_idx]
         
-        # 2. ARMA预测S(t)
-        S_forecast = self.fit_arma(S_series)
+        # 2. 按时间划分：最近日期用于预测，其他日期用于训练
+        dates = common_idx.get_level_values('datetime').unique().sort_values()
+        latest_date = dates[-1]
+        train_mask = common_idx.get_level_values('datetime') != latest_date
         
-        # 3. 面板回归预测v_n(t)
-        v_forecast = self.panel_regression(v_df, exposure_df)
+        train_residuals = residuals_df.loc[train_mask]
+        train_exposure = exposure_df.loc[train_mask].astype(float)
+        latest_exposure = exposure_df.loc[~train_mask].astype(float)
         
-        # 4. 对齐日期索引并合成未来特异方差
-        # S_forecast: index=date, v_forecast: index=(instrument, date)
-        # 将S_forecast按照日期对齐到v_forecast的每个股票
-        S_dates = S_forecast.index.get_level_values(1)
-        v_aligned = S_forecast.reindex(S_dates)
+        print(f'训练期: {dates[0]} ~ {dates[-2]}, 共{len(dates)-1}期')
+        print(f'预测期: {latest_date}')
         
-        # 逐元素相乘: u_n^2(t) = S(t) * [1 + v_n(t)]
-        specific_var_values = S_forecast.values * (1 + v_aligned.values)
-        specific_var_forecast = pd.Series(specific_var_values, index=v_forecast.index)
+        # 3. 分解训练期特异方差
+        S_series, v_df = self.decompose_specific_variance(train_residuals)
         
-        # 确保非负
-        specific_var_forecast = specific_var_forecast.clip(lower=1e-8)
+        # 4. ARMA预测S(t+1)
+        S_t1 = self.fit_arma(S_series)
         
-        print(f"特异方差预测完成，范围: [{specific_var_forecast.min():.6f}, "
-              f"{specific_var_forecast.max():.6f}]")
+        # 5. WLS回归 + 预测v_n(t+1)
+        merged = v_df.join(train_exposure, how='inner').dropna()
+        y = merged[['v']]
+        X = merged[train_exposure.columns].copy()
         
-        # 5. 构建对角矩阵Δ（以DataFrame形式返回）
-        delta_df = pd.DataFrame({
-            'instrument': specific_var_forecast.index,
-            'specific_var': specific_var_forecast.values
-        })
+        slopes, intercept, _ = WLS(y, X, intercept=True)
         
-        print("特异风险矩阵估计完成")
-        print("=" * 60)
+        # 用最近日期因子暴露预测v(t+1)
+        v_t1 = latest_exposure @ slopes + intercept
+        self.v_forecast = v_t1
         
-        return delta_df
+        print(f'v(t+1)预测完成，共{len(v_t1)}只股票')
+        
+        # 6. 合成 u_n^2(t+1) = S(t+1) * [1 + v_n(t+1)]
+        specific_var = (S_t1 * (1 + v_t1)).clip(lower=1e-8)
+        
+        print(f'特异方差预测完成，范围: [{specific_var.min():.6f}, '
+              f'{specific_var.max():.6f}]')
+        
+        # 7. 构建N×N对角矩阵Δ，行列索引为instrument
+        instruments = specific_var.index.get_level_values('instrument')
+        delta = pd.DataFrame(
+            np.diag(specific_var.values),
+            index=instruments,
+            columns=instruments
+        )
+        
+        print(f'对角矩阵Δ形状: {delta.shape}')
+        print('特异风险矩阵估计完成')
+        print('=' * 60)
+        
+        return delta
     
     def get_specific_risk_matrix(self, instruments: list) -> np.ndarray:
         """

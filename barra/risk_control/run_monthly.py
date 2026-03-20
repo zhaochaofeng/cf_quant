@@ -74,12 +74,12 @@ def main():
     parser.add_argument('--end-date', type=str, required=True,
                        help='数据截止日期，格式YYYY-MM-DD')
     parser.add_argument('--history-months', type=int, default=1,
-                       help='历史数据月数，默认120')
+                       help='历史数据月数，默认72(1+5年)')
     parser.add_argument('--output_dir', type=str, default='output',
                        help='输出路径')
     parser.add_argument('--n-jobs', type=int, default=4,
                        help='并行计算核心数，默认4')
-    parser.add_argument('--use-cache', action='store_false', help='是否使用缓存，用于实验阶段')
+    parser.add_argument('--use-cache', action='store_true', help='是否使用缓存，用于实验阶段')
     
     args = parser.parse_args()
     print(args)

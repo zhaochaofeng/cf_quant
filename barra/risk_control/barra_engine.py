@@ -2,32 +2,31 @@
 Barra CNE6 风险模型主引擎
 整合所有模块，提供统一接口
 """
-import os
-import pandas as pd
-import numpy as np
-from datetime import datetime
+# 导入工具函数
+import sys
 from pathlib import Path
 from typing import Optional, Dict, Union, List
 
+import pandas as pd
+
+from .config import MODEL_PARAMS, INDUSTRY_MAPPING, BENCHMARK_CONFIG
+from .covariance import FactorCovarianceEstimator
+from .cross_sectional import CrossSectionalRegression
 # 导入各模块
 from .data_loader import DataLoader
-from .portfolio import PortfolioManager
 from .factor_exposure import FactorExposureBuilder
-from .cross_sectional import CrossSectionalRegression
-from .covariance import FactorCovarianceEstimator
-from .specific_risk import SpecificRiskEstimator
-from .risk_model import AssetCovarianceCalculator
-from .risk_attribution import RiskAttributionAnalyzer
 from .output import RiskOutputManager
-from .config import MODEL_PARAMS, STYLE_FACTOR_LIST, INDUSTRY_MAPPING
+from .portfolio import PortfolioManager
+from .risk_attribution import RiskAttributionAnalyzer
+from .risk_model import AssetCovarianceCalculator
+from .specific_risk import SpecificRiskEstimator
 
-# 导入工具函数
-import sys
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
-from utils import get_trade_cal_inter, LoggerFactory
+from utils import get_trade_cal_inter, LoggerFactory, calculate_excess_returns
 
 logger = LoggerFactory.get_logger(__name__)
+
 
 def get_monthly_first_trade_days(start_date: str, end_date: str) -> List[str]:
     """
@@ -58,7 +57,6 @@ class BarraRiskEngine:
                  portfolio_input: Union[str, Dict, pd.Series] = 'random',
                  market: str = 'csi300',
                  output_dir: str = 'output',
-                 cache_dir: Optional[str] = 'debug',
                  n_jobs: int = 1):
         """
         初始化风险模型引擎
@@ -72,7 +70,6 @@ class BarraRiskEngine:
                 - str: CSV文件路径
             market: 市场代码，默认'csi300'
             output_dir: 输出目录
-            cache_dir: 缓存目录
             n_jobs: 并行进程数
         """
         self.calc_date = calc_date
@@ -84,9 +81,7 @@ class BarraRiskEngine:
         self.portfolio_manager = PortfolioManager(market=market)
         self.factor_builder = FactorExposureBuilder()
         self.cross_sectional = CrossSectionalRegression()
-        self.covariance_estimator = FactorCovarianceEstimator(
-            history_window=MODEL_PARAMS['history_window']
-        )
+        self.covariance_estimator = FactorCovarianceEstimator()
         self.specific_risk_estimator = SpecificRiskEstimator(
             arma_order=(MODEL_PARAMS['arma_p'], MODEL_PARAMS['arma_q'])
         )
@@ -135,13 +130,18 @@ class BarraRiskEngine:
 
         if use_cache:
             print('use cache data ...')
-            raw_data = self.output_manager.load_data('debug/raw_data.parquet')
-            returns_df = self.output_manager.load_data('debug/returns_data.parquet')
-            industry_df = self.output_manager.load_data('debug/industry_data.parquet')
-            market_cap_df = self.output_manager.load_data('debug/market_cap_data.parquet')
+            raw_data = self.output_manager.load_data('debug/raw_data.parquet', type='parquet')
+            returns_df = self.output_manager.load_data('debug/returns_data.parquet', type='parquet')
+            industry_df = self.output_manager.load_data('debug/industry_data.parquet', type='parquet')
+            market_cap_df = self.output_manager.load_data('debug/market_cap_data.parquet', type='parquet')
         else:
             raw_data = self.data_loader.load_fields_data(instruments, start_date, end_date)
             returns_df = self.data_loader.load_returns(instruments, start_date, end_date)
+            benchmark_df = self.data_loader.load_returns(BENCHMARK_CONFIG['BENCHMARK'], start_date, end_date)
+            # 计算超额收益：个股收益减去基准收益
+            returns_df = calculate_excess_returns(returns_df, benchmark_df)
+            print(f'   超额收益计算完成，数据 shape: {returns_df.shape}')
+
             industry_df = self.data_loader.load_industry(instruments, start_date, end_date)
             market_cap_df = self.data_loader.load_market_cap(instruments, start_date, end_date)
 
@@ -161,24 +161,25 @@ class BarraRiskEngine:
 
         # 2. 构建因子暴露矩阵
         print("\n2. 构建因子暴露矩阵...")
-        self.factor_exposure = self.factor_builder.build_exposure_matrix(
-            raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs,
-            output_manager=self.output_manager
-        )
+        if 0:
+            self.factor_exposure = self.factor_builder.build_exposure_matrix(
+                raw_data, industry_df, market_cap_df, n_jobs=self.n_jobs,
+                output_manager=self.output_manager
+            )
+        else:
+            print('load exposure matrix...')
+            self.factor_exposure = self.output_manager.load_data('debug/exposure_matrix.parquet', type='parquet')
 
-        '''
-        
-        # 3. 筛选月初样本并对齐数据
-        print("\n3. 筛选月初样本并对齐数据...")
-        regression_dates = get_monthly_first_trade_days(start_date, end_date)
+        # 选择最近252个交易日
+        regression_dates = get_trade_cal_inter(start_date, end_date)[-MODEL_PARAMS['window']: -1]
         regression_dates_ts = pd.to_datetime(regression_dates)
         
-        # 筛选三个数据集的月初样本
+        # 筛选三个数据集的样本
         self.factor_exposure = self.factor_exposure[
-            self.factor_exposure.index.get_level_values(1).isin(regression_dates_ts)
+            self.factor_exposure.index.get_level_values('datetime').isin(regression_dates_ts)
         ]
         returns_df = returns_df[
-            returns_df.index.get_level_values(1).isin(regression_dates_ts)
+            returns_df.index.get_level_values('datetime').isin(regression_dates_ts)
         ]
         market_cap_df = market_cap_df[
             market_cap_df.index.get_level_values(1).isin(regression_dates_ts)
@@ -198,55 +199,45 @@ class BarraRiskEngine:
         print(f"      市值: {market_cap_df.shape}")
         
         # 4. 横截面回归估计因子收益率
-        print("\n4. 横截面回归...")
-        self.factor_returns = self.cross_sectional.fit_multi_periods(
-            returns_df, self.factor_exposure, market_cap_df
-        )
-        # 保存因子收益率
-        self.factor_returns.to_csv(debug_dir / 'factor_returns.csv')
-        print(f"   因子收益率已保存: {debug_dir}/factor_returns.csv")
-        
+        if 1:
+            print("\n4. 横截面回归...")
+            self.factor_returns = self.cross_sectional.fit_multi_periods(
+                returns_df, self.factor_exposure, market_cap_df
+            )
+            self.output_manager.save_data(self.factor_returns, 'model/factor_returns.parquet', type='parquet')
+        else:
+            print('load factor returns...')
+            self.factor_returns = self.output_manager.load_data('model/factor_returns.parquet', type='parquet')
+
         # 4. 估计因子协方差矩阵
         print("\n4. 估计因子协方差矩阵...")
         self.factor_covariance = self.covariance_estimator.estimate_sample_covariance(
             self.factor_returns
         )
-        # 保存协方差矩阵
-        self.factor_covariance.to_csv(debug_dir / 'factor_covariance.csv')
-        print(f"   因子协方差矩阵已保存: {debug_dir}/factor_covariance.csv")
-        
+        self.output_manager.save_data(self.factor_covariance, 'model/factor_covariance.parquet', type='parquet')
+
         # 5. 估计特异风险矩阵
         print("\n5. 估计特异风险矩阵...")
         residuals_df = self.cross_sectional.get_residuals()
-        # 保存残差
-        residuals_df.to_csv(debug_dir / 'residuals.csv')
-        print(f"   残差已保存: {debug_dir}/residuals.csv")
-        
-        # 提取与残差日期对齐的因子暴露（重要！因为横截面回归可能跳过某些日期）
-        residual_dates = residuals_df.index.get_level_values(1).unique()
-        aligned_factor_exposure = self.factor_exposure[
-            self.factor_exposure.index.get_level_values(1).isin(residual_dates)
-        ]
-        print(f"   残差日期数量: {len(residual_dates)}")
-        print(f"   对齐后的因子暴露: {aligned_factor_exposure.shape}")
-        
+        self.output_manager.save_data(residuals_df, 'model/residuals.parquet', type='parquet')
+
+        print('residuals_df: {}'.format(residuals_df.shape))
+        print('factor_exposure: {}'.format(self.factor_exposure.shape))
+        # 对齐日期
+        residuals_df = residuals_df[residuals_df.index.get_level_values('datetime').isin(regression_dates_ts)]
+        aligned_factor_exposure = self.factor_exposure[self.factor_exposure.index.get_level_values('datetime').isin(regression_dates_ts)]
+        print('residuals_df: {}'.format(residuals_df.shape))
+        print('aligned_factor_exposure: {}'.format(aligned_factor_exposure.shape))
+
         # 特异风险协方差矩阵 Delta
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
             residuals_df, aligned_factor_exposure
         )
-        
-        # 将特异风险转换为Series
-        self.specific_risk = pd.Series(
-            specific_risk_df['specific_var'].values,
-            index=specific_risk_df['instrument']
-        )
-        # 保存特异风险
-        self.specific_risk.to_csv(debug_dir / 'specific_risk.csv')
-        print(f"   特异风险已保存: {debug_dir}/specific_risk.csv")
+        self.output_manager.save_data(specific_risk_df, 'model/specific_risk.parquet', type='parquet')
         
         print("\n月频模型更新完成")
         print("=" * 70)
-        '''
+
 
     def save_model_data(self, model_dir: str) -> Dict[str, str]:
         """
@@ -333,8 +324,7 @@ class BarraRiskEngine:
         Returns:
             是否成功加载
         """
-        from datetime import datetime
-        
+
         if calc_date is None:
             calc_date = self.calc_date
         
