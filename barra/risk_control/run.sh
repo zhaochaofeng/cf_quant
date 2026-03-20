@@ -24,7 +24,6 @@ function check() {
   # 判断是否执行成功
   if [ $? -eq 0 ]; then
     echo "${name} 执行成功！！！"
-    exit 0
    else
     echo "${name}执行失败！！！"
     exit 1
