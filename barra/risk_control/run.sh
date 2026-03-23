@@ -26,7 +26,7 @@ fi
 
 function is_trade_day(){
   dt=$1
-  ${project_path}/utils/is_trade_day.py $dt
+  ${python_path} ${project_path}/utils/is_trade_day.py $dt
   if [ $? -eq 5 ];then
     echo "非交易日: ${dt}"
     exit 0
