@@ -34,7 +34,6 @@ function is_trade_day(){
 }
 
 function check() {
-  name=$1
   # 判断是否执行成功
   if [ $? -eq 0 ]; then
     echo "${name} 执行成功！！！"
@@ -47,9 +46,11 @@ function check() {
 is_trade_day ${dt}
 
 ${python_path} ${cur_path}/run_monthly.py --end-date ${dt}
-check "run_monthly"
+echo "run_monthly: "
+check
 ${python_path} ${cur_path}/run_daily.py
-check "run_daily"
+echo "run_daily"
+check
 
 
 
