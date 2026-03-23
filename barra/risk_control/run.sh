@@ -45,11 +45,11 @@ function check() {
 
 is_trade_day ${dt}
 
+echo "run_monthly..."
 ${python_path} ${cur_path}/run_monthly.py --end-date ${dt}
-echo "run_monthly: "
 check
+echo "run_daily..."
 ${python_path} ${cur_path}/run_daily.py
-echo "run_daily"
 check
 
 
