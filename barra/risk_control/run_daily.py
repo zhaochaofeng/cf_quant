@@ -225,6 +225,7 @@ def main():
     except Exception as e:
         logger.error(f'运行出错: {e}')
         send_email(f'Barra CNE6 每日风险计算出错: {e}', traceback.format_exc())
+        raise Exception('Barra CNE6 每日风险计算出错')
 
 if __name__ == '__main__':
     main()

@@ -73,7 +73,10 @@ class PortfolioManager:
         
         # 获取当日成分股
         instruments = self.data_loader.get_instruments(calc_date, calc_date)
-        
+
+        if len(instruments) == 0:
+            raise Exception('No instruments found on the given date')
+
         if len(instruments) < n_stocks:
             n_stocks = len(instruments)
         
