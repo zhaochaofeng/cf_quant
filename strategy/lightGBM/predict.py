@@ -17,7 +17,6 @@ from utils import get_n_nexttrade_day
 from utils import send_email
 from utils import LoggerFactory
 from utils import redis_connect
-from utils import CStd, CMean
 
 class Predict:
     def __init__(
@@ -59,8 +58,7 @@ class Predict:
         self.logger.info('\n{}\n{}'.format('=' * 100, 'initialize ...'))
         try:
             self.logger.info('\n{}\n{}'.format('=' * 100, 'qlib init ...'))
-            _setup_kwargs = {'custom_ops': [CStd, CMean]}
-            qlib.init(provider_uri=self.provider_uri, **_setup_kwargs)
+            qlib.init(provider_uri=self.provider_uri)
 
             # 加载实验记录
             exp_manager = MLflowExpManager(uri=self.uri, default_exp_name='default_exp')

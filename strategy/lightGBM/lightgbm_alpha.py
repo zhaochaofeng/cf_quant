@@ -26,8 +26,7 @@ from utils import (
     LoggerFactory,
     MySQLDB,
     get_n_pretrade_day,
-    send_email,
-    CStd, CMean
+    send_email
 )
 
 
