@@ -188,7 +188,14 @@ class ResidualVolEstimator:
         """
         # 构建自变量矩阵
         X = self._build_regression_X(industry_df, market_cap_df)
-        y = omega_old.loc[X.index]
+        common = X.index.intersection(omega_old.index)
+        X = X.loc[common]
+        y = omega_old.loc[common]
+
+        # 去除y中的NaN/inf
+        valid = np.isfinite(y)
+        X = X.loc[valid]
+        y = y.loc[valid]
 
         params, intercept, _ = WLS(
             y.to_frame(), X, intercept=True, weight=1, verbose=True
@@ -243,6 +250,11 @@ class ResidualVolEstimator:
         common = industry_df.index.intersection(market_cap_df.index)
         ind = industry_df.loc[common, 'industry_code']
         mv = market_cap_df.loc[common, 'circ_mv']
+
+        # 清洗：去除行业或市值为NaN的行
+        valid = ind.notna() & mv.notna()
+        ind = ind[valid]
+        mv = mv[valid]
 
         # 行业哑变量
         dummies = pd.get_dummies(ind, prefix='ind', drop_first=True).astype(float)
