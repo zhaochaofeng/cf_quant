@@ -30,16 +30,18 @@ def init_qlib():
 
 
 def run_alpha(calc_date: str, market: str = 'csi300',
-              output_dir: str = OUTPUT_DIR) -> None:
+              output_dir: str = OUTPUT_DIR,
+              portfolio: str = 'default') -> None:
     """运行每日Alpha预测
 
     Args:
         calc_date: 计算日期
         market: 市场代码
         output_dir: 输出目录
+        portfolio: 持仓组合名称
     """
     engine = AlphaEngine(market=market, output_dir=output_dir)
-    engine.run(calc_date)
+    engine.run(calc_date, portfolio=portfolio)
 
 
 def main():
@@ -51,10 +53,12 @@ def main():
                             help='市场代码，默认 csi300')
         parser.add_argument('--output_dir', type=str, default=OUTPUT_DIR,
                             help='输出目录')
+        parser.add_argument('--portfolio', type=str, default='default',
+                            help='持仓组合名称，默认 default')
         args = parser.parse_args()
 
         init_qlib()
-        run_alpha(args.calc_date, args.market, args.output_dir)
+        run_alpha(args.calc_date, args.market, args.output_dir, args.portfolio)
     except Exception as e:
         logger.error(f'运行出错: {e}')
         send_email(f'Alpha预测每日计算出错: {e}', traceback.format_exc())

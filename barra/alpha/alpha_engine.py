@@ -44,11 +44,12 @@ class AlphaEngine:
         self.orthogonalizer = AlphaOrthogonalizer()
         self.output_manager = AlphaOutputManager(output_dir=output_dir)
 
-    def run(self, calc_date: str) -> pd.DataFrame:
+    def run(self, calc_date: str, portfolio: str = 'default') -> pd.DataFrame:
         """执行完整Alpha预测流水线
 
         Args:
             calc_date: 计算日期，如 '2026-03-06'
+            portfolio: 持仓组合名称
 
         Returns:
             DataFrame(index=instrument, column='alpha')
@@ -117,6 +118,7 @@ class AlphaEngine:
         # Step 8: 保存结果
         logger.info('Step 7: 保存结果...')
         self.output_manager.save_alpha(final_alpha, calc_date)
+        self.output_manager.save_to_mysql(final_alpha, calc_date, portfolio)
 
         # 保存诊断信息
         diagnostics = self._build_diagnostics(
@@ -144,7 +146,8 @@ class AlphaEngine:
         residuals: pd.DataFrame,
         industry_df: pd.DataFrame,
         market_cap_df: pd.DataFrame,
-        calc_date: str
+        calc_date: str,
+        portfolio: str = 'default'
     ) -> pd.DataFrame:
         """使用预加载数据执行Alpha预测（支持多信号）
 
@@ -154,6 +157,7 @@ class AlphaEngine:
             industry_df: 行业数据，MultiIndex(instrument, datetime), col='industry_code'
             market_cap_df: 市值数据，MultiIndex(instrument, datetime), col='circ_mv'
             calc_date: 计算日期
+            portfolio: 持仓组合名称
 
         Returns:
             DataFrame(index=instrument, column='alpha')
@@ -216,6 +220,7 @@ class AlphaEngine:
         # Step 4: 保存
         logger.info('Step 4: 保存结果...')
         self.output_manager.save_alpha(final_alpha, calc_date)
+        self.output_manager.save_to_mysql(final_alpha, calc_date, portfolio)
 
         # 摘要
         logger.info('=' * 60)
