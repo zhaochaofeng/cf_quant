@@ -4,7 +4,7 @@
 import pandas as pd
 import numpy as np
 
-from .config import NEW_STOCK_MIN_DAYS
+from .config import NEW_STOCK_MIN_DAYS, VOL_ROLLING_WINDOW
 from utils import WLS, LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -17,13 +17,19 @@ class ResidualVolEstimator:
     新股：用行业+log(市值)回归模型预测
     """
 
-    def __init__(self, vol_window: int = NEW_STOCK_MIN_DAYS):
+    def __init__(
+        self,
+        vol_window: int = NEW_STOCK_MIN_DAYS,
+        vol_rolling: int = VOL_ROLLING_WINDOW
+    ):
         """初始化
 
         Args:
-            vol_window: 历史波动率计算窗口（交易日数）
+            vol_window: 老股判定阈值（交易日数），低于此值视为新股
+            vol_rolling: 波动率滚动窗口（交易日数），取最近N天计算std
         """
         self.vol_window = vol_window
+        self.vol_rolling = vol_rolling
 
     def estimate_all(
         self,
@@ -102,7 +108,10 @@ class ResidualVolEstimator:
         return result
 
     def _compute_historical_vol(self, residuals: pd.DataFrame, as_of_date: str) -> pd.Series:
-        """计算历史残差波动率
+        """计算历史残差波动率（滚动窗口时间序列std）
+
+        对每只股票取截止as_of_date的最近vol_rolling个交易日，
+        计算时间序列维度上的标准差。
 
         Args:
             residuals: 残差收益率
@@ -113,12 +122,16 @@ class ResidualVolEstimator:
         """
         as_of_ts = pd.Timestamp(as_of_date)
         dates = residuals.index.get_level_values('datetime')
-        mask = dates <= as_of_ts
-        recent = residuals.loc[mask]
+        recent = residuals.loc[dates <= as_of_ts]
 
-        # 按instrument计算标准差
         col = recent.columns[0]
-        omega = recent.groupby(level='instrument')[col].std()
+        n = self.vol_rolling
+
+        def _tail_std(group: pd.DataFrame) -> float:
+            """取最近vol_rolling天计算std"""
+            return group[col].iloc[-n:].std()
+
+        omega = recent.groupby(level='instrument').apply(_tail_std)
         omega.name = 'omega'
         return omega.dropna()
 
