@@ -54,7 +54,19 @@ class SignalProcessor:
         Returns:
             DataFrame(index=instrument, column='alpha')，仅calc_date当天
         """
-        z_today = z_cs.xs(pd.Timestamp(calc_date), level='datetime')['z_cs']
+        calc_ts = pd.Timestamp(calc_date)
+        dates = z_cs.index.get_level_values('datetime').unique().sort_values()
+        if calc_ts not in dates:
+            # calc_date不在数据中，取最近的可用交易日
+            earlier = dates[dates <= calc_ts]
+            if earlier.empty:
+                raise ValueError(f'无可用信号数据: calc_date={calc_date}之前无数据')
+            actual_date = earlier[-1]
+            logger.warning(f'calc_date={calc_date}无信号数据，回退到{actual_date.date()}')
+        else:
+            actual_date = calc_ts
+
+        z_today = z_cs.xs(actual_date, level='datetime')['z_cs']
 
         if case == 1:
             common = z_today.index.intersection(omega.index)
