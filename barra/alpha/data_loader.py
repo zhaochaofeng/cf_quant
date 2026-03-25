@@ -49,7 +49,7 @@ class AlphaDataLoader:
         sql = (
             f"SELECT qlib_code AS instrument, day AS datetime, score AS g "
             f"FROM {SIGNAL_TABLE} "
-            f"WHERE day >= '{start_time}' AND day <= '{end_time}'"
+            f"WHERE day >= '{start_time}' AND day <= '{end_time}' AND model='lightgbm_alpha_csi300'"
         )
         df = pd.read_sql(sql, engine)
         if df.empty:
