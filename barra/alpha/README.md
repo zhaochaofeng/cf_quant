@@ -24,10 +24,6 @@
 
 ## 3. 输入数据
 
-<pre> 
-hello
-</pre>
-
 - 每个信号 k(k=1,2,...,K) 的原始历史时间序列 {g_n^{(k)}(t)}(所有资产、所有交易日)。获取方式：
 ```python
 import pandas as pd
