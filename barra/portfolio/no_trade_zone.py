@@ -189,30 +189,34 @@ class NoTradeZoneIterator:
 def build_asset_covariance(
     exposure: pd.DataFrame,
     factor_cov: pd.DataFrame,
-    specific_risk: pd.Series
+    specific_risk: pd.Series,
+    regularization: float = 1e-6
 ) -> np.ndarray:
     """构建资产协方差矩阵 V = X*F*X^T + Δ
-    
+
     Args:
         exposure: 因子暴露矩阵 X, shape(N, K)
         factor_cov: 因子协方差矩阵 F, shape(K, K)
         specific_risk: 特异风险方差 Δ的对角元素, shape(N,)
-        
+        regularization: 正则化参数，添加到对角线改善条件数
+
     Returns:
         资产协方差矩阵 V, shape(N, N)
     """
     # 对齐因子
     common_factors = exposure.columns.intersection(factor_cov.index)
     common_instruments = exposure.index.intersection(specific_risk.index)
-    
+
     X = exposure.loc[common_instruments, common_factors].values
     F = factor_cov.loc[common_factors, common_factors].values
     delta = specific_risk.loc[common_instruments].values
-    
+
+    N = len(common_instruments)
+
     # 计算 X @ F @ X.T
     XFXT = X @ F @ X.T
-    
-    # 加上特异风险对角矩阵
-    V = XFXT + np.diag(delta)
-    
+
+    # 加上特异风险对角矩阵 + 正则化项
+    V = XFXT + np.diag(delta) + regularization * np.eye(N)
+
     return V
