@@ -265,14 +265,15 @@ class PortfolioDataLoader:
             start_time=calc_date,
             end_time=calc_date
         )
-        
+
         if df.empty:
             raise ValueError(f'无法获取股票价格数据: {calc_date}')
-        
+        df = df.droplevel(level='datetime')
         prices = df['$close'].dropna()
         prices.name = 'price'
         
         logger.info(f'加载股价: {len(prices)}只股票')
+
         return prices
     
     def align_all_data(
@@ -338,8 +339,15 @@ class PortfolioDataLoader:
         aligned_position = current_position.reindex(common_instruments, fill_value=0.0)
         
         # 7. 加载股价
-        prices = self.load_stock_prices(common_instruments.tolist(), risk_model['calc_date'])
+        prices = self.load_stock_prices(common_instruments.tolist(), calc_date)
+        print('-' * 100)
+        print(prices)
         aligned_prices = prices.reindex(common_instruments)
+        print('-' * 100)
+        print(common_instruments)
+        print('-' * 100)
+        print(aligned_prices.shape)
+        print(aligned_prices.isna().sum())
         
         # 检查缺失值
         nan_check = {
@@ -352,8 +360,8 @@ class PortfolioDataLoader:
         
         logger.info('数据加载与对齐完成')
         logger.info('=' * 50)
-        
-        return {
+
+        align_data = {
             'instruments': common_instruments,
             'alpha': aligned_alpha,
             'exposure': aligned_exposure,
@@ -364,3 +372,5 @@ class PortfolioDataLoader:
             'prices': aligned_prices,
             'calc_date': risk_model['calc_date']
         }
+        # logger.info(align_data)
+        return align_data
