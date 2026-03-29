@@ -340,15 +340,8 @@ class PortfolioDataLoader:
         
         # 7. 加载股价
         prices = self.load_stock_prices(common_instruments.tolist(), calc_date)
-        print('-' * 100)
-        print(prices)
         aligned_prices = prices.reindex(common_instruments)
-        print('-' * 100)
-        print(common_instruments)
-        print('-' * 100)
-        print(aligned_prices.shape)
-        print(aligned_prices.isna().sum())
-        
+
         # 检查缺失值
         nan_check = {
             'alpha': aligned_alpha.isna().sum(),
