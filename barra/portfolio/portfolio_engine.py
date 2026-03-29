@@ -137,6 +137,7 @@ class PortfolioEngine:
             factor_cov=self.data['factor_cov'],
             specific_risk=self.data['specific_risk']
         )
+        logger.info('V shape: {}'.format(self.V.shape))
         
         # 准备numpy数组
         alpha = self.data['alpha'].values
