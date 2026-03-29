@@ -158,7 +158,6 @@ class PortfolioDataLoader:
         Returns:
             Series(index=instrument, name='weight')
         """
-        import qlib
         from qlib.data import D
         
         # 获取成分股
@@ -174,7 +173,8 @@ class PortfolioDataLoader:
         
         if df.empty:
             raise ValueError(f'无法获取基准成分股数据: {calc_date}')
-        
+        if isinstance(df.index, pd.MultiIndex):
+            df = df.droplevel(level='datetime')
         # 计算权重
         circ_mv = df['$circ_mv'].dropna()
         weights = circ_mv / circ_mv.sum()
@@ -311,8 +311,8 @@ class PortfolioDataLoader:
         specific_risk = risk_model['specific_risk']
         
         # 3. 加载基准权重（使用相同的calc_date）
-        benchmark_weights = self.load_benchmark_weights(risk_model['calc_date'])
-        
+        benchmark_weights = self.load_benchmark_weights(calc_date)
+
         # 4. 计算共同股票（取交集）
         common_instruments = (
             alpha.index
