@@ -69,9 +69,12 @@ class PortfolioDataLoader:
         logger.info(f'加载Alpha: {len(alpha)}只股票, 文件={filepath.name}')
         return alpha
     
-    def load_risk_model(self) -> Dict[str, Union[pd.DataFrame, pd.Series]]:
+    def load_risk_model(self, calc_date: str = None) -> Dict[str, Union[pd.DataFrame, pd.Series]]:
         """加载风险模型数据
         
+        Args:
+            calc_date: 计算日期（用于提取对应日期的因子暴露）
+            
         Returns:
             {
                 'exposure': DataFrame(index=instrument, columns=factors),
@@ -86,11 +89,24 @@ class PortfolioDataLoader:
         
         exposure_df = pd.read_parquet(exposure_path)
         
-        # 提取最新日期的数据（MultiIndex: instrument, datetime）
+        # 提取指定日期的数据（MultiIndex: instrument, datetime）
         if isinstance(exposure_df.index, pd.MultiIndex):
-            latest_date = exposure_df.index.get_level_values('datetime').max()
-            exposure_df = exposure_df.xs(latest_date, level='datetime')
-            logger.info(f'因子暴露提取日期: {latest_date}')
+            if calc_date is not None:
+                # 使用指定日期
+                try:
+                    exposure_df = exposure_df.xs(calc_date, level='datetime')
+                    logger.info(f'因子暴露提取日期: {calc_date}')
+                except KeyError:
+                    # 如果指定日期不存在，使用最新日期
+                    latest_date = exposure_df.index.get_level_values('datetime').max()
+                    exposure_df = exposure_df.xs(latest_date, level='datetime')
+                    logger.warning(f'指定日期{calc_date}不存在，使用最新日期: {latest_date}')
+                    calc_date = str(latest_date)
+            else:
+                # 使用最新日期
+                latest_date = exposure_df.index.get_level_values('datetime').max()
+                exposure_df = exposure_df.xs(latest_date, level='datetime')
+                logger.info(f'因子暴露提取日期: {latest_date}')
         
         # 加载因子协方差矩阵
         factor_cov_path = self.risk_output_dir / DATA_PATHS['factor_cov']
@@ -129,7 +145,8 @@ class PortfolioDataLoader:
         return {
             'exposure': exposure_df,
             'factor_cov': factor_cov_df,
-            'specific_risk': specific_risk
+            'specific_risk': specific_risk,
+            'calc_date': calc_date
         }
     
     def load_benchmark_weights(self, calc_date: str) -> pd.Series:
@@ -163,7 +180,7 @@ class PortfolioDataLoader:
         weights = circ_mv / circ_mv.sum()
         weights.name = 'weight'
         
-        logger.info(f'基准权重: {len(weights)}只股票, {self.market}')
+        logger.info(f'基准权重: {len(weights)}只股票, 日期={calc_date}')
         return weights
     
     def load_current_position(
@@ -287,14 +304,14 @@ class PortfolioDataLoader:
         # 1. 加载Alpha
         alpha = self.load_alpha(calc_date)
         
-        # 2. 加载风险模型
-        risk_model = self.load_risk_model()
+        # 2. 加载风险模型（使用相同的calc_date）
+        risk_model = self.load_risk_model(calc_date)
         exposure = risk_model['exposure']
         factor_cov = risk_model['factor_cov']
         specific_risk = risk_model['specific_risk']
         
-        # 3. 加载基准权重
-        benchmark_weights = self.load_benchmark_weights(calc_date)
+        # 3. 加载基准权重（使用相同的calc_date）
+        benchmark_weights = self.load_benchmark_weights(risk_model['calc_date'])
         
         # 4. 计算共同股票（取交集）
         common_instruments = (
@@ -321,7 +338,7 @@ class PortfolioDataLoader:
         aligned_position = current_position.reindex(common_instruments, fill_value=0.0)
         
         # 7. 加载股价
-        prices = self.load_stock_prices(common_instruments.tolist(), calc_date)
+        prices = self.load_stock_prices(common_instruments.tolist(), risk_model['calc_date'])
         aligned_prices = prices.reindex(common_instruments)
         
         # 检查缺失值
@@ -345,5 +362,5 @@ class PortfolioDataLoader:
             'benchmark_weights': aligned_benchmark,
             'current_position': aligned_position,
             'prices': aligned_prices,
-            'calc_date': calc_date
+            'calc_date': risk_model['calc_date']
         }
