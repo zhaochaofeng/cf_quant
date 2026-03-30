@@ -87,6 +87,13 @@ get_data_from_mysql(){
       ) AS jt
     WHERE
       t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}' AND left(t.qlib_code, 2) in ('SZ', 'SH')
+      AND NOT EXISTS (
+        SELECT 1 FROM cf_quant.income_ts t2 
+        WHERE t2.f_ann_date = t.f_ann_date 
+          AND t2.qlib_code = t.qlib_code 
+          AND t2.end_date = t.end_date
+          AND t2.update_flag > t.update_flag
+      )
 
     UNION ALL
 
@@ -115,6 +122,13 @@ get_data_from_mysql(){
       ) AS jc
     WHERE
       c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}' AND left(c.qlib_code, 2) in ('SZ', 'SH')
+      AND NOT EXISTS (
+        SELECT 1 FROM cf_quant.cashflow_ts c2 
+        WHERE c2.f_ann_date = c.f_ann_date 
+          AND c2.qlib_code = c.qlib_code 
+          AND c2.end_date = c.end_date
+          AND c2.update_flag > c.update_flag
+      )
 
     UNION ALL
 
@@ -149,6 +163,13 @@ get_data_from_mysql(){
       ) AS jb
     WHERE
       b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH')
+      AND NOT EXISTS (
+        SELECT 1 FROM cf_quant.balance_ts b2 
+        WHERE b2.f_ann_date = b.f_ann_date 
+          AND b2.qlib_code = b.qlib_code 
+          AND b2.end_date = b.end_date
+          AND b2.update_flag > b.update_flag
+      )
 EOF
 )
   echo "${sql}"
