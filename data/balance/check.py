@@ -203,7 +203,7 @@ def main(start_date: str, end_date: str, now_date: str):
         df_ts = check.fetch_data_from_ts(stocks,
                                          api_fun='balancesheet',
                                          batch_size=1,
-                                         req_per_min=500,
+                                         req_per_min=450,
                                          feas=list(feas.keys()),
                                          is_fin=True)
         if df_ts is None or df_ts.empty:
