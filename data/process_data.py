@@ -47,11 +47,11 @@ class Base(ABC):
             for index, row in df.iterrows():
                 tmp = self.parse_line(row)
                 data.append(tmp)
-            self.logger.info('data_new len: {}'.format(len(data)))
             if len(data) == 0:
-                err_msg = 'data_new is empty !'
+                err_msg = 'data is empty !'
                 self.logger.error(err_msg)
                 raise Exception(err_msg)
+            self.logger.info('data len: {}'.format(len(data)))
             return data
         except Exception as e:
             error_msg = 'error in process: {}'.format(e)
@@ -145,7 +145,7 @@ class TSFinacialData(ProcessData):
             start_date = self.start_date.replace('-', '')
             end_date = self.end_date.replace('-', '')
             for i, stock in enumerate(stocks):
-                if (i + 1) % 100 == 0:
+                if (i + 1) % 100 == 0 or (i + 1) == len(stocks):
                     self.logger.info('processed num: {} / {}'.format(i + 1, len(stocks)))
                 tmp = ts_api(pro, api_fun, ts_code=stock, start_date=start_date, end_date=end_date)
                 # 每日更新时。需要针对 f_ann_date 圈选。因为 ann_date 固定，不限定 f_ann_date 将会产生重复数据
@@ -165,7 +165,7 @@ class TSFinacialData(ProcessData):
             if df.empty:
                 msg = 'df is empty: {}'.format(self.now_date)
                 self.logger.error(msg)
-
+            self.logger.info('df shape: {}'.format(df.shape))
             return df
         except Exception as e:
             error_msg = 'error in fetch_data_from_api: {}'.format(e)
