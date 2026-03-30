@@ -12,10 +12,10 @@ echo "cur_path: "${cur_path}
 
 if [ $# -eq 0 ]; then
     dt2=`date +%Y-%m-%d`
-    dt1=`date -d "-120 days $dt2" +%Y-%m-%d`
+    dt1=`date -d "-180 days $dt2" +%Y-%m-%d`
   elif [ $# -eq 1 ]; then
     dt2=$1
-    dt1=`date -d "-120 days $dt2" +%Y-%m-%d`
+    dt1=`date -d "-180 days $dt2" +%Y-%m-%d`
   elif [ $# -eq 2 ]; then
     dt1=$1
     dt2=$2
