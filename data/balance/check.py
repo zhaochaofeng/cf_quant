@@ -166,7 +166,7 @@ feas = {
 }
 
 
-def main(start_date: str, end_date: str):
+def main(start_date: str, end_date: str, now_date: str):
     try:
         t = time.time()
         check = CheckMySQLData(
@@ -175,7 +175,7 @@ def main(start_date: str, end_date: str):
             table_name='balance_ts',
             feas=list(feas.values())
         )
-        process = ProcessData(feas=list(feas.values()), table_name='balance_ts')
+        process = ProcessData(feas=list(feas.values()), table_name='balance_ts', now_date=now_date)
         # [start_date, end_date] 需要设置超过1个季度，否则可能出现stocks 为空
         sql = f"""
             SELECT {','.join(list(feas.values()))} FROM {check.table_name} 
