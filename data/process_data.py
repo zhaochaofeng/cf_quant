@@ -147,24 +147,23 @@ class TSFinacialData(ProcessData):
             for i, stock in enumerate(stocks):
                 if (i + 1) % 100 == 0 or (i + 1) == len(stocks):
                     self.logger.info('processed num: {} / {}'.format(i + 1, len(stocks)))
-                tmp = ts_api(pro, api_fun, ts_code=stock, start_date=start_date, end_date=end_date)
-                # 每日更新时。需要针对 f_ann_date 圈选。因为 ann_date 固定，不限定 f_ann_date 将会产生重复数据
                 if start_date == end_date:
-                    tmp = tmp[tmp.f_ann_date == self.now_date.replace('-', '')]
+                    # 按天更新时，指定实际公告期 f_ann_date，因为同一个ann_date 可能对应多个f_ann_date
+                    tmp = ts_api(pro, api_fun, ts_code=stock, f_ann_date=start_date)
+                else:
+                    tmp = ts_api(pro, api_fun, ts_code=stock, start_date=start_date, end_date=end_date)
                 time.sleep(60 / 500)  # 1min最多请求500次
                 if tmp.empty:
                     continue
                 df_list.append(tmp)
             if len(df_list) == 0:
+                self.logger.warning('df_list is empty: [{}-{}]'.format(self.start_date, self.end_date))
                 return pd.DataFrame()
             df = pd.concat(df_list, axis=0, join='outer')
             # 如果 end_date, ts_code, f_ann_date, update_flag 重复，则取 ann_date 最新日期数据
             df = df.sort_values(by=['end_date', 'ts_code', 'f_ann_date', 'update_flag', 'ann_date'])
             df = df.drop_duplicates(subset=['end_date', 'ts_code', 'f_ann_date', 'update_flag'], keep='last')
 
-            if df.empty:
-                msg = 'df is empty: {}'.format(self.now_date)
-                self.logger.error(msg)
             self.logger.info('df shape: {}'.format(df.shape))
             return df
         except Exception as e:
