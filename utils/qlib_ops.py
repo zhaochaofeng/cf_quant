@@ -337,20 +337,20 @@ class PTTM(P):
             return pd.DataFrame()
 
         record_dtype = np.dtype([
-            ("ann_date", C.pit_record_type["date"]),
+            ("date", C.pit_record_type["date"]),
             ("period", C.pit_record_type["period"]),
             ("value", C.pit_record_type["value"]),
             ("_next", C.pit_record_type["index"]),
         ])
         raw = np.fromfile(data_path, dtype=record_dtype)
-        df = pd.DataFrame(raw)[["ann_date", "period", "value"]]
+        df = pd.DataFrame(raw)[["date", "period", "value"]]
 
-        df = df[df["ann_date"] > 0].copy()
-        df["ann_date"] = pd.to_datetime(df["ann_date"].astype(str), format="%Y%m%d", errors="coerce")
-        df = df.dropna(subset=["ann_date"])
+        df = df[df["date"] > 0].copy()
+        df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d", errors="coerce")
+        df = df.dropna(subset=["date"])
         df["period"] = df["period"].astype(int)
         df["value"] = df["value"].astype(float)
-        return df.sort_values(["ann_date", "period"]).reset_index(drop=True)
+        return df.sort_values(["date", "period"]).reset_index(drop=True)
 
     def _compute_ttm_events(self, period_events: pd.DataFrame) -> pd.DataFrame:
         """批量计算所有 TTM 值"""
@@ -360,7 +360,10 @@ class PTTM(P):
         for _, row in period_events.iterrows():
             period = int(row["period"])
             value = float(row["value"])
-            value_map[period] = value
+
+            # FIX 1: 不存储 NaN 值，避免污染缓存
+            if not np.isnan(value):
+                value_map[period] = value
 
             year, quarter = period // 100, period % 100
 
@@ -372,11 +375,15 @@ class PTTM(P):
                 prev_same_val = value_map.get(prev_same)
                 prev_annual_val = value_map.get(prev_annual)
 
-                ttm = value + prev_annual_val - prev_same_val if (
-                            prev_same_val is not None and prev_annual_val is not None) else np.nan
+                # FIX 2: 完整的 NaN 检查
+                if (prev_same_val is not None and prev_annual_val is not None and
+                        not np.isnan(prev_same_val) and not np.isnan(prev_annual_val)):
+                    ttm = value + prev_annual_val - prev_same_val
+                else:
+                    ttm = np.nan
 
             results.append({
-                "ann_date": row["ann_date"],
+                "date": row["date"],
                 "period": period,
                 "ttm": ttm,
             })
@@ -384,15 +391,15 @@ class PTTM(P):
 
     def _make_dense_series(self, ttm_events: pd.DataFrame, calendar: pd.DatetimeIndex) -> pd.Series:
         """Forward-fill 到交易日频率"""
-        effective = (
-            ttm_events.dropna(subset=["ttm"])
-            .sort_values("ann_date")
-            .set_index("ann_date")["ttm"]
-        )
-        if effective.empty:
+        # FIX 3: 正确处理重复公告 - 使用 groupby 保留最后一个非 NaN 值
+        ttm_clean = ttm_events.dropna(subset=["ttm"])
+
+        if ttm_clean.empty:
             return pd.Series(np.nan, index=calendar, dtype=float)
 
-        effective = effective[~effective.index.duplicated(keep="last")]
+        # 按 date 分组，保留每个日期的最后一个值（最新公告）
+        effective = ttm_clean.groupby("date")["ttm"].last()
+
         dense = effective.reindex(calendar, method="ffill")
         return dense
 
