@@ -166,7 +166,7 @@ feas = {
 }
 
 
-def main(start_date: str, end_date: str, now_date: str):
+def main(start_date: str, end_date: str, now_date: str = None):
     try:
         t = time.time()
         check = CheckMySQLData(
