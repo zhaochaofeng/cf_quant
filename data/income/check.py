@@ -8,6 +8,7 @@ import traceback
 import pandas as pd
 from utils import send_email
 from data.check_data import CheckMySQLData
+from data.process_data import TSFinacialData
 
 
 feas = {
@@ -99,7 +100,7 @@ feas = {
 }
 
 
-def main(start_date: str, end_date: str):
+def main(start_date: str, end_date: str, now_date: str):
     try:
         t = time.time()
         check = CheckMySQLData(
@@ -107,6 +108,14 @@ def main(start_date: str, end_date: str):
             end_date=end_date,
             table_name='income_ts',
             feas=list(feas.values())
+        )
+        # 用来获取 stocks
+        processor = TSFinacialData(
+            start_date,
+            end_date,
+            now_date,
+            feas=feas,
+            table_name='balance_ts'
         )
         # [start_date, end_date] 需要设置超过1个季度，否则可能出现stocks 为空
         sql = f"""
@@ -124,7 +133,8 @@ def main(start_date: str, end_date: str):
         df_mysql.set_index(list(feas.values())[0:4], inplace=True)
         df_mysql.sort_index(axis=0, inplace=True)
 
-        stocks = df_mysql.index.get_level_values('ts_code').unique().tolist()
+        # stocks = df_mysql.index.get_level_values('ts_code').unique().tolist()
+        stocks = processor.get_stocks()
 
         df_ts = check.fetch_data_from_ts(stocks,
                                          api_fun='income',

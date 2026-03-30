@@ -163,16 +163,16 @@ class CheckMySQLData:
 
                 df_list = []
                 for k in range(0, len(stocks), batch_size):
-                    if (k + 1) % 100 == 0:
+                    if (k + 1) % 100 == 0 or (k + 1) == len(stocks):
                         self.logger.info('processed : {} / {}'.format(k + batch_size, len(stocks)))
                     tmp = ts_api(pro, api_fun,
                                  ts_code=','.join(stocks[k:k + batch_size]),
                                  start_date=start_date, end_date=end_date, **kwargs)
+                    time.sleep(60.0 / req_per_min)
                     if tmp is None or tmp.empty:
                         # self.logger.info('no data_new: {}'.format(','.join(stocks[k: k + batch_size])))
                         continue
                     df_list.append(tmp)
-                    time.sleep(60 / req_per_min)
                 df = pd.concat(df_list, axis=0, join='outer')
 
             if is_fin:
