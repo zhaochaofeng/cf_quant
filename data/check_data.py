@@ -279,35 +279,42 @@ class CheckMySQLData:
                 if is_repair:
                     # 修复数据
                     with MySQLDB() as db:
-                        test_row = df_test.loc[index]
-                        params = {
-                            # 'day': index[0],
-                            # 'ts_code': index[1],
-                        }
-                        # 需要feas 索引字段排列顺序与 df 索引一致
-                        for i, f in enumerate(self.feas[0:idx_num]):
-                            params[f] = index[i]
-                        for f in self.feas[idx_num:]:
-                            v = test_row[f]
-                            if pd.isna(v):
-                                v = None
-                            params[f] = v
-                        ts_code = params['ts_code']
-                        qlib_code = '{}{}'.format(ts_code[7:9].upper(), ts_code[0:6])
-                        params['qlib_code'] = qlib_code
-                        # sql = """
-                        #     UPDATE {} SET {} WHERE day=%(day)s AND ts_code=%(ts_code)s
-                        # """.format(self.table_name, ','.join(['{}=%({})s'.format(f, f) for f in self.feas[2:]]))
-                        feas = self.feas + ['qlib_code']
-                        columns = ','.join(feas)
-                        values = ','.join([f"%({f})s" for f in feas])
-                        update_clause = ','.join([f"{f}=VALUES({f})" for f in feas[idx_num:]])
-                        sql = f"""
-                            INSERT INTO {self.table_name} ({columns})
-                            VALUES ({values})
-                            ON DUPLICATE KEY UPDATE {update_clause}
-                        """
-                        db.execute(sql, params)
+                        # 检查数据是否存在于 df_test
+                        if index not in df_test.index:
+                            # 数据不存在于 df_test，从 MySQL 删除
+                            params = {}
+                            for i, f in enumerate(self.feas[0:idx_num]):
+                                params[f] = index[i]
+                            
+                            where_clause = ' AND '.join([f"{f}=%({f})s" for f in self.feas[0:idx_num]])
+                            sql = f"DELETE FROM {self.table_name} WHERE {where_clause}"
+                            db.execute(sql, params)
+                            self.logger.info(f'Deleted record {index} from {self.table_name}')
+                        else:
+                            # 数据存在于 df_test，执行原有的 INSERT/UPDATE 逻辑
+                            test_row = df_test.loc[index]
+                            params = {}
+                            # 需要feas 索引字段排列顺序与 df 索引一致
+                            for i, f in enumerate(self.feas[0:idx_num]):
+                                params[f] = index[i]
+                            for f in self.feas[idx_num:]:
+                                v = test_row[f]
+                                if pd.isna(v):
+                                    v = None
+                                params[f] = v
+                            ts_code = params['ts_code']
+                            qlib_code = '{}{}'.format(ts_code[7:9].upper(), ts_code[0:6])
+                            params['qlib_code'] = qlib_code
+                            feas = self.feas + ['qlib_code']
+                            columns = ','.join(feas)
+                            values = ','.join([f"%({f})s" for f in feas])
+                            update_clause = ','.join([f"{f}=VALUES({f})" for f in feas[idx_num:]])
+                            sql = f"""
+                                INSERT INTO {self.table_name} ({columns})
+                                VALUES ({values})
+                                ON DUPLICATE KEY UPDATE {update_clause}
+                            """
+                            db.execute(sql, params)
 
                 res.append('{}: [target: {};  test: {}]'.format(index, ', '.join(target_f), ', '.join(test_f)))
             if len(res) == 0:
