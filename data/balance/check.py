@@ -215,7 +215,13 @@ def main(start_date: str, end_date: str, now_date: str = None):
             df_ts[col] = df_ts[col].astype('int64', errors='ignore')
         df_ts['end_type'] = df_ts['end_type'].astype('float32')
 
-        df_ts.set_index(list(feas.values())[0:4], inplace=True)
+        # 去重：按 update_flag 降序，保留最大值；相同则随机选一条
+        idx_cols = list(feas.values())[0:4]
+        df_ts = df_ts.sort_values('update_flag', ascending=False)
+        df_ts = df_ts.drop_duplicates(subset=idx_cols, keep='first')
+        df_ts.set_index(idx_cols, inplace=True)
+
+        # df_ts.set_index(list(feas.values())[0:4], inplace=True)
         df_ts.sort_index(axis=0, inplace=True)
         res = check.check(df_mysql, df_ts, is_repair=True, idx_num=4)
         if len(res) != 0:
