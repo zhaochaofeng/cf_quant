@@ -6,17 +6,8 @@ Quantitative finance research platform using Qlib framework. Python 3 codebase f
 
 ## Build/Lint/Test Commands
 
-### Running Tests
-```bash
-# Run a single test file
-python test.py
-
-# Run with specific arguments
-python test.py --factor LNCAP
-
-# Run strategy tests
-python strategy/backtest_jq.py
-```
+### Running Env
+conda activate python311-tf210
 
 ### Code Execution
 ```bash
