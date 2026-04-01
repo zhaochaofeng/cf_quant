@@ -118,10 +118,10 @@ def SEASON(df, nyears=5):
 
 def INDMOM(df):
     """
-    Formulation: INDMOM = RS_industry - RS_stock * weight / sum(weight)
+    Formulation: INDMOM = RS_industry - c_stock * RS_stock
     Description：【行业动量因子】6个月（126个交易日）行业动量减去个股动量的加权贡献，
         用于捕捉行业层面的动量效应。使用半衰期为21天的指数权重。
-        权重为流通市值的平方根（cap_sqrt）。
+        权重为流通市值的平方根（cap_sqrt）归一化后的值（行业内权重和为1）。
     """
     # 确保索引排序
     df = df.sort_index()
@@ -152,18 +152,20 @@ def INDMOM(df):
     # 按日期和行业分组计算行业动量（个股 rolling momentum 的 cap_sqrt 加权平均）
     def calc_ind_momentum(group):
         w = group['weight']
-        return (group['rs'] * w).sum() / w.sum() if w.sum() > 0 else np.nan
+        w_sum = w.sum()
+        if w_sum <= 0:
+            return pd.Series({'rs_ind': np.nan, 'w_sum': np.nan})
+        return pd.Series({'rs_ind': (group['rs'] * w).sum() / w_sum, 'w_sum': w_sum})
     
     ind_mom = data.groupby(['datetime', 'ind']).apply(
         calc_ind_momentum, include_groups=False
     ).reset_index()
-    ind_mom.columns = ['datetime', 'ind', 'rs_ind']
     
     # 将行业动量合并回数据
     data = data.merge(ind_mom, on=['datetime', 'ind'], how='left')
     
-    # INDMOM = rs_ind - rs * weight / sum(weight)
-    data['INDMOM'] = data['rs_ind'] - data['rs'] * data['weight'] / data['weight'].sum()
+    # INDMOM = rs_ind - rs * weight / ind_weight_sum (within industry)
+    data['INDMOM'] = data['rs_ind'] - data['rs'] * data['weight'] / data['w_sum']
     
     # 构造结果 DataFrame
     result_df = data.set_index(['instrument', 'datetime'])[['INDMOM']]
