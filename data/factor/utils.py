@@ -150,7 +150,7 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     return beta, alpha, sigma
 
 
-def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
+def rolling_regress(y, x, window=504, half_life=252, intercept=True,
                      list_date_map=None, delist_date_map=None, num_worker=1):
     """滚动加权最小二乘回归（CAPM回归）
 
@@ -163,7 +163,6 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
         window: int, 滚动窗口大小
         half_life: int or None, 半衰期权重。None 表示等权
         intercept: bool, 是否包含截距项
-        fill_na: int/float or str, 填充NaN的值，支持数值或填充方法(如'ffill')
         list_date_map: dict, instrument -> pd.Timestamp, 上市日期映射
         delist_date_map: dict, instrument -> pd.Timestamp, 退市日期映射
         num_worker: int, 并行计算的进程数，通常设置为1，设置>=2可能执行速度更慢
@@ -193,9 +192,6 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
     else:
         weight = 1
 
-    # 填充参数
-    fill_args = {'method': fill_na} if isinstance(fill_na, str) else {'value': fill_na}
-
     # 找到 x 第一个非空值的索引，截断之前的数据
     x_valid = x.dropna()
     if len(x_valid) == 0:
@@ -205,19 +201,20 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
     x = x.loc[start_date:]
 
     n = len(y_wide)
-    
+    if n < window:
+        raise ValueError(f"数据长度({n})小于窗口大小({window})")
+
     # 准备并行计算的参数列表
     func_calls = []
     for i in range(n - window + 1):
         window_y = y_wide.iloc[i:i + window]
         window_x_vals = x.iloc[i:i + window].values
-        
+
         window_sdate = y_wide.index[i]
         window_edate = y_wide.index[i + window - 1]
-        
+
         # 根据上市/退市日期过滤股票
-        if list_date_map is not None and delist_date_map is not None\
-                and len(list_date_map) > 0 and len(delist_date_map) > 0:
+        if list_date_map and delist_date_map:
             # 排除在 [window_sdate, window_edate] 之间上市或退市的股票
             stks_to_regress = sorted([
                 s for s in stocks
@@ -228,19 +225,19 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
             ])
         else:
             stks_to_regress = stocks
-        
+
         if not stks_to_regress:
             continue
-        
+
         # 将单次回归计算封装为函数调用
         func_calls.append((
             _single_regression,
-            (window_y, window_x_vals, stks_to_regress, fill_args, weight, intercept, window_edate)
+            (window_y, window_x_vals, stks_to_regress, weight, intercept, window_edate)
         ))
-    
+
     # 并行执行所有回归计算
     results = multiprocessing_wrapper(func_calls, n=num_worker)
-    
+
     # 解包结果
     beta_list, alpha_list, sigma_list = [], [], []
     for beta_series, alpha_series, sigma_series in results:
@@ -272,36 +269,77 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True, fill_na=0,
 
 
 
-def _single_regression(window_y, window_x_vals, stks_to_regress, fill_args, weight, intercept, window_edate):
+def _single_regression(window_y, window_x_vals, stks_to_regress, weight, intercept, window_edate):
     """单次 WLS 回归计算（用于并行化）
-    
+
     Args:
         window_y: pd.DataFrame, 窗口期内的股票收益率
         window_x_vals: np.ndarray, 窗口期内的基准收益率
         stks_to_regress: list, 待回归的股票列表
-        fill_args: dict, NaN 填充参数
         weight: np.ndarray or int, 权重
         intercept: bool, 是否包含截距项
         window_edate: pd.Timestamp, 窗口结束日期
-    
+
     Returns:
         tuple: (beta_series, alpha_series, sigma_series)
     """
-    rolling_y = window_y[stks_to_regress].fillna(**fill_args)
-    
-    # WLS 回归
-    b, a, resid = WLS(
-        rolling_y.values, pd.DataFrame(window_x_vals),
-        intercept=intercept, weight=weight, verbose=True
-    )
-    
-    # 残差标准差
-    vol = np.std(resid.values, axis=0)
-    
-    beta_series = pd.Series(b.values.flatten(), index=stks_to_regress, name=window_edate)
-    alpha_series = pd.Series(a.values, index=stks_to_regress, name=window_edate)
-    sigma_series = pd.Series(vol, index=stks_to_regress, name=window_edate)
-    
+    rolling_y = window_y[stks_to_regress]
+    min_valid_ratio = 0.8
+
+    # 初始化结果字典
+    beta_dict, alpha_dict, sigma_dict = {}, {}, {}
+
+    # 逐只股票处理 NaN
+    for stock in stks_to_regress:
+        y_stock = rolling_y[stock]
+
+        # 找到该股票有效数据的掩码
+        valid_mask = y_stock.notna().values
+        valid_count = valid_mask.sum()
+        total_count = len(y_stock)
+
+        # 检查有效数据是否足够
+        if valid_count < total_count * min_valid_ratio:
+            # 有效数据不足，该股票返回 NaN
+            beta_dict[stock] = np.nan
+            alpha_dict[stock] = np.nan
+            sigma_dict[stock] = np.nan
+            continue
+
+        # 提取有效数据
+        y_valid = y_stock[valid_mask].values
+        x_valid = window_x_vals[valid_mask]
+
+        # 调整权重（如果是数组）
+        if isinstance(weight, np.ndarray):
+            w_valid = weight[valid_mask]
+        else:
+            w_valid = weight
+
+        # WLS 回归（单只股票）
+        try:
+            b, a, resid = WLS(
+                y_valid.reshape(-1, 1), pd.DataFrame(x_valid),
+                intercept=intercept, weight=w_valid, verbose=True
+            )
+
+            # 残差标准差（使用样本标准差 ddof=1）
+            vol = np.std(resid.values, ddof=1)
+
+            beta_dict[stock] = b.values.flatten()[0]
+            alpha_dict[stock] = a if a is None or np.isscalar(a) else a.values[0]
+            sigma_dict[stock] = vol
+        except Exception:
+            # 回归失败，返回 NaN
+            beta_dict[stock] = np.nan
+            alpha_dict[stock] = np.nan
+            sigma_dict[stock] = np.nan
+
+    # 按照 stks_to_regress 的顺序创建 Series
+    beta_series = pd.Series([beta_dict[s] for s in stks_to_regress], index=stks_to_regress, name=window_edate)
+    alpha_series = pd.Series([alpha_dict[s] for s in stks_to_regress], index=stks_to_regress, name=window_edate)
+    sigma_series = pd.Series([sigma_dict[s] for s in stks_to_regress], index=stks_to_regress, name=window_edate)
+
     return beta_series, alpha_series, sigma_series
 
 
