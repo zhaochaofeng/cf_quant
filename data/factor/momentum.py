@@ -20,28 +20,28 @@ from .utils import (
 
 def STREV(df):
     """
-    Formulation: STREV = sum(return * weight)
-    Description：【短期反转因子】过去1个月（21个交易日）的日收益率加权之和，
+    Formulation: STREV = sum(ln(1+return) * weight)
+    Description：【短期反转因子】过去1个月（21个交易日）的日对数收益率加权之和，
         使用半衰期为5天的指数权重。该因子用于捕捉短期价格反转效应。
     """
     # 确保索引排序
     df = df.sort_index()
-    
-    # 使用日收益率
-    daily_returns = df['$change']
-    
-    # 使用 rolling_with_func 计算加权收益率之和
+
+    # 使用对数日收益率
+    daily_returns = np.log(1 + df['$change'])
+
+    # 使用 rolling_with_func 计算加权对数收益率之和
     # window=21, half_life=5, func_name='sum'
     strev_series = daily_returns.groupby(level='instrument').apply(
         lambda x: rolling_with_func(x, window=21, half_life=5, func_name='sum')
     )
     # 重置索引，确保格式正确
     strev_series = strev_series.reset_index(level=0, drop=True)
-    
+
     # 构造结果 DataFrame
     result_df = pd.DataFrame({'STREV': strev_series})
     result_df = result_df.dropna()
-    
+
     return result_df
 
 
