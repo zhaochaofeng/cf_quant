@@ -28,7 +28,7 @@ def MIDCAP(df):
     beta, alpha, resid = WLS(y, x, intercept=True, weight=1, verbose=True)
     # 这里使用的 lncap 以保证原始数据维度
     midcap = lncap ** 3 - (alpha + beta[0] * lncap)
-    midcap = winsorize(midcap, method='quantile', lower=0.01, upper=0.99)
+    midcap = winsorize(midcap, method='median', lower=0.01, upper=0.99)
     midcap = standardize(midcap)
     midcap.columns = ['MIDCAP']
 
