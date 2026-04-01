@@ -31,10 +31,11 @@ def STOM(df):
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
     
     # 滚动计算月度流动性因子 (21天窗口)
+    # min_periods = 10 放宽连续非NaN限制
     stom_series = share_turnover.groupby(level='instrument').rolling(
-        window=21, min_periods=21
+        window=21, min_periods=10
     ).apply(
-        lambda x: cal_liquidity(x, days_per_month=21, sentinel=SENTINEL),
+        lambda x: cal_liquidity(x, days_per_month=10, sentinel=SENTINEL),
         raw=True
     )
     
