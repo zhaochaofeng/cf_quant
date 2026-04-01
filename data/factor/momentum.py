@@ -67,7 +67,7 @@ def SEASON(df, nyears=5):
     stock_ret = df['$change']
     log_ret = np.log(1 + stock_ret)
     
-    # 计算月度累计对数收益率（每月最后一个交易日的对数收益率累加）
+    # 计算月度累计对数收益率（按照每月最后一个交易日分组，对每个月的对数收益率进行累加）
     monthly_log_ret = log_ret.groupby(level='instrument').resample('ME', level='datetime').sum()
 
     # 获取基准指数数据（沪深300）
