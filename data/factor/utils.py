@@ -18,7 +18,7 @@ SENTINEL = 1e10
 
 def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_date: str) -> pd.DataFrame:
     """ 获取qlib 字段数据 """
-    qlib.init(provider_uri=provider_uri)
+    # qlib.init(provider_uri=provider_uri)
     if isinstance(instruments, str):
         instruments = D.instruments(market=instruments)
     df = D.features(instruments=instruments, fields=fields, start_time=start_date, end_time=end_date)
@@ -73,27 +73,22 @@ def get_stock_list_info(instruments: list, date: str) -> tuple:
             - list_date_map: dict, instrument -> pd.Timestamp
             - delist_date_map: dict, instrument -> pd.Timestamp or pd.NaT
     """
-
     df = get_mysql_data(instruments, 'stock_info_ts', ['list_date', 'delist_date'], date, date)
-    # MySQL 中 list_date/delist_date 格式为 'YYYY-MM-DD'，直接解析为标准日期
+    if df.empty:
+        raise Exception('无法获取股票上市/退市日期信息!!!')
+
+    # 统一转换日期格式
     df['list_date'] = pd.to_datetime(df['list_date'])
     df['delist_date'] = pd.to_datetime(df['delist_date'])
 
-    list_date_map = {}
-    delist_date_map = {}
-    for inst in df.index.unique():
-        inst_data = df.loc[inst]
-        list_val = inst_data['list_date']
-        delist_val = inst_data['delist_date']
-        # 处理 Series（多行）或标量（单行）的情况
-        list_date_map[inst] = (
-            pd.to_datetime(list_val.iloc[0]) if isinstance(list_val, pd.Series) else pd.to_datetime(list_val)
-        ) if pd.notna(list_val if isinstance(list_val, pd.Series) else list_val) else pd.NaT
-        delist_date_map[inst] = (
-            pd.to_datetime(delist_val.iloc[0]) if isinstance(delist_val, pd.Series) else pd.to_datetime(delist_val)
-        ) if pd.notna(delist_val if isinstance(delist_val, pd.Series) else delist_val) else pd.NaT
-    if len(list_date_map) == 0 or len(delist_date_map) == 0:
+    # 按股票分组取第一条（去重），并直接转换为字典
+    df_unique = df.groupby(level='instrument').first()
+    list_date_map = df_unique['list_date'].to_dict()
+    delist_date_map = df_unique['delist_date'].to_dict()
+
+    if not list_date_map or not delist_date_map:
         raise Exception('get_stock_list_info: 无法获取股票上市/退市日期信息')
+
     return list_date_map, delist_date_map
 
 
