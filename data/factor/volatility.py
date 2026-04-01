@@ -73,7 +73,8 @@ def DASTD(df):
         half_life=42,
         func_name='std'
     )
-
+    # 年化
+    dastd_series = np.sqrt(252) * dastd_series
     # Create result DataFrame
     result_df = pd.DataFrame({'DASTD': dastd_series})
     
