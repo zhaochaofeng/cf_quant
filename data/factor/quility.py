@@ -419,13 +419,13 @@ def IGRO(df):
     Issuance Growth (股票发行量增长率)
     Formulation: IGRO = -(过去5年流通股本对时间回归的斜率 / 平均流通股本)
     Description：衡量股权稀释，频繁增发的公司对外部股权融资依赖度高。
-    数据字段：流通股本 $circ_mv
+    数据字段：流通股本 $float_share
     """
     df = df.sort_index()
-    circ_mv = df['$circ_mv'].fillna(0)
+    float_share = df['$float_share'].fillna(0)
     
     # 提取年度数据（每年最后一个交易日）
-    annual_circ_mv = get_annual_data_year_end(circ_mv)
+    annual_circ_mv = get_annual_data_year_end(float_share)
     
     # 对年度数据计算5年滚动增长率（斜率/均值）
     growth = calc_growth_rate_slope(annual_circ_mv, window=5, min_periods=3)
