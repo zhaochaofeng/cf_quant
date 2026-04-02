@@ -146,6 +146,7 @@ if __name__ == '__main__':
         '$circ_mv',                    # 股票流通市值(万元)
         '$total_mv',                   # 股票总市值(万元)
         '$total_share',                # 总股本(万股)
+        '$float_share',                # 流通股本
         '$amount',                     # 成交额(元)
 
         # 资产负债表
