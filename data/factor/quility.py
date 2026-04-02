@@ -114,7 +114,8 @@ def VSAL(df):
     SZ000001    2019    1.029580e+11
                 2020    1.165640e+11
     '''
-    annual_rev = get_annual_data(revenue_raw)
+    # Fix: 滚动计算时，前边界小于window的区间值为NaN，需要按照window拉长计算区间
+    annual_rev = get_annual_data(revenue_raw, 'revenue_q')
 
     # 对年度数据计算5年滚动变异系数
     cv = calc_cv(annual_rev, window=5, min_periods=3)
@@ -139,7 +140,7 @@ def VERN(df):
     df = df.sort_index()
     income_raw = df['P($$n_income_attr_p_q)'].fillna(0)
 
-    annual_income = get_annual_data(income_raw)
+    annual_income = get_annual_data(income_raw, 'n_income_attr_p_q')
     cv = calc_cv(annual_income, window=5, min_periods=3)
     cv = cv.reset_index(level=0, drop=True)
     vern = map_annual_to_daily(cv, df.index)
@@ -160,7 +161,7 @@ def VFLO(df):
     df = df.sort_index()
     cf_raw = df['P($$n_cashflow_act_q)'].fillna(0)
 
-    annual_cf = get_annual_data(cf_raw)
+    annual_cf = get_annual_data(cf_raw, 'n_cashflow_act_q')
     cv = calc_cv(annual_cf, window=5, min_periods=3)
     cv = cv.reset_index(level=0, drop=True)
     vflo = map_annual_to_daily(cv, df.index)
@@ -198,16 +199,24 @@ def ABS(df):
     depr_raw = df['P($$depr_fa_coga_dpba_q)'].fillna(0)  # 固定资产折旧
     amort_raw = df['P($$amort_intang_assets_q)'].fillna(0)  # 无形资产摊销
     lt_amort_raw = df['P($$lt_amort_deferred_exp_q)'].fillna(0)  # 长期待摊费用摊销
-    
-    # 在原始日频数据上计算中间变量（用于提取年度数据）
-    td_raw = st_borr_raw + lt_borr_raw + non_cur_raw + bond_raw  # 带息债务
-    da_raw = depr_raw + amort_raw + lt_amort_raw                  # 折旧摊销
-    noa_raw = (ta_raw - cash_raw) - (tl_raw - td_raw)             # 净经营资产
-    
-    # 提取年度数据（每年1月第一个值 → 对应上一年年报）
-    noa_annual = get_annual_data(noa_raw)
-    da_annual = get_annual_data(da_raw)
-    ta_annual = get_annual_data(ta_raw)
+
+    # 提取年度数据（使用 PRef 查询原始字段）
+    # NOA = (TA - Cash) - (TL - TD)，需要先获取各组成部分的年度数据
+    ta_annual = get_annual_data(ta_raw, 'total_assets_q').fillna(0)
+    cash_annual = get_annual_data(cash_raw, 'money_cap_q').fillna(0)
+    tl_annual = get_annual_data(tl_raw, 'total_liab_q').fillna(0)
+    st_borr_annual = get_annual_data(st_borr_raw, 'st_borr_q').fillna(0)
+    lt_borr_annual = get_annual_data(lt_borr_raw, 'lt_borr_q').fillna(0)
+    non_cur_annual = get_annual_data(non_cur_raw, 'non_cur_liab_due_1y_q').fillna(0)
+    bond_annual = get_annual_data(bond_raw, 'bond_payable_q').fillna(0)
+    depr_annual = get_annual_data(depr_raw, 'depr_fa_coga_dpba_q').fillna(0)
+    amort_annual = get_annual_data(amort_raw, 'amort_intang_assets_q').fillna(0)
+    lt_amort_annual = get_annual_data(lt_amort_raw, 'lt_amort_deferred_exp_q').fillna(0)
+
+    # 在年度粒度上计算中间变量
+    td_annual = st_borr_annual + lt_borr_annual + non_cur_annual + bond_annual
+    da_annual = depr_annual + amort_annual + lt_amort_annual
+    noa_annual = (ta_annual - cash_annual) - (tl_annual - td_annual)
     
     # 在年度粒度上计算 NOA(t) - NOA(t-1)
     noa_lag_annual = noa_annual.groupby(level='instrument').shift(1)
@@ -217,6 +226,7 @@ def ABS(df):
     accr_bs_annual = noa_diff_annual - da_annual
     
     # 在年度粒度计算 ABS = -ACCR_BS / TA
+    ta_annual[ta_annual == 0] = np.nan
     abs_annual = -accr_bs_annual / ta_annual
     
     # 映射回日频
@@ -262,6 +272,7 @@ def ACF(df):
     accr_cf = ni - cfo + da
     
     # 计算 ACF = -ACCR_CF / TA
+    ta[ta == 0] = np.nan
     acf_val = -accr_cf / ta
     
     result_df = pd.DataFrame({'ACF': acf_val})
@@ -283,11 +294,8 @@ def ATO(df):
     
     # TTM 营业收入和总资产
     sales_ttm = df['PTTM($$revenue_q)'].fillna(0)
-    ta_raw = df['P($$total_assets_q)'].fillna(0)
-    
-    # 总资产使用最新报告期数据（非TTM）
-    ta = remap_lyr(ta_raw, 'total_assets_q')
-    
+    ta = df['P($$total_assets_q)']   # 最近报告期的总资产[资产负债表]
+
     # 计算 ATO
     ato = sales_ttm / ta
     
@@ -366,7 +374,7 @@ def ROA(df):
     
     # TTM 净利润和总资产
     earnings_ttm = df['PTTM($$n_income_attr_p_q)'].fillna(0)
-    ta_raw = df['P($$total_assets_q)'].fillna(0)
+    ta_raw = df['P($$total_assets_q)']
     
     # 总资产使用最新报告期数据
     ta = remap_lyr(ta_raw, 'total_assets_q')
@@ -392,7 +400,7 @@ def AGRO(df):
     ta_raw = df['P($$total_assets_q)'].fillna(0)
 
     # 提取年度数据
-    annual_ta = get_annual_data(ta_raw)
+    annual_ta = get_annual_data(ta_raw, 'total_assets_q')
 
     # 对年度数据计算5年滚动增长率
     growth = calc_growth_rate_slope(annual_ta, window=5, min_periods=3)
@@ -442,7 +450,7 @@ def CXGRO(df):
     capex_raw = df['P($$c_pay_acq_const_fiolta_q)'].fillna(0)
 
     # 提取年度数据
-    annual_capex = get_annual_data(capex_raw)
+    annual_capex = get_annual_data(capex_raw, 'c_pay_acq_const_fiolta_q')
 
     # 对年度数据计算5年滚动增长率
     growth = calc_growth_rate_slope(annual_capex, window=5, min_periods=3)
