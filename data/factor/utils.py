@@ -752,7 +752,7 @@ def calc_cv(series, window=5, min_periods=3):
             return np.nan
         std = valid.std()
         mean = valid.mean()
-        if mean == 0 or np.isnan(mean):
+        if abs(mean) < 1e-6 or np.isnan(mean):
             return np.nan
         return std / mean
     
