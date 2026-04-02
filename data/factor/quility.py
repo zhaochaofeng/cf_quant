@@ -26,12 +26,9 @@ def MLEV(df):
     pe_raw.fillna(0, inplace=True)
     ld_raw.fillna(0, inplace=True)
 
-    if pe_raw is None or ld_raw is None:
-        raise Exception('P($$oth_eqt_tools_p_shr_q) or P($$total_ncl_q) is None')
-
     # 按财年规则重映射财务数据
-    pe = remap_lyr(pe_raw)
-    ld = remap_lyr(ld_raw)
+    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q')
+    ld = remap_lyr(ld_raw, 'total_ncl_q')
 
     mlev = (me + pe + ld) / me
 
@@ -57,13 +54,10 @@ def BLEV(df):
     pe_raw.fillna(0, inplace=True)
     ld_raw.fillna(0, inplace=True)
 
-    if pe_raw is None or ld_raw is None or be_raw_raw is None:
-        raise Exception('P($$oth_eqt_tools_p_shr_q) or P($$total_ncl_q) or P($$total_hldr_eqy_exc_min_int_q) is None')
-
     # 按财年规则重映射财务数据
-    pe = remap_lyr(pe_raw)
-    ld = remap_lyr(ld_raw)
-    be_raw = remap_lyr(be_raw_raw)
+    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q')
+    ld = remap_lyr(ld_raw, 'total_ncl_q')
+    be_raw = remap_lyr(be_raw_raw, 'total_hldr_eqy_exc_min_int_q')
 
     # BE = 股东权益合计(不含少数股东权益) - 优先股
     be = be_raw - pe
@@ -90,12 +84,9 @@ def DTOA(df):
     ta_raw = df['P($$total_assets_q)']  # 资产总计
     tl_raw.fillna(0, inplace=True)
 
-    if tl_raw is None or ta_raw is None:
-        raise Exception('P($$total_liab_q) or P($$total_assets_q) is None')
-
     # 按财年规则重映射财务数据
-    tl = remap_lyr(tl_raw)
-    ta = remap_lyr(ta_raw)
+    tl = remap_lyr(tl_raw, 'total_liab_q')
+    ta = remap_lyr(ta_raw, 'total_assets_q')
 
     dtoa = tl / ta
 
@@ -257,12 +248,12 @@ def ACF(df):
     ta_raw = df['P($$total_assets_q)'].fillna(0)      # 总资产
     
     # 按财年规则重映射
-    ni = remap_lyr(ni_raw)
-    cfo = remap_lyr(cfo_raw)
-    depr = remap_lyr(depr_raw)
-    amort = remap_lyr(amort_raw)
-    lt_amort = remap_lyr(lt_amort_raw)
-    ta = remap_lyr(ta_raw)
+    ni = remap_lyr(ni_raw, 'n_income_attr_p_q')
+    cfo = remap_lyr(cfo_raw, 'n_cashflow_act_q')
+    depr = remap_lyr(depr_raw, 'depr_fa_coga_dpba_q')
+    amort = remap_lyr(amort_raw, 'amort_intang_assets_q')
+    lt_amort = remap_lyr(lt_amort_raw, 'lt_amort_deferred_exp_q')
+    ta = remap_lyr(ta_raw, 'total_assets_q')
     
     # 计算折旧摊销 DA
     da = depr + amort + lt_amort
@@ -295,7 +286,7 @@ def ATO(df):
     ta_raw = df['P($$total_assets_q)'].fillna(0)
     
     # 总资产使用最新报告期数据（非TTM）
-    ta = remap_lyr(ta_raw)
+    ta = remap_lyr(ta_raw, 'total_assets_q')
     
     # 计算 ATO
     ato = sales_ttm / ta
@@ -322,9 +313,9 @@ def GP(df):
     cogs_raw = df['P($$oper_cost_q)'].fillna(0)
     ta_raw = df['P($$total_assets_q)']
     
-    sales = remap_lyr(sales_raw)
-    cogs = remap_lyr(cogs_raw)
-    ta = remap_lyr(ta_raw)
+    sales = remap_lyr(sales_raw, 'revenue_q')
+    cogs = remap_lyr(cogs_raw, 'oper_cost_q')
+    ta = remap_lyr(ta_raw, 'total_assets_q')
     
     # 计算 GP = (Sales - COGS) / TA
     gp = (sales - cogs) / ta
@@ -350,8 +341,8 @@ def GPM(df):
     # 营业成本
     cogs_raw = df['P($$oper_cost_q)'].fillna(0)
     
-    sales = remap_lyr(sales_raw)
-    cogs = remap_lyr(cogs_raw)
+    sales = remap_lyr(sales_raw, 'revenue_q')
+    cogs = remap_lyr(cogs_raw, 'oper_cost_q')
     
     # 避免除以0
     sales[sales == 0] = np.nan
@@ -378,7 +369,7 @@ def ROA(df):
     ta_raw = df['P($$total_assets_q)'].fillna(0)
     
     # 总资产使用最新报告期数据
-    ta = remap_lyr(ta_raw)
+    ta = remap_lyr(ta_raw, 'total_assets_q')
     
     # 计算 ROA
     roa = earnings_ttm / ta
