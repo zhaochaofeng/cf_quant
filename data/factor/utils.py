@@ -747,52 +747,185 @@ def get_fiscal_year_for_date(date):
         return year - 1
 
 
-def remap_lyr(series):
-    """将 Qlib P() 前向填充的日频财务数据按财年规则重映射
-    lyr :"Last Year Report"（上一财政年度）
-    P($$*_q) 自动将季度数据前向填充到日频，但杠杆因子需要的是
-    "上一财政年度" 的年报数据。本函数从日频数据中提取每年年末值，
-    再根据财年规则映射回每个交易日。
+def get_fiscal_year_04(date):
+    """根据日期计算财年（YYYY04格式，年报用Q4表示）
+    
+    规则：
+    - 1月1日-4月30日：使用上上财年数据（year - 2）
+    - 5月1日及之后：使用上财年数据（year - 1）
+    
+    Args:
+        date: datetime-like, 日期
+    
+    Returns:
+        int: 财年，格式为 YYYY04（年 * 100 + 4），如 202204 表示2022年年报
+    """
+    date = pd.to_datetime(date)
+    year = date.year
+    month = date.month
+    
+    if month <= 4:
+        return (year - 2) * 100 + 4
+    else:
+        return (year - 1) * 100 + 4
 
+
+def _extract_fiscal_years(datetimes):
+    """从时间序列中提取每个日期对应的财年 (YYYY04格式)
+    
+    Args:
+        datetimes: pd.DatetimeIndex 或 iterable, 日期序列
+        
+    Returns:
+        list: 每个日期对应的财年 (YYYY04格式)
+    """
+    return [get_fiscal_year_04(dt) for dt in datetimes]
+
+
+def _build_pref_fields(field_name, unique_years):
+    """构建 PRef 字段列表
+    
+    Args:
+        field_name: str, 字段名
+        unique_years: list, 财年列表 (YYYY04格式)
+        
+    Returns:
+        list: PRef 字段列表
+    """
+    return [f'PRef($${field_name}, {fy // 100}04)' for fy in unique_years]
+
+
+def remap_lyr(series, field_name):
+    """使用 PRef 算子获取年报数据，按财年规则重映射（优化版）
+    
+    优化内容：
+    1. 批量查询：一次性查询所有 instruments 和财年的数据
+    2. 向量化映射：使用 merge 替代逐行循环匹配
+    3. 增强错误处理：详细记录失败的查询
+    4. 输入验证：增加参数校验
+    
     财年规则：
-        1-4月 → 使用 year-2 年报（上上财年）
-        5-12月 → 使用 year-1 年报（上财年）
+        1-4月 → 使用 year-2 年报（如 2024-03 用 202204 年报）
+        5-12月 → 使用 year-1 年报（如 2024-06 用 202304 年报）
+    
+    注意：如果年报尚未发布（通常在次年4月才发布），PRef 返回 NaN
 
     Args:
         series: pd.Series, MultiIndex (instrument, datetime)
-                Qlib P() 输出的日频财务数据
+                仅用于获取 instrument 和 datetime 索引，不使用其值
+        field_name: str, 字段名（不含 P()/$$ 前缀），如 'revenue_q', 'total_ncl_q'
 
     Returns:
-        pd.Series: MultiIndex (instrument, datetime)，按财年规则重映射后的数据
+        pd.Series: MultiIndex (instrument, datetime)，按财年规则映射后的年报数据
     """
-    data = series.reset_index()
-    data.columns = ['instrument', 'datetime', 'value']
+    # ========== 输入验证 ==========
+    if not isinstance(series, pd.Series):
+        raise TypeError(f'series must be pd.Series, got {type(series)}')
+    
+    if series.empty:
+        logger.warning(f'remap_lyr: empty series for {field_name}')
+        return series
+    
+    if not isinstance(series.index, pd.MultiIndex):
+        raise ValueError(f'series must have MultiIndex, got {type(series.index)}')
+    
+    required_levels = ['instrument', 'datetime']
+    if not all(level in series.index.names for level in required_levels):
+        raise ValueError(f'series index must have levels {required_levels}, got {series.index.names}')
+    
+    if not isinstance(field_name, str) or not field_name:
+        raise ValueError(f'field_name must be non-empty string, got {field_name}')
+    
+    # 提取索引信息
+    instruments = series.index.get_level_values('instrument').unique().tolist()
+    datetimes = series.index.get_level_values('datetime')
+    
+    if len(instruments) == 0 or len(datetimes) == 0:
+        logger.warning(f'remap_lyr: no instruments or datetimes for {field_name}')
+        return series
+    
+    # 计算每个日期对应的 fiscal_year
+    fiscal_years = _extract_fiscal_years(datetimes)
+    unique_fiscal_years = sorted(set(fiscal_years))
 
-    data['year'] = data['datetime'].dt.year
-    data['month'] = data['datetime'].dt.month
+    # ========== 批量查询年报数据 ==========
+    pref_fields = _build_pref_fields(field_name, unique_fiscal_years)
+    '''
+    ['PRef($$revenue_q, 202104)',
+     'PRef($$revenue_q, 202204)',
+     'PRef($$revenue_q, 202304)',
+     'PRef($$revenue_q, 202404)']
+    '''
+    try:
+        # 一次性查询所有数据
+        start_time = datetimes.min()
+        end_time = datetimes.max()
+        
+        logger.debug(f'remap_lyr: querying {len(pref_fields)} fields for {len(instruments)} instruments')
+        # index: <instrument, datetime>; columns: <PRef($$field, YYYYMM)>
+        df_all = D.features(
+            instruments=instruments,
+            fields=pref_fields,
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        if df_all.empty:
+            logger.warning(f'remap_lyr: empty result from D.features for {field_name}')
+            return pd.Series(np.nan, index=series.index, name=series.name)
+        
+    except Exception as e:
+        logger.error(f'remap_lyr: failed to query data for {field_name}: {e}')
+        raise RuntimeError(f'Failed to query annual data for {field_name}: {e}')
+    
+    # ========== 构建映射表 ==========
+    # 创建财年到字段名的映射
+    fy_to_field = {fy: f'PRef($${field_name}, {fy // 100}04)' for fy in unique_fiscal_years}
+    '''
+    {202104: 'PRef($$revenue_q, 202104)',
+     202204: 'PRef($$revenue_q, 202204)',
+     202304: 'PRef($$revenue_q, 202304)',
+     202404: 'PRef($$revenue_q, 202404)'}
+    '''
 
-    # 取每年 1 月第一个交易日的 P() 值作为上一年 Q4 年报的代理
-    # 原因：1 月初时 P() 前向填充的值来自上一年最后一个报告期（12-31），
-    #       即上一年度的年报数据
-    # ['instrument', 'datetime', 'value', 'year', 'month']
-    jan_data = data[data['month'] == 1]
-    annual = jan_data.groupby(['instrument', 'year']).first().reset_index()
-    annual['report_year'] = annual['year'] - 1  # 1月的值代表上一年年报
-    # 股票、财年、值
-    annual = annual[['instrument', 'report_year', 'value']]
-    annual.columns = ['instrument', 'report_year', 'annual_value']
-
-    # 计算每个交易日对应的财政年度
-    data['fiscal_year'] = data['datetime'].apply(get_fiscal_year_for_date)
-
-    # 合并年报数据
-    merged = data.merge(
-        annual,
-        left_on=['instrument', 'fiscal_year'],
-        right_on=['instrument', 'report_year'],
-        how='left',
+    # ========== 方案1: Melt + Merge ==========
+    # 1. 将宽表转为长表 (id_vars保留索引列)
+    df_long = df_all.reset_index().melt(
+        id_vars=['instrument', 'datetime'],
+        var_name='field',
+        value_name='value'
     )
-
-    result = merged.set_index(['instrument', 'datetime'])['annual_value']
-    result.name = series.name
+    '''
+    melt后格式:
+         instrument   datetime                  field      value
+    0       SH600000 2024-01-02  PRef($$revenue_q, 202104)  100.0
+    1       SH600000 2024-01-02  PRef($$revenue_q, 202204)  110.0
+    ...
+    '''
+    
+    # 2. 构建目标映射表 (每个<instrument,datetime>应该取哪个field)
+    target_df = pd.DataFrame({
+        'instrument': series.index.get_level_values('instrument'),
+        'datetime': series.index.get_level_values('datetime'),
+        'fiscal_year': fiscal_years
+    })
+    # 根据fiscal_year映射到对应的field名称
+    target_df['field'] = target_df['fiscal_year'].map(fy_to_field)
+    
+    # 3. 合并获取对应值 (根据instrument+datetime+field三键匹配)
+    result_df = target_df.merge(
+        df_long, 
+        on=['instrument', 'datetime', 'field'], 
+        how='left'
+    )
+    
+    # 4. 重建结果 Series (保持原索引)
+    result = pd.Series(
+        result_df['value'].values,
+        index=series.index,
+        name=series.name
+    )
+    
+    logger.debug(f'remap_lyr: successfully mapped {len(result.dropna())}/{len(result)} values for {field_name}')
+    
     return result
