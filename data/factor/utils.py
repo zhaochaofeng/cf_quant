@@ -759,7 +759,7 @@ def calc_cv(series, window=5, min_periods=3):
     return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(calc_cv_inner, raw=False)
 
 
-def map_annual_to_daily(annual_series, daily_index):
+def map_annual_to_daily(annual_series, daily_index, is_map: bool = True):
     """将年度指标映射回日频
     
     将 (instrument, year) 索引的年度计算结果，按财年规则映射到每个交易日。
@@ -782,7 +782,10 @@ def map_annual_to_daily(annual_series, daily_index):
     # 构建交易日→fiscal_year 映射
     instruments = daily_index.get_level_values('instrument')
     datetimes = daily_index.get_level_values('datetime')
-    fiscal_years = datetimes.map(get_fiscal_year_for_date)
+    if is_map:
+        fiscal_years = datetimes.map(get_fiscal_year_for_date)
+    else:
+        fiscal_years = datetimes.map(lambda x: x.year)
 
     day_df = pd.DataFrame({
         'instrument': instruments,
