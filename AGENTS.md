@@ -7,7 +7,7 @@ Quantitative finance research platform using Qlib framework. Python 3 codebase f
 ## Build/Lint/Test Commands
 
 ### Running Env
-conda activate python311-tf210
+conda activate python3
 
 ### Code Execution
 ```bash
