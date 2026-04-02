@@ -5,7 +5,7 @@
 
 import pandas as pd
 import numpy as np
-from .utils import capm_regress
+from .utils import capm_regress, remap_lyr
 
 
 def BTOP(df):
@@ -20,18 +20,20 @@ def BTOP(df):
     df = df.sort_index()
     
     # 获取数据
-    total_hldr_eqy = df['P($$total_hldr_eqy_exc_min_int_q)']
-    oth_eqt_tools = df['P($$oth_eqt_tools_p_shr_q)']
-    total_mv = df['$total_mv']  # 万元
+    total_hldr_eqy_raw = df['P($$total_hldr_eqy_exc_min_int_q)']    # 股东权益合计(不含少数股东权益)
+    oth_eqt_tools_raw = df['P($$oth_eqt_tools_p_shr_q)'].fillna(0)  # 优先股
+
+    total_hldr_eqy = remap_lyr(total_hldr_eqy_raw, 'total_hldr_eqy_exc_min_int_q')
+    oth_eqt_tools = remap_lyr(oth_eqt_tools_raw, 'oth_eqt_tools_p_shr_q')
+
+    total_mv = df['$total_mv'] * 10000  # 万元
     
-    # 计算普通股账面价值（仅优先股缺失视为无优先股，权益缺失保留NaN）
-    bv = total_hldr_eqy - oth_eqt_tools.fillna(0)
+    # 计算普通股账面价值
+    bv = total_hldr_eqy - oth_eqt_tools
     
     # BTOP = 账面价值 / 总市值（注意单位转换：total_mv 是万元）
-    # 避免除以0
-    total_mv_adj = total_mv * 10000
-    total_mv_adj = total_mv_adj.replace(0, np.nan)
-    btop = bv / total_mv_adj
+    total_mv[total_mv == 0] = np.nan
+    btop = bv / total_mv
     
     result_df = pd.DataFrame({'BTOP': btop})
     result_df = result_df.dropna()
@@ -74,7 +76,6 @@ def CETOP(df):
     df = df.sort_index()
     
     # 获取数据（使用 PTTM 计算的 TTM 经营现金流）
-    # 注意：这里使用 PTTM 包装后的字段
     cash_earnings_ttm = df['PTTM($$n_cashflow_act_q)']
     total_mv = df['$total_mv']  # 万元
     
@@ -101,6 +102,7 @@ def EM(df):
     """
     df = df.sort_index()
 
+    # ebit 字段缺失值很多
     ebit = df['P($$ebit_q)']
     # 带息债务（缺失视为无该类借款，fillna(0)）
     st_borr = df['P($$st_borr_q)'].fillna(0)
