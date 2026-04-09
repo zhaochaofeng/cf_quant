@@ -37,15 +37,7 @@ except ImportError:
 
 # 使用LoggerFactory创建日志记录器
 # 日志文件会轮转，避免单个文件过大
-logger = LoggerFactory.get_logger(
-    name="heartbeat",
-    log_file="logs/heartbeat.log",  # 日志文件路径
-    level="INFO",                   # 日志级别
-    max_bytes=10 * 1024 * 1024,     # 单个日志文件最大10MB
-    backup_count=5,                 # 保留5个备份文件
-    fmt="%(asctime)s : %(name)s:%(lineno)d : %(levelname)s : %(message)s",
-    console=True                    # 同时输出到控制台
-)
+logger = LoggerFactory.get_logger(__name__)
 
 
 def check_server_alive(host: str, port: int, timeout: int = 5) -> bool:
