@@ -33,7 +33,7 @@ except ImportError:
     import sys
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     from utils import send_email
-    from logger import LoggerFactory
+    from utils.logger import LoggerFactory
 
 # 使用LoggerFactory创建日志记录器
 # 日志文件会轮转，避免单个文件过大
