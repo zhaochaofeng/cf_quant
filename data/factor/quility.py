@@ -23,12 +23,10 @@ def MLEV(df):
     me = me.groupby(level='instrument').shift(1)  # 滞后1日，避免前视偏差
     pe_raw = df['P($$oth_eqt_tools_p_shr_q)']     # 优先股
     ld_raw = df['P($$total_ncl_q)']               # 非流动负债合计
-    pe_raw.fillna(0, inplace=True)
-    ld_raw.fillna(0, inplace=True)
 
     # 按财年规则重映射财务数据
-    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q')
-    ld = remap_lyr(ld_raw, 'total_ncl_q')
+    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q').fillna(0)
+    ld = remap_lyr(ld_raw, 'total_ncl_q').fillna(0)
 
     mlev = (me + pe + ld) / me
 
@@ -50,14 +48,11 @@ def BLEV(df):
     pe_raw = df['P($$oth_eqt_tools_p_shr_q)']             # 优先股
     ld_raw = df['P($$total_ncl_q)']                       # 非流动负债合计
     be_raw_raw = df['P($$total_hldr_eqy_exc_min_int_q)']  # 股东权益合计(不含少数股东权益)
-    be_raw_raw.fillna(0, inplace=True)
-    pe_raw.fillna(0, inplace=True)
-    ld_raw.fillna(0, inplace=True)
 
     # 按财年规则重映射财务数据
-    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q')
-    ld = remap_lyr(ld_raw, 'total_ncl_q')
-    be_raw = remap_lyr(be_raw_raw, 'total_hldr_eqy_exc_min_int_q')
+    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q').fillna(0)
+    ld = remap_lyr(ld_raw, 'total_ncl_q').fillna(0)
+    be_raw = remap_lyr(be_raw_raw, 'total_hldr_eqy_exc_min_int_q').fillna(0)
 
     # BE = 股东权益合计(不含少数股东权益) - 优先股
     be = be_raw - pe
