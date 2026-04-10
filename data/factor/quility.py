@@ -137,6 +137,8 @@ def VERN(df):
 
     annual_income = get_annual_data(income_raw, 'n_income_attr_p_q')
     cv = calc_cv(annual_income, window=5, min_periods=3)
+    # 取绝对值
+    cv = cv.abs()
     cv = cv.reset_index(level=0, drop=True)
     vern = map_annual_to_daily(cv, df.index)
 
@@ -158,6 +160,8 @@ def VFLO(df):
 
     annual_cf = get_annual_data(cf_raw, 'n_cashflow_act_q')
     cv = calc_cv(annual_cf, window=5, min_periods=3)
+    # 取绝对值
+    cv = cv.abs()
     cv = cv.reset_index(level=0, drop=True)
     vflo = map_annual_to_daily(cv, df.index)
 
