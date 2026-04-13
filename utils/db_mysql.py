@@ -27,6 +27,7 @@ class MySQLDB:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """退出上下文管理器，自动提交或回滚"""
+        commit_error = None
         try:
             if exc_type:
                 self.conn.rollback()
@@ -34,13 +35,18 @@ class MySQLDB:
             else:
                 self.conn.commit()
         except Exception as e:
-            # 确保即使在提交/回滚时出错也能关闭连接
             self.logger.error(f"退出上下文时发生错误：{e}")
             if self.conn:
                 self.conn.rollback()
+            # 记录commit异常，稍后抛出
+            if not exc_type:
+                commit_error = e
         finally:
             self.close()
-        # 返回 False 让异常继续向上抛出
+        # 如果commit失败且没有原始异常，主动抛出commit异常
+        if commit_error:
+            raise Exception(f'事务提交失败并已回滚：{commit_error}')
+        # 返回 False 让原始异常继续向上抛出
         return False
 
     def query(self, sql, params=None):
