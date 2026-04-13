@@ -73,6 +73,7 @@ class Base(ABC):
         except Exception as e:
             error_msg = 'write_to_mysql error: {}'.format(e)
             self.logger.error(error_msg)
+            raise
 
 
 class ProcessData(Base):
