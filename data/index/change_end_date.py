@@ -5,27 +5,29 @@
 import fire
 import os
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 
 from utils import send_email
 
 
-def change(old_date: str = None, path: str = None):
+def change(path: str = None):
     path = os.path.expanduser(path)
     print('path: {}'.format(path))
 
     date = datetime.now().strftime("%Y-%m-%d")
-    if old_date is None:
-        old_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
     df = pd.read_csv(path, sep='\t', header=None)
     df.columns = ['code', 'start_date', 'end_date']
-    # 仅修改当前有效的成分股 end_date
-    print(old_date)
+    # 仅修改当前存在指数中的成分股 end_date
+    old_date = df['end_date'].max()
+    if old_date == date:
+        print('No need to change, old_date: {}'.format(old_date))
+        return
+    print('old_date: {}'.format(old_date))
     print(df.head())
-    if df[df['end_date'] == old_date].empty:
-        raise Exception('No data to change, old_date: {}'.format(old_date))
+
     df.loc[df['end_date'] == old_date, 'end_date'] = date
     path_new = path + '.tmp'
     df.to_csv(path_new, sep='\t', header=False, index=False)
@@ -36,7 +38,6 @@ def change(old_date: str = None, path: str = None):
 
 
 def main(
-        old_date: str = None,
         path='~/.qlib/qlib_data/index/instruments',
         csi_list: list = None
 ):
@@ -44,7 +45,7 @@ def main(
         if csi_list is None:
             csi_list = ['csi300.txt', 'csi500.txt']
         for csi in csi_list:
-            change(old_date=old_date, path=os.path.join(path, csi))
+            change(path=os.path.join(path, csi))
     except:
         err_msg = traceback.format_exc()
         send_email('Data: index: change_end_date', err_msg)
