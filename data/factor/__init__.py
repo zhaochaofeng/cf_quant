@@ -85,7 +85,7 @@ from utils import PTTM
 
 kwargs = {'custom_ops': [PTTM]}
 
-# 定义所有待测试因子
+# 因子集合 {name: func}
 FACTORS = {
     # 规模因子
     'LNCAP': LNCAP, 'MIDCAP': MIDCAP,
@@ -111,7 +111,7 @@ FACTORS = {
     'EGRO': EGRO, 'SGRO': SGRO,
 }
 
-
+# 获取因子所属类别
 def _get_category(name):
     """获取因子所属类别"""
     categories = {
@@ -140,13 +140,13 @@ if __name__ == '__main__':
     # 获取所需字段
     fields = [
         # 基础交易数据
-        '$ind_one',                    # 一级行业分类code，类型为float，可能需要进行转换
+        '$ind_one',                    # 一级行业分类code，类型为float，需要进行转换
         '$change',                     # 股票收盘价涨跌幅
         '$close',                      # 股票收盘价
         '$circ_mv',                    # 股票流通市值(万元)
         '$total_mv',                   # 股票总市值(万元)
         '$total_share',                # 总股本(万股)
-        '$float_share',                # 流通股本
+        '$float_share',                # 流通股本(万股)
         '$amount',                     # 成交额(元)
 
         # 资产负债表
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     print("正在加载数据...")
     df = D.features(
         instruments[0:10], fields=fields,  # 10只股票
-        start_time='2018-01-01', end_time='2026-03-02'  # 修改end_time为2026-03-02
+        start_time='2018-01-01', end_time='2026-03-02'
     )
     print(f"数据加载完成: {df.shape[0]} 行, {df.shape[1]} 列")
     print("=" * 80)
