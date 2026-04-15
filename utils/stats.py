@@ -44,4 +44,18 @@ def WLS(y, X, intercept=True, weight=1, verbose=True):
             return params
 
 
+def get_exp_weight(window, half_life):
+    """ 半衰期权重
+    window: 计算窗口
+    half_life: 半衰期
+    如：
+    [0.04956612 0.05693652 0.06540289 0.07512819 0.08629962 0.09913224
+        0.11387304 0.13080577 0.15025637 0.17259925]
+    """
+    exp_wt = np.asarray([0.5 ** (1 / half_life)] * window) ** np.arange(window)
+    return exp_wt[::-1] / np.sum(exp_wt)
+
+
+
+
 
