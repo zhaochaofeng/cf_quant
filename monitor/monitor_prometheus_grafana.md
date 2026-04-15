@@ -8,12 +8,12 @@
 
 ## 一、环境要求
 
-| 项目 | 版本/要求 |
-|------|----------|
-| 操作系统 | Linux (CentOS/RHEL/Ubuntu) |
-| Docker | 已安装并配置 NVIDIA Container Toolkit |
-| NVIDIA 驱动 | 已安装 (验证: nvidia-smi) |
-| 端口占用 | 9090, 9100, 9400 可用 |
+| 项目 | 版本/要求                              |
+|------|------------------------------------|
+| 操作系统 | Linux (CentOS/RHEL/Ubuntu)         |
+| Docker | 已安装并配置 NVIDIA Container Toolkit (nvidia-container-toolkit) |
+| NVIDIA 驱动 | 已安装 (验证: nvidia-smi)               |
+| 端口占用 | 9090, 9100, 9400 可用                |
 
 ---
 
@@ -185,11 +185,11 @@ curl http://localhost:9400/metrics | grep DCGM_FI_DEV_GPU_UTIL
 
 ### 1. 添加 Prometheus 数据源
 
-| 配置项 | 值 |
-|--------|-----|
-| URL | `http://localhost:9090` |
-| Authentication | No Authentication |
-| 其他选项 | 默认 |
+| 配置项 | 值                           |
+|--------|-----------------------------|
+| URL | `http://47.93.20.118:29090` |
+| Authentication | No Authentication           |
+| 其他选项 | 默认                          |
 
 点击 **Save & Test** → 显示 "Data source is working"
 
