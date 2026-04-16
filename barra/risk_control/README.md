@@ -36,12 +36,11 @@
     - 4）保存一份到磁盘，parquet 格式
 - 第2步。因子预处理
     - 1）去极值。对所有因子按照中位数去极值
-    - 2）中性化。对1）中结果进行行业、对数市值中性化。实现逻辑参考 from jqfactor_analyzer import neutralize 函数
-    - 3）正交化。对2）中结果进行正交化。按照 cf_quant/data/factor/__init__.py 中CNE6 因子排列顺序，第1个因子保持不变，从第2个因子开始，以当前因子为因变量，排在前面的因子为自变量，进行多元线形回归拟合，取回归残差。
-    - 4）标准化。对3）中所有因子进行均值为0，标准差为1的标准化
-    - 5）去极值和标准化函数引用 cf_quant/utils/preprocess.py 中函数
-    - 6）检验因子之间正交性
-    - 7）预处理过程及正交性检验的中间数据都保存一份到磁盘，parquet 格式
+    - 2）中性化。对1）中结果进行行业、对数市值中性化。实现逻辑参考 from jqfactor_analyzer import neutralize 函数。删除一个行业以防止多重共线性
+    - 3）标准化。对3）中所有因子进行均值为0，标准差为1的标准化
+    - 4）去极值和标准化函数引用 cf_quant/utils/preprocess.py 中函数
+    - 5）检验因子之间相关性、及因子的VIF(Variance Inflation factor)
+    - 6）预处理过程及检验的中间数据都保存一份到磁盘，parquet 格式
 - 第3步。合并行业因子
     - 1）行业字段名为 ind_one，取值及对应的名称如下：
     {'801780': '银行', '801180': '房地产', '801230': '综合', '801750': '计算机', '801970': '环保', '801200': '商贸零售', '801890': '机械设备', '801730': '电力设备', '801720': '建筑装饰', '801710': '建筑材料', '801030': '基础化工', '801110': '家用电器', '801130': '纺织服饰', '801010': '农林牧渔', '801080': '电子', '801160': '公用事业', '801150': '医药生物', '801880': '汽车', '801210': '社会服务', '801960': '石油石化', '801050': '有色金属', '801770': '通信', '801170': '交通运输', '801760': '传媒', '801790': '非银金融', '801140': '轻工制造', '801740': '国防军工', '801120': '食品饮料', '801950': '煤炭', '801040': '钢铁', '801980': '美容护理'}
@@ -52,7 +51,6 @@
 注意点：
   1. 将 qlib 的取数逻辑作为一个独立模块，存放在 cf_quant/barra/utils/data_loader.py。确保该模块的可扩展性和简洁性
   2. data_loader.py 字段取数函数中添加时间延长参数。例如：计算时刻 t 因子 f1的值，需要用到5年前的数据，则 qlib.D.features()中的 start_time 需要往前推5年。添加 频率参数，表示 start_time 移动的单位（日/年）
-  3. 在 因子中性化 过程中考虑行业数据的多重共线性
 
 ### 步骤 2：横截面回归估计因子收益率 \( b_t \)
 
@@ -88,27 +86,123 @@ W_t = \text{diag}\left(\sqrt{\text{MV}_{1,t}}, \sqrt{\text{MV}_{2,t}}, \ldots, \
 
 ---
 
-## 三、因子协方差矩阵 \( F \) 估计
+## 三、因子收益率协方差矩阵 \( F \) 估计
 
-### 步骤 3：基于历史数据构建因子协方差矩阵
+- 将 因子收益率协方差矩阵 F 的估计作为单独的模块（cf_quant/barra/risk_control/covariance.py）
+- 多种实现方法可以通过参数进行选择
+- 输入：历史各期的因子收益率  \hat{b}_t(t=1,2,...,T) \( K \times 1 \)
+- 输出：F：\( K \times K \) 因子协方差矩阵
+- 收益率协方差计算前，对\(\hat{b}_t(t=1,2,...,T)\) 按照中位数去极值
 
-收集历史各期的因子收益率 \( \{\hat{b}_1, \hat{b}_2, \ldots, \hat{b}_T\} \)。 
-
-- 其中，T=120个月（10年），T 单位是月度
-
-#### 3.1 基础方法（样本协方差矩阵）
+### 3.1: 方法1：样本协方差矩阵（基准）
 
 \[
 F = \frac{1}{T-1} \sum_{t=1}^T (\hat{b}_t - \bar{b})(\hat{b}_t - \bar{b})^T
 \]
 
-其中 \( \bar{b} = \frac{1}{T} \sum_{t=1}^T \hat{b}_t \)。
+其中 \( \bar{b} = \frac{1}{T} \sum_{t=1}^T \hat{b}_t \)
 
-#### 3.2 输出
+### 3.2: 方法2：Barra 半衰期模型
+**核心思想**：方差与相关系数分离估计，半衰期分别平滑
 
-\( F \)：\( K \times K \) 因子协方差矩阵。
+#### 3.2.1: 变量
+
+| 变量                                | 维度 | 说明                                            |
+|:----------------------------------| :--- |:----------------------------------------------|
+| \(H_C\)                           | 标量 | 相关系数半衰期（交易日），默认 **252**                       |
+| \(H_D\)                           | 标量 | 方差半衰期（交易日），默认 **42**                          |
+| \(\lambda_C\)                     | 标量 | 相关系数衰减因子. 0.5**(1/H_C)                        |
+| \(\lambda_D\)                     | 标量 | 方差衰减因子. 0.5**(1/H_D)                          |
+| \(\mathbf{F}_0^{\text{raw}}\)     | \(K \times K\) | 初始协方差矩阵. 前 m (默认20) 期 等权样本协方差 np.cov(\had{b}) |
+| \(\sigma_{k,\text{smooth}}^2(0)\) | 标量 | 各因子方差平滑初始值. F_{kk}^{raw}\left( 0 \right)      |
+
+#### 3.2.2 更新原始协方差矩阵 \(\mathbf{F}_T^{\text{raw}}\)（长半衰期）
+
+对每个交易日 \(t = 1, \dots, T\) 执行迭代计算：
+
+\[
+\mathbf{F}_t^{\text{raw}} = \lambda_C \cdot \mathbf{F}_{t-1}^{\text{raw}} + (1 - \lambda_C) \cdot (\mathbf{b}_t \mathbf{b}_t^\top)
+\]
+
+- \(\mathbf{b}_t \mathbf{b}_t^\top\) 是秩-1矩阵，代表单日协方差贡献。
+- \(\mathbf{F}_T^{\text{raw}}\) 是对历史外积的指数加权平均，反映因子间相对稳定的相关结构。
+
+
+#### 3.2.3 提取相关系数矩阵 \(\mathbf{C}_T\)
+
+由 \(\mathbf{F}_T^{\text{raw}}\) 计算相关系数：
+
+\[
+C_{ij}(T) = \frac{F_{ij}^{\text{raw}}(T)}{\sqrt{F_{ii}^{\text{raw}}(T) \cdot F_{jj}^{\text{raw}}(T)}}
+\]
+
+- \(\mathbf{C}_T\) 继承长半衰期的稳定性，反映截至 \(T\) 日的因子相关结构。
+
+
+#### 3.2.4 构建标准差矩阵 \(\mathbf{D}_T\)（短半衰期）
+
+(1) 从 \(\mathbf{F}_t^{\text{raw}}\) 提取各因子方差序列：
+
+\[
+V_k(t) = F_{kk}^{\text{raw}}(t), \quad k = 1,\dots,K
+\]
+
+(2) 对每个因子 \(k\)，计算平滑方差：
+
+\[
+\sigma_{k,\text{smooth}}^2(t) = \lambda_D \cdot \sigma_{k,\text{smooth}}^2(t-1) + (1 - \lambda_D) \cdot V_k(t)
+\]
+
+(3) 构造对角矩阵 \(\mathbf{D}_T\)：
+
+\[
+\mathbf{D}_T = \text{diag}\left( \sqrt{\sigma_{1,\text{smooth}}^2(T)}, \dots, \sqrt{\sigma_{K,\text{smooth}}^2(T)} \right)
+\]
+
+- 二次平滑赋予方差更高的灵敏度（短半衰期），快速响应波动率聚集效应。
+
+
+#### 3.2.5 合成最终因子协方差矩阵 \(\mathbf{F}_T\)
+
+\[
+\mathbf{F}_T = \mathbf{D}_T \cdot \mathbf{C}_T \cdot \mathbf{D}_T
+\]
+
+- \(\mathbf{F}_T\) 综合了**长周期相关结构**与**短周期波动水平**，是当前时点的条件协方差预测。
 
 ---
+
+#### 3.2.6: 伪代码
+
+```python
+import numpy as np
+
+def ewma_update(old_matrix, new_outer, lam):
+    return lam * old_matrix + (1 - lam) * new_outer
+
+# 初始化
+F_raw = initial_covariance          # K×K 初始协方差矩阵
+var_smooth = np.diag(F_raw).copy()  # 各因子平滑方差初值
+
+# 每日更新（t = 1..T）
+for b_t in daily_factor_returns:
+    outer = np.outer(b_t, b_t)
+    
+    # 1. 更新原始协方差矩阵
+    F_raw = ewma_update(F_raw, outer, lambda_C)
+    
+    # 2. 提取基础方差并二次平滑
+    V_t = np.diag(F_raw)
+    var_smooth = lambda_D * var_smooth + (1 - lambda_D) * V_t
+    
+# 最终输出
+C = F_raw / np.sqrt(np.outer(np.diag(F_raw), np.diag(F_raw)))
+D = np.diag(np.sqrt(var_smooth))
+F_final = D @ C @ D
+```
+
+---
+
 
 ## 四、特异风险矩阵 \( \Delta \) 估计
 
