@@ -4,11 +4,10 @@
 """
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
@@ -18,7 +17,7 @@ from .output import RiskOutputManager
 
 from utils.multiprocess import multiprocessing_wrapper
 
-from .config import STYLE_FACTOR_LIST, FACTOR_FUNCTIONS, INDUSTRY_MAPPING
+from .config import STYLE_FACTOR_LIST, FACTOR_FUNCTIONS, INDUSTRY_MAPPING, INDUSTRY_NAMES
 from utils import LoggerFactory, winsorize, neutralize, standardize
 logger = LoggerFactory.get_logger(__name__)
 
@@ -212,7 +211,59 @@ class FactorExposureBuilder:
         
         logger.info("正交性检验通过")
         return True
-    
+
+    def verify_vif(self, factor_df: pd.DataFrame,
+                   threshold: float = 10.0) -> bool:
+        """
+        方差膨胀因子(VIF)检验，检测因子间多重共线性
+
+        对每个因子 k，以其为因变量、其余因子为自变量做 OLS，
+        VIF_k = 1 / (1 - R^2_k)，超过阈值发出警告。
+
+        Args:
+            factor_df: 因子数据，columns=因子名
+            threshold: VIF 阈值，默认10.0
+
+        Returns:
+            是否通过 VIF 检验（所有因子 VIF < threshold）
+        """
+        logger.info('VIF 检验...')
+        df = factor_df.dropna()
+        if df.empty:
+            logger.warning('VIF 检验: 无有效数据')
+            return True
+
+        factors = df.columns.tolist()
+        X_all = df.values
+        vif_dict = {}
+        for i, name in enumerate(factors):
+            y = X_all[:, i]
+            idx = list(range(len(factors)))
+            idx.remove(i)
+            X = np.column_stack([np.ones(X_all.shape[0]), X_all[:, idx]])
+            try:
+                beta = np.linalg.lstsq(X, y, rcond=None)[0]
+                ss_res = np.sum((y - X @ beta) ** 2)
+                ss_tot = np.sum((y - y.mean()) ** 2)
+                r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+                vif = 1.0 / (1.0 - r2) if r2 < 1.0 else np.inf
+            except Exception:
+                vif = np.inf
+            vif_dict[name] = vif
+
+        passed = True
+        for name, vif in sorted(vif_dict.items(), key=lambda x: -x[1]):
+            if vif > threshold:
+                logger.warning(f'  VIF 超阈值: {name} = {vif:.2f}')
+                passed = False
+
+        if passed:
+            logger.info(f'VIF 检验通过 (max={max(vif_dict.values()):.2f})')
+        else:
+            logger.warning('VIF 检验未通过，存在多重共线性')
+
+        return passed
+
     def merge_industry_factors(self, style_factors: pd.DataFrame,
                                industry_dummies: pd.DataFrame) -> pd.DataFrame:
         """
@@ -290,8 +341,9 @@ class FactorExposureBuilder:
         standardized = standardize(neutralized, method='zscore', level='datetime')
         output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
 
-        # 5. 验证正交性
+        # 5. 验证正交性 + VIF 检验
         self.verify_orthogonality(standardized)
+        self.verify_vif(standardized)
 
         # 6. 合并行业因子
         industry_dummies = get_industry_dummies(industry_df, drop_first=False, prefix='ind')
@@ -299,19 +351,26 @@ class FactorExposureBuilder:
         exposure_matrix = self.merge_industry_factors(standardized, industry_dummies)
         output_manager.save_data(exposure_matrix, 'debug/exposure_matrix.parquet', type='parquet')
 
-        print("因子暴露矩阵构建完成")
-        print("=" * 60)
+        logger.info("因子暴露矩阵构建完成")
+        logger.info("=" * 60)
         
         return exposure_matrix
 
 
 def get_industry_dummies(industry_df: pd.DataFrame, drop_first=False, prefix='ind') -> pd.DataFrame:
-    '''  行业哑变量 '''
+    """行业哑变量，确保包含全部 31 个行业列"""
     industry_dummies = pd.get_dummies(
         industry_df.iloc[:, 0], prefix=prefix, drop_first=drop_first, dtype='float'
     )
     industry_name_map = {f"ind_{code}": name
                          for code, name in INDUSTRY_MAPPING.items()}
     industry_dummies = industry_dummies.rename(columns=industry_name_map)
+
+    # 补齐缺失的行业列（CSI300 可能不含某些行业的股票）
+    all_names = INDUSTRY_NAMES if not drop_first else INDUSTRY_NAMES[1:]
+    for name in all_names:
+        if name not in industry_dummies.columns:
+            industry_dummies[name] = 0.0
+
     return industry_dummies
 
