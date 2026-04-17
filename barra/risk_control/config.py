@@ -25,7 +25,7 @@ FIELD_GROUPS = [
         'name': '基础交易数据',
         'fields': [
             '$ind_one', '$change', '$close', '$circ_mv',
-            '$total_mv', '$total_share', '$amount'
+            '$total_mv', '$total_share', '$float_share', '$amount',
         ]
     },
     # 第2组: 资产负债表（6个字段）
