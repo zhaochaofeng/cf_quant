@@ -49,6 +49,7 @@ class DataLoader:
             end_time=end_time, 
             as_list=True
         )
+        logger.info(f'市场: {self.market}, 开始时间: {start_time}, 结束时间: {end_time}, 股票数量: {len(instruments)}')
         return instruments
     
     def load_returns(self, instruments: Union[List[str], str], start_time: str, end_time: str) -> pd.DataFrame:
