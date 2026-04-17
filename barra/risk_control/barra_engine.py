@@ -121,9 +121,8 @@ class BarraRiskEngine:
         logger.info(f'industry_df shape: {industry_df.shape}')
         logger.info(f'market_cap_df shape: {market_cap_df.shape}')
 
-        # 对齐索引（部分公司未上市前已有财报数据）
-        raw_data = raw_data.reindex(returns_df.index)
-        logger.info(f'raw_data reindex shape: {raw_data.shape}')
+        # NOTE: raw_data 保留扩展区间，供 BETA(504d) 等因子滚动窗口使用
+        # 因子计算完成后再由 build_exposure_matrix 内部截断到 returns 区间
 
         # 2. 构建因子暴露矩阵
         logger.info('2. 构建因子暴露矩阵...')
