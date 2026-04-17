@@ -2,9 +2,18 @@
 资产协方差矩阵计算模块
 V = X * F * X^T + Delta
 """
+import sys
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from typing import Optional
+
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+from utils import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 
 class AssetCovarianceCalculator:
@@ -33,7 +42,7 @@ class AssetCovarianceCalculator:
         Returns:
             资产协方差矩阵，index和columns都是instrument
         """
-        print("计算资产协方差矩阵...")
+        logger.info('计算资产协方差矩阵...')
         
         # 对齐数据
         common_factors = exposure.columns.intersection(factor_cov.index)
@@ -47,7 +56,7 @@ class AssetCovarianceCalculator:
         try:
             XFXT = X @ F @ X.T
         except Exception as e:
-            print(f"矩阵乘法失败: {str(e)}")
+            logger.error(f'矩阵乘法失败: {str(e)}')
             # 使用更稳定的方法
             XFXT = np.dot(np.dot(X, F), X.T)
         
@@ -66,7 +75,7 @@ class AssetCovarianceCalculator:
         self.specific_risk = specific_risk
         self.exposure_matrix = exposure
         
-        print(f"资产协方差矩阵计算完成，维度: {V_df.shape}")
+        logger.info(f'资产协方差矩阵计算完成，维度: {V_df.shape}')
         return V_df
     
     def get_asset_covariance(self) -> pd.DataFrame:

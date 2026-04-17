@@ -1,9 +1,18 @@
 """
 风险归因分析模块 - MCAR/RCAR/FMCAR/FRCAR计算
 """
+import sys
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from typing import Tuple
+
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+from utils import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 
 class RiskAttributionAnalyzer:
@@ -42,7 +51,7 @@ class RiskAttributionAnalyzer:
         
         # 计算 MCAR - 防止除零
         if active_risk < 1e-10:
-            print(f"警告：主动风险接近零 ({active_risk:.10f})，MCAR设为0")
+            logger.warning(f'主动风险接近零 ({active_risk:.10f})，MCAR设为0')
             mcar = np.zeros_like(Vh)
         else:
             mcar = Vh / active_risk
@@ -113,7 +122,7 @@ class RiskAttributionAnalyzer:
         
         # 计算 FMCAR - 防止除零
         if active_risk < 1e-10:
-            print(f"警告：主动风险接近零 ({active_risk:.10f})，FMCAR设为0")
+            logger.warning(f'主动风险接近零 ({active_risk:.10f})，FMCAR设为0')
             fmcar = np.zeros_like(Fx)
         else:
             fmcar = Fx / active_risk
@@ -223,8 +232,8 @@ class RiskAttributionAnalyzer:
         Returns:
             完整的风险分析结果
         """
-        print("=" * 60)
-        print("开始风险归因分析...")
+        logger.info('=' * 60)
+        logger.info('开始风险归因分析...')
         
         # 计算主动权重
         all_instruments = portfolio_weights.index.union(benchmark_weights.index)
@@ -236,8 +245,8 @@ class RiskAttributionAnalyzer:
         total_risk = self.calculate_total_risk(asset_cov, h_p)
         active_risk = self.calculate_active_risk(asset_cov, h_pa)
         
-        print(f"组合总风险: {total_risk:.6f}")
-        print(f"主动风险(跟踪误差): {active_risk:.6f}")
+        logger.info(f'组合总风险: {total_risk:.6f}')
+        logger.info(f'主动风险(跟踪误差): {active_risk:.6f}')
         
         # 计算MCAR和RCAR
         mcar = self.calculate_mcar(asset_cov, h_pa, active_risk)
@@ -245,7 +254,7 @@ class RiskAttributionAnalyzer:
         
         # 验证：RCAR之和应等于主动风险
         rcar_sum = rcar.sum()
-        print(f"RCAR之和: {rcar_sum:.6f} (应等于主动风险 {active_risk:.6f})")
+        logger.info(f'RCAR之和: {rcar_sum:.6f} (应等于主动风险 {active_risk:.6f})')
         
         # 计算FMCAR和FRCAR
         fmcar = self.calculate_fmcar(factor_cov, exposure, h_pa, active_risk)
@@ -253,10 +262,10 @@ class RiskAttributionAnalyzer:
         
         # 验证：FRCAR之和应约等于主动风险减去特异风险贡献
         frcar_sum = frcar.sum()
-        print(f"FRCAR之和: {frcar_sum:.6f}")
+        logger.info(f'FRCAR之和: {frcar_sum:.6f}')
         
-        print("风险归因分析完成")
-        print("=" * 60)
+        logger.info('风险归因分析完成')
+        logger.info('=' * 60)
         
         return {
             'total_risk': total_risk,

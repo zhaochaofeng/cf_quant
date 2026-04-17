@@ -45,11 +45,8 @@ function check() {
 
 is_trade_day ${dt}
 
-echo "run_monthly..."
-${python_path} ${cur_path}/run_monthly.py --end-date ${dt} --history-months 85
-check
-echo "run_daily..."
-${python_path} ${cur_path}/run_daily.py
+echo "run risk control..."
+${python_path} ${cur_path}/run.py --date ${dt} --history-months 85
 check
 
 
