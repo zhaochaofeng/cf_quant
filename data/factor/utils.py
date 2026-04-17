@@ -222,12 +222,12 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True,
         weight = 1
 
     # 找到 x 第一个非空值的索引，截断之前的数据
-    x_valid = x.dropna()
-    if len(x_valid) == 0:
-        raise ValueError("基准收益率全部为空")
-    start_date = x_valid.index[0]
-    y_wide = y_wide.loc[start_date:]
-    x = x.loc[start_date:]
+    # x_valid = x.dropna()
+    # if len(x_valid) == 0:
+    #     raise ValueError("基准收益率全部为空")
+    # start_date = x_valid.index[0]
+    # y_wide = y_wide.loc[start_date:]
+    # x = x.loc[start_date:]
 
     n = len(y_wide)
     if n < window:
@@ -295,7 +295,6 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True,
         _to_multiindex_series(alpha_wide),
         _to_multiindex_series(sigma_wide),
     )
-
 
 
 def _single_regression(window_y, window_x_vals, stks_to_regress, weight, intercept, window_edate):
