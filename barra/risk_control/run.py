@@ -2,6 +2,7 @@
 Barra CNE6 风险模型 - 日频统一运行脚本
 流程：模型估计(因子暴露→回归→协方差→特异风险) → 风险归因 → CSV + MySQL 输出
 """
+import os
 import sys
 import argparse
 import traceback
@@ -170,8 +171,8 @@ def main():
             '--output_dir', type=str, default='output',
             help='输出路径')
         parser.add_argument(
-            '--n-jobs', type=int, default=4,
-            help='并行计算核心数，默认4')
+            '--n-jobs', type=int, default=os.cpu_count()-2,
+            help='并行计算核心数')
         parser.add_argument(
             '--portfolio', type=str, default='random',
             help='投资组合: random(随机) 或 CSV文件路径')
