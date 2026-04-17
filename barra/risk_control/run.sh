@@ -23,6 +23,9 @@ if [ $# -eq 0 ]; then
     exit 1
 fi
 
+if [ ! -d ${cur_path}/log ]; then
+  mkdir ${cur_path}/log
+fi
 
 function is_trade_day(){
   dt=$1
