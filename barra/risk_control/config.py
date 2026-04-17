@@ -195,7 +195,7 @@ MODEL_PARAMS = {
     # Barra 半衰期协方差参数
     'half_life_corr': 252,     # 相关系数半衰期 H_C（交易日）
     'half_life_var': 42,       # 方差半衰期 H_D（交易日）
-    'ewma_init_periods': 20,   # 初始化等权样本协方差窗口 m
+    'ewma_init_periods': 180,   # 初始化等权样本协方差窗口 m
     # 特异风险面板回归窗口
     'panel_regression_window': 120,  # 混合回归窗口（交易日）
     # 数据时间延长（因子计算需要历史回溯，如SEASON需5年）
