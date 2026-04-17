@@ -46,10 +46,6 @@ function check() {
 is_trade_day ${dt}
 
 echo "run risk control..."
-${python_path} ${cur_path}/run.py --date ${dt} --history-months 85
+${python_path} ${cur_path}/run.py --date ${dt} --history-months 24
 check
-
-
-
-
 
