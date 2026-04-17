@@ -12,13 +12,18 @@ provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
 
 BENCHMARK = 'SH000300'
 
+# capm_regress 结果缓存：避免 BETA/HSIGMA/HALPHA 重复计算同一回归
+_capm_cache: dict = {}
+# 基准收益率 & 上市信息缓存
+_benchmark_cache: dict = {}
+_stock_info_cache: dict = {}
+
 # 缺失值标记，用于 rolling 计算中处理 NaN
 SENTINEL = 1e10
 
 
 def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_date: str) -> pd.DataFrame:
-    """ 获取qlib 字段数据 """
-    # qlib.init(provider_uri=provider_uri)
+    """获取 qlib 字段数据"""
     if isinstance(instruments, str):
         instruments = D.instruments(market=instruments)
     df = D.features(instruments=instruments, fields=fields, start_time=start_date, end_time=end_date)
@@ -26,7 +31,10 @@ def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_d
 
 
 def get_benchmark_ret(start_date: str, end_date: str) -> pd.Series:
-    """ 获取 Benchmark 收益率"""
+    """获取 Benchmark 收益率（带缓存）"""
+    bm_key = (BENCHMARK, start_date, end_date)
+    if bm_key in _benchmark_cache:
+        return _benchmark_cache[bm_key]
     try:
         benchmark_df = get_qlib_data(
             instruments=[BENCHMARK], fields=['$change'],
@@ -37,6 +45,7 @@ def get_benchmark_ret(start_date: str, end_date: str) -> pd.Series:
             benchmark_ret = benchmark_ret.droplevel('instrument')
     except Exception as e:
         raise Exception(f"获取 Benchmark ret 数据失败: {e}")
+    _benchmark_cache[bm_key] = benchmark_ret
     return benchmark_ret
 
 
@@ -96,6 +105,7 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     """CAPM滚动回归
 
     使用滚动窗口WLS回归估计每只股票相对于基准指数的beta、alpha和残差波动率。
+    内置缓存：相同 (window, half_life, benchmark, date_range) 参数不会重复计算。
 
     Args:
         stock_returns: pd.Series, MultiIndex (instrument, datetime) - 股票日收益率
@@ -116,28 +126,43 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     start_date = str(stock_returns.index.get_level_values('datetime').min())[:10]
     end_date = str(stock_returns.index.get_level_values('datetime').max())[:10]
 
-    # 获取基准收益率
-    try:
-        benchmark_df = get_qlib_data(
-            instruments=[benchmark], fields=['$change'],
-            start_date=start_date, end_date=end_date,
-        )
-        benchmark_ret = benchmark_df['$change']
-        if benchmark_ret.index.nlevels > 1:
-            benchmark_ret = benchmark_ret.droplevel('instrument')
-        # 检查基准数据是否为空
-        if len(benchmark_ret.dropna()) == 0:
-            err_msg = f"基准指数 {benchmark} 在指定时间范围内无有效数据"
-            logger.error(err_msg)
-            raise Exception(err_msg)
-    except Exception as e:
-        logger.error(f"获取基准数据失败: {e}")
-        raise
+    # 检查缓存（BETA/HSIGMA/HALPHA 使用相同参数，避免重复计算）
+    cache_key = (window, half_life, benchmark, start_date, end_date, len(instruments))
+    if cache_key in _capm_cache:
+        logger.info(f'capm_regress 命中缓存: window={window}, half_life={half_life}')
+        return _capm_cache[cache_key]
 
-    # dict. 获取上市/退市日期
-    list_date_map, delist_date_map = get_stock_list_info(
-        instruments=instruments, date=end_date,
-    )
+    # 获取基准收益率（缓存，避免长计算后 qlib 连接超时）
+    bm_key = (benchmark, start_date, end_date)
+    if bm_key in _benchmark_cache:
+        benchmark_ret = _benchmark_cache[bm_key]
+    else:
+        try:
+            benchmark_df = get_qlib_data(
+                instruments=[benchmark], fields=['$change'],
+                start_date=start_date, end_date=end_date,
+            )
+            benchmark_ret = benchmark_df['$change']
+            if benchmark_ret.index.nlevels > 1:
+                benchmark_ret = benchmark_ret.droplevel('instrument')
+            if len(benchmark_ret.dropna()) == 0:
+                err_msg = f"基准指数 {benchmark} 在指定时间范围内无有效数据"
+                logger.error(err_msg)
+                raise Exception(err_msg)
+            _benchmark_cache[bm_key] = benchmark_ret
+        except Exception as e:
+            logger.error(f"获取基准数据失败: {e}")
+            raise
+
+    # 获取上市/退市日期（缓存）
+    info_key = (end_date, len(instruments))
+    if info_key in _stock_info_cache:
+        list_date_map, delist_date_map = _stock_info_cache[info_key]
+    else:
+        list_date_map, delist_date_map = get_stock_list_info(
+            instruments=instruments, date=end_date,
+        )
+        _stock_info_cache[info_key] = (list_date_map, delist_date_map)
 
     # 调用滚动回归
     beta, alpha, sigma = rolling_regress(
@@ -147,7 +172,11 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
         num_worker=num_worker,
     )
 
-    return beta, alpha, sigma
+    result = (beta, alpha, sigma)
+    _capm_cache[cache_key] = result
+    logger.info(f'capm_regress 计算完成并缓存: window={window}, half_life={half_life}')
+
+    return result
 
 
 def rolling_regress(y, x, window=504, half_life=252, intercept=True,
@@ -596,12 +625,12 @@ def get_annual_data(series, field_name: str):
 
         logger.debug(f'get_annual_data: querying {len(pref_fields)} fields for {len(instruments)} instruments')
 
-        # 一次性查询所有数据
-        df_all = D.features(
+        # 一次性查询所有数据（通过 get_qlib_data 自动处理连接保活）
+        df_all = get_qlib_data(
             instruments=instruments,
             fields=pref_fields,
-            start_time=start_time,
-            end_time=end_time
+            start_date=str(start_time)[:10],
+            end_date=str(end_time)[:10],
         )
 
         if df_all.empty:
@@ -941,17 +970,17 @@ def remap_lyr(series, field_name):
      'PRef($$revenue_q, 202404)']
     '''
     try:
-        # 一次性查询所有数据
+        # 一次性查询所有数据（通过 get_qlib_data 自动处理连接保活）
         start_time = datetimes.min()
         end_time = datetimes.max()
         
         logger.debug(f'remap_lyr: querying {len(pref_fields)} fields for {len(instruments)} instruments')
         # index: <instrument, datetime>; columns: <PRef($$field, YYYYMM)>
-        df_all = D.features(
+        df_all = get_qlib_data(
             instruments=instruments,
             fields=pref_fields,
-            start_time=start_time,
-            end_time=end_time
+            start_date=str(start_time)[:10],
+            end_date=str(end_time)[:10],
         )
         
         if df_all.empty:
