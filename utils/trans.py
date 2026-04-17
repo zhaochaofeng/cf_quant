@@ -4,6 +4,7 @@
 
 import pandas as pd
 
+
 def calculate_excess_returns(returns_df: pd.DataFrame, benchmark_df: pd.DataFrame) -> pd.DataFrame:
     """计算超额收益：个股收益减去基准收益
 
@@ -19,7 +20,7 @@ def calculate_excess_returns(returns_df: pd.DataFrame, benchmark_df: pd.DataFram
     """
     col = returns_df.columns[0]
     # 提取基准收益为 Series（datetime -> float）
-    benchmark_series = benchmark_df[col].droplevel(0)
+    benchmark_series = benchmark_df[col].droplevel('instrument')
     # 按 datetime 对齐，用 reindex 扩展到 returns_df 的每一行
     dates = returns_df.index.get_level_values('datetime')
     aligned_benchmark = benchmark_series.reindex(dates).values
