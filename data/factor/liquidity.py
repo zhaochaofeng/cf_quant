@@ -9,10 +9,12 @@
 """
 
 import pandas as pd
-import numpy as np
+
+from utils.dt import time_decorator
 from .utils import cal_liquidity, rolling_with_func, SENTINEL
 
 
+@time_decorator
 def STOM(df):
     """
     Formulation: STOM = ln(mean(amount / circ_mv))
@@ -49,6 +51,7 @@ def STOM(df):
     return result_df
 
 
+@time_decorator
 def STOQ(df):
     """
     Formulation: STOQ = ln(mean(amount / circ_mv))
@@ -85,6 +88,7 @@ def STOQ(df):
     return result_df
 
 
+@time_decorator
 def STOA(df):
     """
     Formulation: STOA = ln(mean(amount / circ_mv))
@@ -121,6 +125,7 @@ def STOA(df):
     return result_df
 
 
+@time_decorator
 def ATVR(df):
     """
     Formulation: ATVR = sum(turnover_rate * weight)

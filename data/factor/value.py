@@ -6,8 +6,10 @@
 import pandas as pd
 import numpy as np
 from .utils import capm_regress, remap_lyr
+from utils.dt import time_decorator
 
 
+@time_decorator
 def BTOP(df):
     """
     Book to Price (账面市值比)
@@ -40,6 +42,7 @@ def BTOP(df):
     return result_df
 
 
+@time_decorator
 def ETOP(df):
     """
     Trailing Earnings-to-price Ratio (EP比)
@@ -65,6 +68,7 @@ def ETOP(df):
     return result_df
 
 
+@time_decorator
 def CETOP(df):
     """
     Cash Earnings To Price (现金盈利价比)
@@ -90,6 +94,7 @@ def CETOP(df):
     return result_df
 
 
+@time_decorator
 def EM(df):
     """
     Enterprise Multiple (企业价值倍数的倒数)
@@ -128,6 +133,7 @@ def EM(df):
     return result_df
 
 
+@time_decorator
 def LTRSTR(df):
     """
     Long Term Relative Strength (长期相对强度)
@@ -177,6 +183,7 @@ def LTRSTR(df):
     return result_df
 
 
+@time_decorator
 def LTHALPHA(df):
     """
     Long Term Historical Alpha (长期历史alpha)

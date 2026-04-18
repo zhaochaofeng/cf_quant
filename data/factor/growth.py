@@ -10,8 +10,10 @@ from .utils import (
     get_annual_data_year_end,
     remap_lyr
 )
+from utils.dt import time_decorator
 
 
+@time_decorator
 def EGRO(df):
     """
     Historical Earnings Per Share Growth Rate（每股收益增长率）
@@ -41,6 +43,7 @@ def EGRO(df):
     return result_df.dropna()
 
 
+@time_decorator
 def SGRO(df):
     """
     Historical Sales Per Share Growth Rate（每股营业收入增长率）

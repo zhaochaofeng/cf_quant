@@ -5,8 +5,10 @@
 import numpy as np
 from utils import WLS
 from utils import winsorize, standardize
+from utils.dt import time_decorator
 
 
+@time_decorator
 def LNCAP(df):
     """ 市值 """
 
@@ -19,6 +21,7 @@ def LNCAP(df):
     return result_df
 
 
+@time_decorator
 def MIDCAP(df):
     """ 中等市值 """
 

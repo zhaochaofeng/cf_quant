@@ -7,9 +7,11 @@ from .utils import (
     map_annual_to_daily, calc_growth_rate_slope,
     get_annual_data_year_end
 )
+from utils.dt import time_decorator
 
 # ==================== Leverage (盈利波动率) ====================
 
+@time_decorator
 def MLEV(df):
     """
     Formulation: MLEV = (ME + PE + LD) / ME
@@ -35,6 +37,7 @@ def MLEV(df):
     return result_df
 
 
+@time_decorator
 def BLEV(df):
     """
     Formulation: BLEV = (BE + PE + LD) / BE
@@ -66,6 +69,7 @@ def BLEV(df):
     return result_df
 
 
+@time_decorator
 def DTOA(df):
     """
     Formulation: DTOA = TL / TA
@@ -92,6 +96,7 @@ def DTOA(df):
 
 # ==================== Earnings Variability (盈利波动率) ====================
 
+@time_decorator
 def VSAL(df):
     """
     Variation in Sales (营业收入波动率)
@@ -124,6 +129,7 @@ def VSAL(df):
     return result_df
 
 
+@time_decorator
 def VERN(df):
     """
     Variation in Earnings (盈利波动率)
@@ -147,6 +153,7 @@ def VERN(df):
     return result_df
 
 
+@time_decorator
 def VFLO(df):
     """
     Variation in Cash-Flows (现金流波动率)
@@ -172,6 +179,7 @@ def VFLO(df):
 
 # ==================== Earnings Quality (盈利质量) ====================
 
+@time_decorator
 def ABS(df):
     """
     Accruals Balance Sheet Version（资产负债表应计项目）
@@ -236,6 +244,7 @@ def ABS(df):
     return result_df
 
 
+@time_decorator
 def ACF(df):
     """
     Accruals CashFlow version (现金流量表应计项目)
@@ -281,6 +290,7 @@ def ACF(df):
 
 # ==================== Profitability (盈利能力) ====================
 
+@time_decorator
 def ATO(df):
     """
     Asset Turnover (资产周转率)
@@ -303,6 +313,7 @@ def ATO(df):
     return result_df
 
 
+@time_decorator
 def GP(df):
     """
     Gross Profitability (资产毛收益率)
@@ -332,6 +343,7 @@ def GP(df):
     return result_df
 
 
+@time_decorator
 def GPM(df):
     """
     Gross Profit Margin (销售毛利率)
@@ -362,6 +374,7 @@ def GPM(df):
     return result_df
 
 
+@time_decorator
 def ROA(df):
     """
     Return On Assets (总资产收益率)
@@ -388,6 +401,7 @@ def ROA(df):
 
 # ==================== Investment Quality (投资质量) ====================
 
+@time_decorator
 def AGRO(df):
     """
     Total Assets Growth Rate (总资产增长率)
@@ -413,6 +427,7 @@ def AGRO(df):
     return result_df
 
 
+@time_decorator
 def IGRO(df):
     """
     Issuance Growth (股票发行量增长率)
@@ -438,6 +453,7 @@ def IGRO(df):
     return result_df
 
 
+@time_decorator
 def CXGRO(df):
     """
     Capital Expenditure Growth (资本支出增长率)

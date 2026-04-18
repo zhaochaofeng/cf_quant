@@ -16,8 +16,10 @@ from .utils import (
     capm_regress,
     get_benchmark_ret
 )
+from utils.dt import time_decorator
 
 
+@time_decorator
 def STREV(df):
     """
     Formulation: STREV = sum(ln(1+return) * weight)
@@ -45,6 +47,7 @@ def STREV(df):
     return result_df
 
 
+@time_decorator
 def SEASON(df, nyears=5):
     """
     Formulation: SEASON = mean(R_stock - R_benchmark) over past Y years
@@ -116,6 +119,7 @@ def SEASON(df, nyears=5):
     return merged[['SEASON']].dropna()
 
 
+@time_decorator
 def INDMOM(df):
     """
     Formulation: INDMOM = RS_industry - c_stock * RS_stock
@@ -174,6 +178,7 @@ def INDMOM(df):
     return result_df
 
 
+@time_decorator
 def RSTR(df):
     """
     Formulation: RSTR = sum(excess_return * weight), then smooth with 11-day MA
@@ -215,6 +220,7 @@ def RSTR(df):
     return result_df
 
 
+@time_decorator
 def HALPHA(df):
     """
     Formulation: 通过CAPM模型回归得到的截距项Alpha
@@ -234,7 +240,7 @@ def HALPHA(df):
 
 
 
-
+@time_decorator
 def MOM_10D(df):
     """
     Formulation: MOM_{10D,t} = \frac{Close_t - Close_{t-10}}{Close_{t-10}}
@@ -283,6 +289,7 @@ def MOM_10D(df):
     return result_df
 
 
+@time_decorator
 def REVERSAL_5D(df):
     """
     Formulation: REVERSAL_{5D,t} = - \frac{Close_t - Close_{t-5}}{Close_{t-5}} \times 100
@@ -345,6 +352,7 @@ def REVERSAL_5D(df):
     return result_df
 
 
+@time_decorator
 def MOM_VOL_ADJ_10D(df):
     """
     Formulation: MOM\_VOL\_ADJ_{10D,t} = \frac{MOM_{10D,t}}{VOLATILITY_{10D,t}}
