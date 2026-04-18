@@ -1,16 +1,13 @@
 """因子计算工具函数"""
 import pandas as pd
 import numpy as np
-import qlib
+from .config import BENCHMARK
 from qlib.data import D
 from utils import WLS, multiprocessing_wrapper
 from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
-provider_uri = '~/.qlib/qlib_data/custom_data_hfq'
-
-BENCHMARK = 'SH000300'
 
 # capm_regress 结果缓存：避免 BETA/HSIGMA/HALPHA 重复计算同一回归
 _capm_cache: dict = {}
@@ -104,7 +101,7 @@ def get_stock_list_info(instruments: list, date: str) -> tuple:
 def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, num_worker=1):
     """CAPM滚动回归
 
-    使用滚动窗口WLS回归估计每只股票相对于基准指数的beta、alpha和残差波动率。
+    使用滚动窗口WLS回归估计每只股票相对于基准指数的 beta、alpha和残差波动率。
     内置缓存：相同 (window, half_life, benchmark, date_range) 参数不会重复计算。
 
     Args:
@@ -129,13 +126,16 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     # 检查缓存（BETA/HSIGMA/HALPHA 使用相同参数，避免重复计算）
     cache_key = (window, half_life, benchmark, start_date, end_date, len(instruments))
     if cache_key in _capm_cache:
-        logger.info(f'capm_regress 命中缓存: window={window}, half_life={half_life}')
+        logger.info(f'capm_regress 命中缓存: window={window}, half_life={half_life}, '
+                    f'benchmark={benchmark}, start_date={start_date}, '
+                    f'end_date={end_date}, num_instruments={len(instruments)}')
         return _capm_cache[cache_key]
 
     # 获取基准收益率（缓存，避免长计算后 qlib 连接超时）
     bm_key = (benchmark, start_date, end_date)
     if bm_key in _benchmark_cache:
         benchmark_ret = _benchmark_cache[bm_key]
+        logger.info(f'benchmark_ret 命中缓存: benchmark={benchmark}, start_date={start_date}, end_date={end_date}')
     else:
         try:
             benchmark_df = get_qlib_data(
@@ -150,6 +150,7 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
                 logger.error(err_msg)
                 raise Exception(err_msg)
             _benchmark_cache[bm_key] = benchmark_ret
+            logger.info(f'benchmark_ret 计算完成并缓存: benchmark={benchmark}, start_date={start_date}, end_date={end_date}')
         except Exception as e:
             logger.error(f"获取基准数据失败: {e}")
             raise
@@ -158,12 +159,14 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     info_key = (end_date, len(instruments))
     if info_key in _stock_info_cache:
         list_date_map, delist_date_map = _stock_info_cache[info_key]
+        logger.info(f'stock_info 命中缓存: end_date={end_date}, num_instruments={len(instruments)}')
     else:
         list_date_map, delist_date_map = get_stock_list_info(
             instruments=instruments, date=end_date,
         )
         _stock_info_cache[info_key] = (list_date_map, delist_date_map)
-
+        logger.info(f'stock_info 计算完成并缓存: end_date={end_date}, num_instruments={len(instruments)}, '
+                    f'list_date_map len={len(list_date_map)}, delist_date_map len={len(delist_date_map)}')
     # 调用滚动回归
     beta, alpha, sigma = rolling_regress(
         y=stock_returns, x=benchmark_ret,
@@ -174,7 +177,8 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
 
     result = (beta, alpha, sigma)
     _capm_cache[cache_key] = result
-    logger.info(f'capm_regress 计算完成并缓存: window={window}, half_life={half_life}')
+    logger.info(f'capm_regress 计算完成并缓存: window={window}, half_life={half_life}, benchmark={benchmark}, '
+                f'start_date={start_date}, end_date={end_date}, num_instruments={len(instruments)}')
 
     return result
 
@@ -202,8 +206,11 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True,
             - alpha: pd.Series, MultiIndex (instrument, datetime)
             - sigma: pd.Series, MultiIndex (instrument, datetime)
     """
+    logger.info('rolling_regress ...')
     # 转为宽表格式: index=datetime, columns=instruments
     y_wide = y.unstack(level='instrument')
+    logger.info('y_wide shape: {}, x shape: {}, window: {}, half_life: {}'.format(y_wide.shape, x.shape, window, half_life))
+
     stocks = y_wide.columns.tolist()
 
     # 处理 x 的索引（如有 MultiIndex 则去掉 instrument 层）
@@ -221,26 +228,19 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True,
     else:
         weight = 1
 
-    # 找到 x 第一个非空值的索引，截断之前的数据
-    # x_valid = x.dropna()
-    # if len(x_valid) == 0:
-    #     raise ValueError("基准收益率全部为空")
-    # start_date = x_valid.index[0]
-    # y_wide = y_wide.loc[start_date:]
-    # x = x.loc[start_date:]
-
     n = len(y_wide)
     if n < window:
         raise ValueError(f"数据长度({n})小于窗口大小({window})")
 
     # 准备并行计算的参数列表
     func_calls = []
+    # 从下标 window 开始遍历到 n-1
     for i in range(n - window + 1):
-        window_y = y_wide.iloc[i:i + window]
-        window_x_vals = x.iloc[i:i + window].values
+        window_y = y_wide.iloc[i:i + window]  # DataFrame
+        window_x_vals = x.iloc[i:i + window].values  # ndarray
 
-        window_sdate = y_wide.index[i]
-        window_edate = y_wide.index[i + window - 1]
+        window_sdate = y_wide.index[i]   # 窗口开始日期
+        window_edate = y_wide.index[i + window - 1]  # 窗口结束日期
 
         # 根据上市/退市日期过滤股票
         if list_date_map and delist_date_map:
@@ -256,6 +256,7 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True,
             stks_to_regress = stocks
 
         if not stks_to_regress:
+            logger.warning('No stocks to regress in this window: [{}, {}]'.format(window_sdate, window_edate))
             continue
 
         # 将单次回归计算封装为函数调用
@@ -280,6 +281,10 @@ def rolling_regress(y, x, window=504, half_life=252, intercept=True,
         return empty, empty, empty
 
     # 合并为 DataFrame (index=datetime, columns=instruments)
+    '''
+                SZ000001  SZ000002
+    2020-02-03  1.227315  1.145945
+    '''
     beta_wide = pd.DataFrame(beta_list).reindex(columns=stocks)
     alpha_wide = pd.DataFrame(alpha_list).reindex(columns=stocks)
     sigma_wide = pd.DataFrame(sigma_list).reindex(columns=stocks)
@@ -301,7 +306,7 @@ def _single_regression(window_y, window_x_vals, stks_to_regress, weight, interce
     """单次 WLS 回归计算（用于并行化）
 
     Args:
-        window_y: pd.DataFrame, 窗口期内的股票收益率
+        window_y: pd.DataFrame, 窗口期内的股票收益率. 列: instrument
         window_x_vals: np.ndarray, 窗口期内的基准收益率
         stks_to_regress: list, 待回归的股票列表
         weight: np.ndarray or int, 权重
@@ -348,7 +353,7 @@ def _single_regression(window_y, window_x_vals, stks_to_regress, weight, interce
         try:
             b, a, resid = WLS(
                 y_valid.reshape(-1, 1), pd.DataFrame(x_valid),
-                intercept=intercept, weight=w_valid, verbose=True
+                intercept=intercept, weight=w_valid, verbose=True, backend='numpy'
             )
 
             # 残差标准差（使用样本标准差 ddof=1）
@@ -364,6 +369,11 @@ def _single_regression(window_y, window_x_vals, stks_to_regress, weight, interce
             sigma_dict[stock] = np.nan
 
     # 按照 stks_to_regress 的顺序创建 Series
+    '''
+    SZ000001    1.227315
+    SZ000002    1.145945
+    Name: 2020-02-03 00:00:00, dtype: float64
+    '''
     beta_series = pd.Series([beta_dict[s] for s in stks_to_regress], index=stks_to_regress, name=window_edate)
     alpha_series = pd.Series([alpha_dict[s] for s in stks_to_regress], index=stks_to_regress, name=window_edate)
     sigma_series = pd.Series([sigma_dict[s] for s in stks_to_regress], index=stks_to_regress, name=window_edate)
