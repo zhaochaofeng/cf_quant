@@ -5,12 +5,13 @@
 import pandas as pd
 import numpy as np
 from .utils import capm_regress, cal_cmra, rolling_with_func, SENTINEL
+from utils import dt
+
+time_decorator = dt.time_decorator
 
 
-BENCHMARK = 'SH000300'
-
-
-def BETA(df):
+@time_decorator
+def BETA(df, num_worker=1):
     """
     Formulation: r_{i,t} = \alpha_i + \beta_i \cdot r_{m,t} + \epsilon_{i,t}
     Description：【CAPM Beta因子】通过滚动窗口(504天)加权最小二乘回归，
@@ -22,7 +23,7 @@ def BETA(df):
     stock_returns = df['$change']
 
     # CAPM 回归: window=504, half_life=252
-    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=1)
+    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=num_worker)
 
     # 构造结果 DataFrame
     result_df = pd.DataFrame({'BETA': beta})
@@ -31,6 +32,7 @@ def BETA(df):
     return result_df
 
 
+@time_decorator
 def HSIGMA(df):
     """
     Formulation: 通过CAPM模型回归得到的残差标准差
@@ -52,6 +54,7 @@ def HSIGMA(df):
     return result_df
 
 
+@time_decorator
 def DASTD(df):
     """
     Formulation: 带半衰期权重的日收益率标准差
@@ -84,6 +87,7 @@ def DASTD(df):
     return result_df
 
 
+@time_decorator
 def CMRA(df):
     """
     Formulation: CMRA = Z_max - Z_min, where Z_t = sum of returns over t months
@@ -123,6 +127,7 @@ def CMRA(df):
     return result_df
 
 
+@time_decorator
 def VOLATILITY_20D(df):
     """
     Formulation: VOLATILITY_{20D,t}=\sqrt{252} \times \sqrt{\frac{1}{19} \sum_{i=0}^{19} (r_{t-i}-\bar{r} )^{2}}
