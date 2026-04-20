@@ -99,10 +99,21 @@ CNE6_STYLE_FACTORS = {
     'growth': ['EGRO', 'SGRO'],
 }
 
+
 # 因子名称列表
 STYLE_FACTOR_LIST = []
 for category, factors in CNE6_STYLE_FACTORS.items():
     STYLE_FACTOR_LIST.extend(factors)
+
+# 暂时排除的因子
+exclude_factors = [
+    'VFLO', 'ROA', 'AGRO', 'VSAL', 'VERN', 'CXGRO',
+    'EGRO', 'SGRO', 'DTOA', 'BTOP', 'GPM', 'MLEV',
+    'BLEV', 'GP', 'ACF', 'ABS'
+]
+
+STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_factors]
+
 
 # 因子计算函数字典
 FACTOR_FUNCTIONS = {

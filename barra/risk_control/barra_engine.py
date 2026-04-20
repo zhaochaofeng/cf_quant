@@ -8,7 +8,7 @@ from typing import Optional
 
 import pandas as pd
 
-from .config import MODEL_PARAMS, INDUSTRY_MAPPING, BENCHMARK_CONFIG
+from .config import MODEL_PARAMS, BENCHMARK_CONFIG
 from .covariance import FactorCovarianceEstimator
 from .cross_sectional import CrossSectionalRegression
 from .data_loader import DataLoader
