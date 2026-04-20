@@ -129,9 +129,10 @@ def run(calc_date: str, history_months: int = 85,
     logger.info(f'组合: {len(h_p)}只股票, 基准: {len(h_b)}只股票')
 
     # 6. 风险归因
-    # Fix: X_t 的 NaN 用 0 填充
     analyzer = RiskAttributionAnalyzer()
-    results = analyzer.analyze_risk(V, F, np.nan_to_num(X_t), 0, h_p, h_b)
+    # Fix: X_t 的 NaN 用 0 填充
+    X_t = np.nan_to_num(X_t, nan=0.0)
+    results = analyzer.analyze_risk(V, F, X_t, h_p, h_b)
 
     # 7. 输出 CSV + MySQL
     factor_types = get_factor_types()
