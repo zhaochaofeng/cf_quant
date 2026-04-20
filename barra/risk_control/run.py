@@ -106,6 +106,8 @@ def run(calc_date: str, history_months: int = 85,
 
     F = F.loc[common_factors, common_factors]
     X_t = X_t.loc[common_instruments, common_factors]
+    # Fix: X_t 的 NaN 用 0 填充
+    X_t = X_t.fillna(0)
     delta_diag = delta_df.loc[common_instruments, 'specific_var']
 
     logger.info(f'对齐后: {len(common_factors)}个因子, '
@@ -130,8 +132,7 @@ def run(calc_date: str, history_months: int = 85,
 
     # 6. 风险归因
     analyzer = RiskAttributionAnalyzer()
-    # Fix: X_t 的 NaN 用 0 填充
-    results = analyzer.analyze_risk(V, F, X_t.fillna(0), h_p, h_b)
+    results = analyzer.analyze_risk(V, F, X_t, h_p, h_b)
 
     # 7. 输出 CSV + MySQL
     factor_types = get_factor_types()
