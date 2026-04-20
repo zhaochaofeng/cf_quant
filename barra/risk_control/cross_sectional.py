@@ -57,12 +57,11 @@ class CrossSectionalRegression:
 
             # 去除含 NaN 的行
             valid = r.notna() & X.notna().all(axis=1) & mv.notna() & (mv > 0)
+            if valid.sum() / len(r) < 0.5:
+                err_msg = f'  {date}: 有效数据占比低于50%'
+                logger.error(err_msg)
+                raise ValueError(err_msg)
             r, X, mv = r[valid], X[valid], mv[valid]
-
-            if len(r) == 0:
-                err_msg = f'  {date}: 无有效数据，跳过'
-                logger.warning(err_msg)
-                continue
 
             # 流通市值平方根作为权重
             weight = np.sqrt(mv.astype(float))
