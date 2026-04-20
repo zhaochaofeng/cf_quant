@@ -124,7 +124,7 @@ class BarraRiskEngine:
         # NOTE: raw_data 保留扩展区间，供 BETA(504d) 等因子滚动窗口使用
         # 因子计算完成后再由 build_exposure_matrix 内部截断到 returns 区间
 
-        # 2. 构建因子暴露矩阵
+        # 构建因子暴露矩阵
         logger.info('2. 构建因子暴露矩阵...')
         if use_cache:
             logger.info('加载缓存的因子暴露矩阵...')
@@ -137,9 +137,9 @@ class BarraRiskEngine:
                 output_manager=self.output_manager,
             )
 
-        # 3. 选择回归窗口
+        # 选择回归窗口
         regression_dates = get_trade_cal_inter(
-            start_date, end_date)[-MODEL_PARAMS['window']:-1]
+            start_date, end_date)[-MODEL_PARAMS['window']:]
         regression_dates_ts = pd.to_datetime(regression_dates)
 
         self.factor_exposure = self.factor_exposure[
@@ -151,7 +151,7 @@ class BarraRiskEngine:
                 regression_dates_ts)
         ]
         market_cap_df = market_cap_df[
-            market_cap_df.index.get_level_values(1).isin(regression_dates_ts)
+            market_cap_df.index.get_level_values('datetime').isin(regression_dates_ts)
         ]
 
         if self.factor_exposure.empty or returns_df.empty or market_cap_df.empty:
@@ -165,15 +165,15 @@ class BarraRiskEngine:
                      f'收益率: {returns_df.shape}, '
                      f'市值: {market_cap_df.shape}')
 
-        # 4. 横截面回归估计因子收益率
+        # 横截面回归估计因子收益率(b)
         logger.info('3. 横截面回归...')
         self.factor_returns = self.cross_sectional.fit_multi_periods(
             returns_df, self.factor_exposure, market_cap_df)
         self.output_manager.save_data(
             self.factor_returns, 'model/factor_returns.parquet', type='parquet')
 
-        # 5. 估计因子协方差矩阵（先对因子收益率去极值）
-        logger.info('4. 估计因子协方差矩阵...')
+        # 估计因子收益率协方差矩阵(F)（先对因子收益率去极值）
+        logger.info('4. 估计因子收益率协方差矩阵（F）...')
         factor_returns_winsorized = winsorize(
             self.factor_returns, method='median')
         self.factor_covariance = \
@@ -187,8 +187,8 @@ class BarraRiskEngine:
             self.factor_covariance,
             'model/factor_covariance.parquet', type='parquet')
 
-        # 6. 估计特异风险矩阵
-        logger.info('5. 估计特异风险矩阵...')
+        # 估计特异风险矩阵
+        logger.info('5. 估计特异风险收益率协方差矩阵(Delta)...')
         residuals_df = self.cross_sectional.get_residuals()
         self.output_manager.save_data(
             residuals_df, 'model/residuals.parquet', type='parquet')
@@ -201,15 +201,11 @@ class BarraRiskEngine:
             residuals_df.index.get_level_values('datetime').isin(
                 regression_dates_ts)
         ]
-        aligned_exposure = self.factor_exposure[
-            self.factor_exposure.index.get_level_values('datetime').isin(
-                regression_dates_ts)
-        ]
         logger.info(f'对齐后 residuals: {residuals_df.shape}')
-        logger.info(f'对齐后 exposure: {aligned_exposure.shape}')
+        logger.info(f'factor_exposure: {self.factor_exposure.shape}')
 
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
-            residuals_df, aligned_exposure)
+            residuals_df, self.factor_exposure)
         self.output_manager.save_data(
             specific_risk_df, 'model/specific_risk.parquet', type='parquet')
 
