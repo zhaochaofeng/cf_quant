@@ -104,6 +104,6 @@ class CrossSectionalRegression:
             df = s.to_frame()
             df['datetime'] = date
             frames.append(df)
-
+        # 构建 <instrument,datetime> 索引
         result = pd.concat(frames).set_index('datetime', append=True)
         return result
