@@ -107,8 +107,8 @@ class FactorExposureBuilder:
         行业/市值中性化
         对每个因子，用行业和对数市值做回归，取残差
         去掉一个行业，添加截距项
-        按照因子顺序(STYLE_FACTOR_LIST)中性化，第一个因子仅需行业和对数市值中性化，后续因子还需对前面所有因子进行中性化
-        
+        每个因子只对行业和市值做回归，不对其他因子做回归（移除因子间正交化）
+
         Args:
             factor_df: 因子数据，index=(instrument, datetime), columns=因子名
             industry_df: 行业数据，index=(instrument, datetime)
@@ -117,12 +117,9 @@ class FactorExposureBuilder:
         Returns:
             中性化后的因子数据
         """
-        logger.info("进行行业/市值中性化...")
+        logger.info("进行行业/市值中性化（移除因子间正交化）...")
 
-        # # 行业哑变量：bool → float，去掉第一列避免与截距项共线
-        # industry_dummies = pd.get_dummies(
-        #     industry_df.iloc[:, 0], prefix='ind', drop_first=True, dtype='float'
-        # )
+        # 行业哑变量：去掉第一列避免与截距项共线
         industry_dummies = get_industry_dummies(industry_df, drop_first=True, prefix='ind')
         industry_dummies.drop(columns=['ind_nan'], inplace=True)
 
@@ -133,29 +130,20 @@ class FactorExposureBuilder:
         # 基础自变量：行业哑变量 + 对数市值
         base_x = industry_dummies.join(log_mv, how='inner')
 
-        # 按 STYLE_FACTOR_LIST 顺序中性化
-        factor_order = [f for f in STYLE_FACTOR_LIST if f in factor_df.columns]
+        # 对每个因子分别进行中性化
         result_df = pd.DataFrame(index=factor_df.index)
 
-        for i, factor_name in enumerate(factor_order):
+        for factor_name in factor_df.columns:
             y = factor_df[factor_name]
 
-            if i == 0:
-                # 第一个因子：仅行业 + 对数市值
-                x = base_x
-            else:
-                # 后续因子：行业 + 对数市值 + 前面已中性化的因子
-                prev_factors = result_df[factor_order[:i]]
-                x = base_x.join(prev_factors, how='inner')
-
             # 对齐索引，去除 NaN
-            common_idx = y.index.intersection(x.index)
+            common_idx = y.index.intersection(base_x.index)
             y_aligned = y.loc[common_idx]
-            x_aligned = x.loc[common_idx]
+            x_aligned = base_x.loc[common_idx]
             valid_mask = y_aligned.notna() & x_aligned.notna().all(axis=1)
 
-            if valid_mask.sum() < x_aligned.shape[1] + 1:
-                err_msg = f"因子{factor_name}有效样本不足，跳过中性化"
+            if valid_mask.sum() / factor_df.shape[1] < 0.5:
+                err_msg = f"因子{factor_name}有效样本不低于 50%"
                 logger.error(err_msg)
                 raise Exception(err_msg)
 
@@ -205,7 +193,7 @@ class FactorExposureBuilder:
                             corr_matrix.columns[j], 
                             corr_matrix.iloc[i, j]
                         ))
-            for f1, f2, corr in high_corr_pairs:  # 只显示前5个
+            for f1, f2, corr in high_corr_pairs:
                 logger.info(f"  {f1} - {f2}: {corr:.4f}")
             return False
         
@@ -303,22 +291,21 @@ class FactorExposureBuilder:
                               ) -> pd.DataFrame:
         """
         构建完整的因子暴露矩阵
-        
+
         执行完整的预处理流程：
         1. 计算原始因子
         2. 去极值
-        3. 中性化
-        4. 正交化
-        5. 标准化
-        6. 合并行业因子
-        
+        3. 行业/市值中性化（移除因子间正交化）
+        4. 标准化
+        5. 合并行业因子
+
         Args:
             raw_data: 原始数据
             industry_df: 行业数据
             market_cap_df: 市值数据
             save_path: 保存路径
             n_jobs: 并行进程数
-            
+
         Returns:
             完整的因子暴露矩阵
         """
@@ -333,7 +320,7 @@ class FactorExposureBuilder:
         winsorized = winsorize(raw_factors, method='median', level='datetime')
         output_manager.save_data(winsorized, 'debug/winsorized.parquet', type='parquet')
 
-        # 3. 行业、市值中性化，因子间正交化
+        # 3. 行业、市值中性化（移除因子间正交化）
         neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
         output_manager.save_data(neutralized, 'debug/neutralized.parquet', type='parquet')
 
@@ -341,7 +328,7 @@ class FactorExposureBuilder:
         standardized = standardize(neutralized, method='zscore', level='datetime')
         output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
 
-        # 5. 验证正交性 + VIF 检验
+        # 5. 验证正交性 + VIF 检验（可选，仅用于监控）
         self.verify_orthogonality(standardized)
         self.verify_vif(standardized)
 
