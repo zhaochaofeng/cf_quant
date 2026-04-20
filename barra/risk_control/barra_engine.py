@@ -139,7 +139,7 @@ class BarraRiskEngine:
 
         # 选择回归窗口
         regression_dates = get_trade_cal_inter(
-            start_date, end_date)[-MODEL_PARAMS['window']:]
+            start_date, end_date)
         regression_dates_ts = pd.to_datetime(regression_dates)
 
         self.factor_exposure = self.factor_exposure[

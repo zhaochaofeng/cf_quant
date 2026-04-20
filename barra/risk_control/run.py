@@ -55,7 +55,7 @@ def get_factor_types() -> pd.Series:
     return pd.Series(factor_types)
 
 
-def run(calc_date: str, history_months: int = 85,
+def run(calc_date: str, history_months: int = 24,
         output_dir: str = 'output', n_jobs: int = 4,
         portfolio_input: str = 'random',
         use_cache: bool = False) -> dict:
@@ -167,8 +167,8 @@ def main():
             '--date', type=str, required=True,
             help='计算日期，格式YYYY-MM-DD')
         parser.add_argument(
-            '--history-months', type=int, default=85,
-            help='历史数据月数，默认85')
+            '--history-months', type=int, default=24,
+            help='历史数据月数')
         parser.add_argument(
             '--output_dir', type=str, default='output',
             help='输出路径')

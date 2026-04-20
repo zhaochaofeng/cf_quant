@@ -198,8 +198,6 @@ INDUSTRY_NAMES = list(INDUSTRY_MAPPING.values())
 
 # 模型参数
 MODEL_PARAMS = {
-    # 日期窗口（交易日）
-    'window': 252,
     # ARMA模型阶数
     'arma_p': 1,
     'arma_q': 1,
