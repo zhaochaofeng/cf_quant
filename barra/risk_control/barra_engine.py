@@ -166,9 +166,10 @@ class BarraRiskEngine:
                      f'市值: {market_cap_df.shape}')
 
         # 横截面回归估计因子收益率(b)
+        # Fix: factor_exposure 暂时以 0 填充 NaN
         logger.info('3. 横截面回归...')
         self.factor_returns = self.cross_sectional.fit_multi_periods(
-            returns_df, self.factor_exposure, market_cap_df)
+            returns_df, self.factor_exposure.fillna(0.0), market_cap_df)
         self.output_manager.save_data(
             self.factor_returns, 'model/factor_returns.parquet', type='parquet')
 
