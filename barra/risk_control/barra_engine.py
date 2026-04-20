@@ -205,8 +205,9 @@ class BarraRiskEngine:
         logger.info(f'对齐后 residuals: {residuals_df.shape}')
         logger.info(f'factor_exposure: {self.factor_exposure.shape}')
 
+        # Fix: 暂时将 factor_exposure 的NaN用 0 填充
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
-            residuals_df, self.factor_exposure)
+            residuals_df, self.factor_exposure.fillna(0.0))
         self.output_manager.save_data(
             specific_risk_df, 'model/specific_risk.parquet', type='parquet')
 
