@@ -186,7 +186,7 @@ def main():
         init_qlib()
         run(calc_date=args.date,
             history_months=args.history_months,
-            output_dir=args.output_dir,
+            output_dir=args.output_dir + f'/{args.date}',
             n_jobs=args.n_jobs,
             portfolio_input=args.portfolio,
             use_cache=args.use_cache)
