@@ -38,5 +38,5 @@ from .dt import DateTimeUtils as dt
 
 # 统计方法
 from .stats import WLS
-from .tsa import TimeSeriesAnalysis as tsa
+from .tsa import TimeSeriesAnalysis
 
