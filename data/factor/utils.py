@@ -2,7 +2,6 @@
 import pandas as pd
 import numpy as np
 from .config import BENCHMARK
-from qlib.data import D
 from utils import WLS, multiprocessing_wrapper
 from utils import LoggerFactory
 
@@ -21,6 +20,7 @@ SENTINEL = 1e10
 
 def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_date: str) -> pd.DataFrame:
     """获取 qlib 字段数据"""
+    from qlib.data import D  # 延迟导入
     if isinstance(instruments, str):
         instruments = D.instruments(market=instruments)
     df = D.features(instruments=instruments, fields=fields, start_time=start_date, end_time=end_date)
@@ -117,6 +117,25 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
             - alpha: pd.Series, MultiIndex (instrument, datetime)
             - sigma: pd.Series, MultiIndex (instrument, datetime)
     """
+    # 在多进程环境中确保 qlib 已初始化
+    try:
+        from qlib.data import D
+        # 尝试使用 D 来检查 qlib 是否已初始化
+        _ = D.instruments(market='csi300')
+    except Exception:
+        # qlib 未初始化，尝试初始化
+        try:
+            import qlib
+            from utils.qlib_ops import PTTM
+            qlib.init(
+                provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+                custom_ops=[PTTM],
+            )
+            logger.info('子进程中 qlib 初始化完成')
+        except Exception as e:
+            err_msg = f'子进程中 qlib 初始化失败: {e}'
+            logger.error(err_msg)
+            raise Exception(err_msg)
 
     instruments = stock_returns.index.get_level_values('instrument').unique().tolist()
     # [:10] 用于日期截断。'2025-01-02 00:00:00' -> '2025-01-02'
