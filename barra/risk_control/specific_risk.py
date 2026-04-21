@@ -123,7 +123,7 @@ class SpecificRiskEstimator:
         residuals_df = residuals_df.loc[common_idx]
         exposure_df = exposure_df.loc[common_idx]
         # 删除一个行业列
-        exposure_df = exposure_df.drop(columns=f'ind_{INDUSTRY_NAMES[0]}')
+        exposure_df = exposure_df.drop(columns=INDUSTRY_NAMES[0])
 
         # 2. v_n 划分训练集和预测集
         dates = common_idx.get_level_values('datetime').unique().sort_values()
