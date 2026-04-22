@@ -2,6 +2,9 @@
 Barra CNE6 风险模型配置
 """
 
+# qlib 配置
+PROVIDER_URI = '~/.qlib/qlib_data/custom_data_hfq'
+
 
 from data.factor import (
     LNCAP, MIDCAP,
