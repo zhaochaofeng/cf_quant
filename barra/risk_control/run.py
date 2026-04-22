@@ -16,7 +16,7 @@ import pandas as pd
 import qlib
 
 from barra.risk_control.barra_engine import BarraRiskEngine
-from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING
+from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROVIDER_URI
 from barra.risk_control.output import RiskOutputManager
 from barra.risk_control.portfolio import PortfolioManager
 from barra.risk_control.risk_attribution import RiskAttributionAnalyzer
@@ -29,7 +29,7 @@ def init_qlib():
     """初始化qlib，注册PTTM自定义操作符"""
     from utils.qlib_ops import PTTM
     qlib.init(
-        provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+        provider_uri=PROVIDER_URI,
         custom_ops=[PTTM],
     )
     logger.info('Qlib初始化完成')
