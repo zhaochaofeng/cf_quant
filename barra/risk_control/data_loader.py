@@ -2,13 +2,12 @@
 数据加载模块 - 集成qlib框架
 """
 import sys
+import time
 from pathlib import Path
+from typing import List, Union
 
 import pandas as pd
-import numpy as np
 from qlib.data import D
-from typing import List, Optional, Tuple, Union
-from datetime import datetime
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
@@ -16,7 +15,7 @@ from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
-from .config import QLIB_FIELDS, FIELD_GROUPS
+from .config import FIELD_GROUPS
 
 
 class DataLoader:
@@ -129,7 +128,6 @@ class DataLoader:
         Returns:
             DataFrame, 包含所有必要的原始字段
         """
-        import time
 
         # 计算扩展后的 start_time
         if extend_start > 0:

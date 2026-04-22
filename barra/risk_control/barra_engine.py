@@ -64,7 +64,7 @@ class BarraRiskEngine:
     def run(self, start_date: str, end_date: str,
             use_cache: bool = False) -> None:
         """
-        运行模型估计：因子暴露→横截面回归→协方差→特异风险
+        运行模型估计：因子暴露→横截面回归(b)→协方差(F)→特异风险(Delta)
 
         Args:
             start_date: 历史数据开始日期

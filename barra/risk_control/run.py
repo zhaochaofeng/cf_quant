@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import qlib
 
+from .config import BENCHMARK_CONFIG
 from barra.risk_control.barra_engine import BarraRiskEngine
 from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROVIDER_URI
 from barra.risk_control.output import RiskOutputManager
@@ -80,9 +81,9 @@ def run(calc_date: str, history_months: int = 24,
     logger.info(f'数据区间: {start_date} ~ {calc_date}')
     logger.info('=' * 70)
 
-    # 1. 模型估计（因子暴露→横截面回归→协方差→特异风险）
+    # 1. 模型估计（因子暴露→横截面回归→协方差F→特异风险Delta）
     engine = BarraRiskEngine(
-        calc_date, output_dir=output_dir, n_jobs=n_jobs)
+        calc_date, market=BENCHMARK_CONFIG['market'], output_dir=output_dir, n_jobs=n_jobs)
     engine.run(start_date, calc_date, use_cache)
 
     # 2. 加载模型输出

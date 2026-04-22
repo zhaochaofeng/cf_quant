@@ -5,6 +5,26 @@ Barra CNE6 风险模型配置
 # qlib 配置
 PROVIDER_URI = '~/.qlib/qlib_data/custom_data_hfq'
 
+# 基准配置
+BENCHMARK_CONFIG = {
+    'csi300': {
+        'market': 'csi300',
+        'name': '沪深300',
+    },
+    'market': 'csi300',
+    'BENCHMARK': 'SH000300'
+}
+
+# qlib数据字段
+QLIB_FIELDS = {
+    'industry': '$ind_one',
+    'change': '$change',
+    'close': '$close',
+    'circ_mv': '$circ_mv',
+    'total_mv': '$total_mv',
+}
+
+
 
 from data.factor import (
     LNCAP, MIDCAP,
@@ -220,24 +240,6 @@ OUTPUT_CONFIG = {
     'factor_risk_filename': 'factor_risk_{date}.csv',
     'float_precision': 6,
     'encoding': 'utf-8',
-}
-
-# qlib数据字段
-QLIB_FIELDS = {
-    'industry': '$ind_one',
-    'change': '$change',
-    'close': '$close',
-    'circ_mv': '$circ_mv',
-    'total_mv': '$total_mv',
-}
-
-# 基准配置
-BENCHMARK_CONFIG = {
-    'csi300': {
-        'market': 'csi300',
-        'name': '沪深300',
-    },
-    'BENCHMARK': 'SH000300'
 }
 
 
