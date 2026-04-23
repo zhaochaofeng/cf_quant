@@ -36,4 +36,4 @@ scripts/data_collector/pit/collector.py  和 scripts/data_collector/cn_index/col
 有时不可访问，从而导致报错。
     
     解决方法：
-    get_calendar_list函数中添加 baostock 获取交易日历的方式
+    get_calendar_list 修改成从 tushare 中获取交易日历
