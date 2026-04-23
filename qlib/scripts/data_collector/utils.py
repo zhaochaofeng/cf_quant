@@ -102,15 +102,18 @@ def get_calendar_list(bench_code="CSI300") -> List[pd.Timestamp]:
                 calendar = _get_calendar(end_date=end_date)
         _CALENDAR_MAP[bench_code] = calendar
     '''
-
-    import pandas as pd
-    import tushare as ts
-    from datetime import datetime
-    pro = ts.pro_api('4bc8b29889e8a157440f62b13b3573f5446ac92d7ef7eea5b3f93645')
-    end_date = datetime.strftime(datetime.now(), '%Y%m%d')
-    cal = pro.trade_cal(start_date='20050101', end_date=end_date, exchange='', is_open='1')
-    calendar = pd.to_datetime(cal['cal_date']).to_list()
-    calendar = sorted(calendar)
+    try:
+        import pandas as pd
+        import tushare as ts
+        from datetime import datetime
+        pro = ts.pro_api('4bc8b29889e8a157440f62b13b3573f5446ac92d7ef7eea5b3f93645')
+        end_date = datetime.strftime(datetime.now(), '%Y%m%d')
+        cal = pro.trade_cal(start_date='20050101', end_date=end_date, exchange='', is_open='1')
+        calendar = pd.to_datetime(cal['cal_date']).to_list()
+        calendar = sorted(calendar)
+    except Exception as e:
+        logger.error(e)
+        raise Exception('get_calendar_list 函数 从 Tushare 中获取日历数据失败 ！！！')
     logger.info(f"end of get calendar list: {bench_code}.")
     return calendar
 
