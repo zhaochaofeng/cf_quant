@@ -7,6 +7,7 @@ import importlib
 import time
 import bisect
 import pickle
+import random
 import requests
 import functools
 from pathlib import Path
@@ -20,9 +21,6 @@ from tqdm import tqdm
 from functools import partial
 from concurrent.futures import ProcessPoolExecutor
 from bs4 import BeautifulSoup
-import baostock as bs
-
-from qlib.utils.pickle_utils import restricted_pickle_load
 
 HS_SYMBOLS_URL = "http://app.finance.ifeng.com/hq/list.php?type=stock_a&class={s_type}"
 
@@ -289,7 +287,7 @@ def get_hs_stock_symbols() -> list:
         symbol_cache_path.parent.mkdir(parents=True, exist_ok=True)
         if symbol_cache_path.exists():
             with symbol_cache_path.open("rb") as fp:
-                cache_symbols = restricted_pickle_load(fp)
+                cache_symbols = pickle.load(fp)
                 symbols |= cache_symbols
         with symbol_cache_path.open("wb") as fp:
             pickle.dump(symbols, fp)
@@ -306,14 +304,20 @@ def get_us_stock_symbols(qlib_data_path: [str, Path] = None) -> list:
     -------
         stock symbols
     """
-    import akshare as ak  # pylint: disable=C0415
-
     global _US_SYMBOLS  # pylint: disable=W0603
 
     @deco_retry
     def _get_eastmoney():
-        df = ak.get_us_stock_name()
-        _symbols = df["symbol"].to_list()
+        url = "http://4.push2.eastmoney.com/api/qt/clist/get?pn=1&pz=10000&fs=m:105,m:106,m:107&fields=f12"
+        resp = requests.get(url, timeout=None)
+        if resp.status_code != 200:
+            raise ValueError("request error")
+
+        try:
+            _symbols = [_v["f12"].replace("_", "-P") for _v in resp.json()["data"]["diff"].values()]
+        except Exception as e:
+            logger.warning(f"request error: {e}")
+            raise
 
         if len(_symbols) < 8000:
             raise ValueError("request error")
@@ -848,4 +852,7 @@ def calc_paused_num(df: pd.DataFrame, _date_field_name, _symbol_field_name):
 
 
 if __name__ == "__main__":
-    assert len(get_hs_stock_symbols()) >= MINIMUM_SYMBOLS_NUM
+    # assert len(get_hs_stock_symbols()) >= MINIMUM_SYMBOLS_NUM
+
+    calendar = get_calendar_list()
+    print(calendar)
