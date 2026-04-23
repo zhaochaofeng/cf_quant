@@ -77,7 +77,8 @@ retry_process "
 "
 check_success "CSI300"
 
-
+<<comm
+Fix: some Error when run
 # CSI500
 retry_process "
   ${python_path} ${qlib_path}/scripts/data_collector/cn_index/collector.py \
@@ -88,7 +89,7 @@ retry_process "
   --retry_sleep 10
 "
 check_success "CSI500"
-
+comm
 
 # CSIA500
 retry_process "${python_path} ${cur_path}/index_a500.py"
