@@ -175,7 +175,7 @@ class BarraRiskEngine:
         # Fix: factor_exposure 暂时以 0 填充 NaN
         logger.info('3. 横截面回归...')
         self.factor_returns = self.cross_sectional.fit_multi_periods(
-            returns_df, self.factor_exposure.fillna(0.0), market_cap_df)
+            returns_df, self.factor_exposure.fillna(0.0), market_cap_df, method='constrained')
         self.output_manager.save_data(
             self.factor_returns, 'model/factor_returns.parquet', type='parquet')
 
