@@ -59,7 +59,7 @@ def _wls_statsmodels(y, X, intercept=True, weight=1, verbose=True):
             return params, None, resid
     else:  # 仅返回 Beta 参数
         if intercept:
-            # 第1个参数为解决项，过滤
+            # 第1个参数为截距项，过滤
             return params.iloc[1:]
         else:
             return params
