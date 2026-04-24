@@ -15,9 +15,8 @@ import numpy as np
 import pandas as pd
 import qlib
 
-from .config import BENCHMARK_CONFIG
 from barra.risk_control.barra_engine import BarraRiskEngine
-from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROVIDER_URI
+from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROVIDER_URI, BENCHMARK_CONFIG
 from barra.risk_control.output import RiskOutputManager
 from barra.risk_control.portfolio import PortfolioManager
 from barra.risk_control.risk_attribution import RiskAttributionAnalyzer
