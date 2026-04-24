@@ -97,8 +97,6 @@ class FactorExposureBuilder:
             err_msg = f"因子{factor_name}计算失败: {str(e)}"
             logger.error(err_msg)
             raise Exception(err_msg)
-            # return factor_name, None
-
 
     def neutralize_factors(self, factor_df: pd.DataFrame,
                           industry_df: pd.DataFrame,
@@ -107,7 +105,6 @@ class FactorExposureBuilder:
         行业/市值中性化
         对每个因子，用行业和对数市值做回归，取残差
         去掉一个行业，添加截距项
-        每个因子只对行业和市值做回归，不对其他因子做回归（移除因子间正交化）
 
         Args:
             factor_df: 因子数据，index=(instrument, datetime), columns=因子名
@@ -117,7 +114,7 @@ class FactorExposureBuilder:
         Returns:
             中性化后的因子数据
         """
-        logger.info("进行行业/市值中性化（移除因子间正交化）...")
+        logger.info("进行行业/市值中性化 ...")
 
         # 行业哑变量：去掉第一列避免与截距项共线
         industry_dummies = get_industry_dummies(industry_df, drop_first=True, prefix='ind')
@@ -320,7 +317,7 @@ class FactorExposureBuilder:
         winsorized = winsorize(raw_factors, method='median', level='datetime')
         output_manager.save_data(winsorized, 'debug/winsorized.parquet', type='parquet')
 
-        # 3. 行业、市值中性化（移除因子间正交化）
+        # 3. 行业、市值中性化
         neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
         output_manager.save_data(neutralized, 'debug/neutralized.parquet', type='parquet')
 
@@ -345,19 +342,20 @@ class FactorExposureBuilder:
 
 
 def get_industry_dummies(industry_df: pd.DataFrame, drop_first=False, prefix='ind') -> pd.DataFrame:
-    """行业哑变量，确保包含全部 31 个行业列"""
+    """行业哑变量"""
     industry_dummies = pd.get_dummies(
         industry_df.iloc[:, 0], prefix=prefix, drop_first=drop_first, dtype='float'
     )
+    # 行业代码转名称
     industry_name_map = {f"ind_{code}": name
                          for code, name in INDUSTRY_MAPPING.items()}
     industry_dummies = industry_dummies.rename(columns=industry_name_map)
 
     # 补齐缺失的行业列（CSI300 可能不含某些行业的股票）
-    all_names = INDUSTRY_NAMES if not drop_first else INDUSTRY_NAMES[1:]
-    for name in all_names:
-        if name not in industry_dummies.columns:
-            industry_dummies[name] = 0.0
+    # all_names = INDUSTRY_NAMES if not drop_first else INDUSTRY_NAMES[1:]
+    # for name in all_names:
+    #     if name not in industry_dummies.columns:
+    #         industry_dummies[name] = 0.0
 
     return industry_dummies
 

@@ -136,6 +136,12 @@ class BarraRiskEngine:
                 n_jobs=self.n_jobs,
                 output_manager=self.output_manager,
             )
+        nan_ratio = (self.factor_exposure.isna().sum(axis=0) / self.factor_exposure.shape[0]).sort_values(ascending=False)
+        logger.info('因子缺失值比例：{}'.format(nan_ratio))
+        if nan_ratio.max() > 0.5:
+            err_msg = '因子缺失值比例过高，请检查数据'
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
         # 选择回归窗口
         regression_dates = get_trade_cal_inter(
