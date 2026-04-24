@@ -169,14 +169,14 @@ class FactorExposureBuilder:
         """
         logger.info("验证因子正交性...")
         # 计算相关系数矩阵
-        corr_matrix = factor_df.corr().abs()
+        corr_matrix = factor_df.corr()
         
         # 对角线元素填充为0
         # 检查非对角元素
         np.fill_diagonal(corr_matrix.values, 0)
-        max_corr = corr_matrix.max().max()
+        max_corr = corr_matrix.abs().max().max()
         
-        logger.info(f"最大相关系数: {max_corr:.4f}")
+        logger.info(f"绝对值最大的相关系数: {max_corr:.4f}")
         
         if max_corr > threshold:
             logger.warning(f"警告：存在相关系数超过阈值{threshold}的因子对")
@@ -184,13 +184,14 @@ class FactorExposureBuilder:
             high_corr_pairs = []
             for i in range(len(corr_matrix.columns)):
                 for j in range(i+1, len(corr_matrix.columns)):
-                    if corr_matrix.iloc[i, j] > threshold:
+                    if abs(corr_matrix.iloc[i, j]) > threshold:
                         high_corr_pairs.append((
                             corr_matrix.columns[i], 
                             corr_matrix.columns[j], 
                             corr_matrix.iloc[i, j]
                         ))
-            high_corr_pairs = sorted(high_corr_pairs, key=lambda x: x[-1], reverse=True)
+            high_corr_pairs = sorted(high_corr_pairs, key=lambda x: abs(x[-1]), reverse=True)
+            logger.info('高相关因子对: {}'.format(len(high_corr_pairs)))
             for f1, f2, corr in high_corr_pairs:
                 logger.info(f"  {f1} - {f2}: {corr:.4f}")
             return False
@@ -269,17 +270,8 @@ class FactorExposureBuilder:
             合并后的因子暴露矩阵
         """
         logger.info("合并行业因子...")
-        # 创建行业虚拟变量（one-hot编码）
-        # industry_codes = industry_df.iloc[:, 0].astype(str)
-        # industry_dummies = pd.get_dummies(industry_codes, prefix='ind', dtype='float')
-        #
-        # # 重命名列为行业名称
-        # industry_name_map = {f"ind_{code}": name
-        #                     for code, name in INDUSTRY_MAPPING.items()}
-        # industry_dummies = industry_dummies.rename(columns=industry_name_map)
-        #
         # 合并风格因子和行业因子
-        merged = style_factors.join(industry_dummies, how='inner')
+        merged = style_factors.join(industry_dummies, how='outer')
         
         logger.info(f"合并完成，共{len(style_factors.columns)}个风格因子 + "
                     f"{len(industry_dummies.columns)}个行业因子 = "

@@ -122,7 +122,7 @@ class BarraRiskEngine:
         logger.info(f'market_cap_df shape: {market_cap_df.shape}')
 
         # NOTE: raw_data 保留扩展区间，供 BETA(504d) 等因子滚动窗口使用
-        # 因子计算完成后再由 build_exposure_matrix 内部截断到 [start_date, end_date]
+        # 因子计算完成后再由 build_exposure_matrix 内部截断到与 industry_df 一致( [start_date, end_date]）
 
         com_dates = get_trade_cal_inter(
             start_date, end_date)
