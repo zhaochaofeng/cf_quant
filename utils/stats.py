@@ -37,9 +37,9 @@ def _wls_statsmodels(y, X, intercept=True, weight=1, verbose=True):
 
     model = sm.WLS(y, X, weights=weight)
     result = model.fit()
-    params = result.params
+    params = result.params  # 参数顺序与 X 特征顺序一致
 
-    if verbose:
+    if verbose:  # 返回 Bete, alpha, resid
         # 计算预测值
         y_pred = pd.DataFrame(np.dot(X, params), index=y.index)
 
@@ -53,11 +53,13 @@ def _wls_statsmodels(y, X, intercept=True, weight=1, verbose=True):
             resid.name = y.name if hasattr(y, 'name') else None
 
         if intercept:
+            # Beta, alpha, resid
             return params.iloc[1:], params.iloc[0], resid
         else:
             return params, None, resid
-    else:
+    else:  # 仅返回 Beta 参数
         if intercept:
+            # 第1个参数为解决项，过滤
             return params.iloc[1:]
         else:
             return params
