@@ -291,7 +291,8 @@ class FactorExposureBuilder:
                              industry_df: pd.DataFrame,
                              market_cap_df: pd.DataFrame,
                              n_jobs: int = 1,
-                             output_manager: RiskOutputManager = None
+                             output_manager: RiskOutputManager = None,
+                             com_dates: pd.DatetimeIndex = None,
                               ) -> pd.DataFrame:
         """
         构建完整的因子暴露矩阵
@@ -309,6 +310,9 @@ class FactorExposureBuilder:
             market_cap_df: 市值数据
             save_path: 保存路径
             n_jobs: 并行进程数
+            output_manager: 输出管理器
+            com_dates: 实际使用的因子日期
+
 
         Returns:
             完整的因子暴露矩阵
@@ -320,9 +324,21 @@ class FactorExposureBuilder:
         raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
         output_manager.save_data(raw_factors, 'debug/raw_factors.parquet', type='parquet')
 
+        # 过滤日期
+        logger.info('过滤日期 ...')
+        shape = raw_factors.shape
+        raw_factors = raw_factors[
+            raw_factors.index.get_level_values('datetime').isin(com_dates)
+        ]
+        logger.info('raw_factors 过滤前 shape：{}, 过滤后 shape：{}'.format(shape, raw_factors.shape))
+
         # 2. 去极值
         winsorized = winsorize(raw_factors, method='median', level='datetime')
         output_manager.save_data(winsorized, 'debug/winsorized.parquet', type='parquet')
+
+        # 正交性检验
+        logger.info('中性化前正交检验 ...')
+        self.verify_orthogonality(winsorized, threshold=0.5)
 
         # 3. 行业、市值中性化
         neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)

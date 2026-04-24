@@ -122,7 +122,11 @@ class BarraRiskEngine:
         logger.info(f'market_cap_df shape: {market_cap_df.shape}')
 
         # NOTE: raw_data 保留扩展区间，供 BETA(504d) 等因子滚动窗口使用
-        # 因子计算完成后再由 build_exposure_matrix 内部截断到 returns 区间
+        # 因子计算完成后再由 build_exposure_matrix 内部截断到 [start_date, end_date]
+
+        com_dates = get_trade_cal_inter(
+            start_date, end_date)
+        com_dates = pd.to_datetime(com_dates)
 
         # 构建因子暴露矩阵
         logger.info('2. 构建因子暴露矩阵...')
@@ -135,6 +139,7 @@ class BarraRiskEngine:
                 raw_data, industry_df, market_cap_df,
                 n_jobs=self.n_jobs,
                 output_manager=self.output_manager,
+                com_dates=com_dates,
             )
         nan_ratio = (self.factor_exposure.isna().sum(axis=0) / self.factor_exposure.shape[0]).sort_values(ascending=False)
         logger.info('因子缺失值比例：{}'.format(nan_ratio))
@@ -144,20 +149,20 @@ class BarraRiskEngine:
             raise ValueError(err_msg)
 
         # 选择回归窗口
-        regression_dates = get_trade_cal_inter(
-            start_date, end_date)
-        regression_dates_ts = pd.to_datetime(regression_dates)
+        # regression_dates = get_trade_cal_inter(
+        #     start_date, end_date)
+        # regression_dates_ts = pd.to_datetime(regression_dates)
 
-        self.factor_exposure = self.factor_exposure[
-            self.factor_exposure.index.get_level_values('datetime').isin(
-                regression_dates_ts)
-        ]
+        # self.factor_exposure = self.factor_exposure[
+        #     self.factor_exposure.index.get_level_values('datetime').isin(
+        #         com_dates)
+        # ]
         returns_df = returns_df[
             returns_df.index.get_level_values('datetime').isin(
-                regression_dates_ts)
+                com_dates)
         ]
         market_cap_df = market_cap_df[
-            market_cap_df.index.get_level_values('datetime').isin(regression_dates_ts)
+            market_cap_df.index.get_level_values('datetime').isin(com_dates)
         ]
 
         if self.factor_exposure.empty or returns_df.empty or market_cap_df.empty:
@@ -166,7 +171,7 @@ class BarraRiskEngine:
             logger.warning(f'  收益率为空: {returns_df.empty}')
             logger.warning(f'  市值为空: {market_cap_df.empty}')
 
-        logger.info(f'   对齐后 - 日期数: {len(regression_dates)}, '
+        logger.info(f'   对齐后 - 日期数: {len(com_dates)}, '
                      f'因子暴露: {self.factor_exposure.shape}, '
                      f'收益率: {returns_df.shape}, '
                      f'市值: {market_cap_df.shape}')
@@ -206,7 +211,7 @@ class BarraRiskEngine:
         # 对齐日期
         residuals_df = residuals_df[
             residuals_df.index.get_level_values('datetime').isin(
-                regression_dates_ts)
+                com_dates)
         ]
         logger.info(f'对齐后 residuals: {residuals_df.shape}')
         logger.info(f'factor_exposure: {self.factor_exposure.shape}')
