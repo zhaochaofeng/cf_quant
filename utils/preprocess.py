@@ -5,6 +5,9 @@ import numpy as np
 import pandas as pd
 from typing import Optional, Union
 from .stats import WLS
+from .logger import LoggerFactory
+
+logger = LoggerFactory.get_logger(__name__)
 
 
 def _compute_bounds(df: pd.DataFrame, method: str, k: float,
@@ -134,6 +137,7 @@ def winsorize(
     Returns:
         pd.DataFrame: 去极值后的数据
     """
+    logger.info('winsorize ...')
     df = _to_dataframe(data)
 
     # 无分组：全局去极值
@@ -193,6 +197,7 @@ def standardize(
     Returns:
         pd.DataFrame: 标准化后的数据
     """
+    logger.info('standardize ...')
     df = _to_dataframe(data)
 
     # 无分组：全局标准化
@@ -227,6 +232,7 @@ def neutralize(
     Returns:
         中性化后的残差，维度和类型与y一致
     """
+    logger.info('neutralize ...')
     is_series = isinstance(y, pd.Series)
     is_1d_array = isinstance(y, np.ndarray) and y.ndim == 1
     is_nd_array = isinstance(y, np.ndarray) and y.ndim > 1
