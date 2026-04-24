@@ -116,11 +116,11 @@ class FactorExposureBuilder:
         """
         logger.info("进行行业/市值中性化 ...")
 
-        # 行业哑变量：去掉第一列避免与截距项共线
+        # 行业哑变量：去掉第一列避免行业因子与截距项出现多重共线性
         industry_dummies = get_industry_dummies(industry_df, drop_first=True, prefix='ind')
         industry_dummies.drop(columns=['ind_nan'], inplace=True)
 
-        # 对数市值
+        # 对数市值. CNE6 的 LNCAP 因子已经捕获了 对数流通市值 信息
         log_mv = np.log(market_cap_df[['circ_mv']].clip(lower=1e-10))
         log_mv.columns = ['log_mv']
 
@@ -140,7 +140,7 @@ class FactorExposureBuilder:
             valid_mask = y_aligned.notna() & x_aligned.notna().all(axis=1)
 
             if valid_mask.sum() / factor_df.shape[1] < 0.5:
-                err_msg = f"因子{factor_name}有效样本不低于 50%"
+                err_msg = f"因子{factor_name}有效样本低于 50%"
                 logger.error(err_msg)
                 raise Exception(err_msg)
 
@@ -162,7 +162,7 @@ class FactorExposureBuilder:
         
         Args:
             factor_df: 因子数据
-            threshold: 相关系数阈值，超过则认为不正交
+            threshold: 相关系数阈值，超过则可能存在严重多重共线性
             
         Returns:
             是否通过正交性检验
@@ -190,6 +190,7 @@ class FactorExposureBuilder:
                             corr_matrix.columns[j], 
                             corr_matrix.iloc[i, j]
                         ))
+            high_corr_pairs = sorted(high_corr_pairs, key=lambda x: x[-1], reverse=True)
             for f1, f2, corr in high_corr_pairs:
                 logger.info(f"  {f1} - {f2}: {corr:.4f}")
             return False
@@ -216,7 +217,11 @@ class FactorExposureBuilder:
         df = factor_df.dropna()
         if df.empty:
             logger.warning('VIF 检验: 无有效数据')
-            return True
+            return False
+        if df.shape[0] / factor_df.shape[0] < 0.5:
+            err_msg = 'VIF 检验: 有效数据占比 {} 低于 50%'.format(df.shape[0] / factor_df.shape[0])
+            logger.warning(err_msg)
+            raise Exception(err_msg)
 
         factors = df.columns.tolist()
         X_all = df.values
@@ -225,12 +230,14 @@ class FactorExposureBuilder:
             y = X_all[:, i]
             idx = list(range(len(factors)))
             idx.remove(i)
-            X = np.column_stack([np.ones(X_all.shape[0]), X_all[:, idx]])
+            X = np.column_stack([np.ones(X_all.shape[0]), X_all[:, idx]])  # 添加截距项
             try:
-                beta = np.linalg.lstsq(X, y, rcond=None)[0]
-                ss_res = np.sum((y - X @ beta) ** 2)
-                ss_tot = np.sum((y - y.mean()) ** 2)
-                r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+                # beta = np.linalg.lstsq(X, y, rcond=None)[0]
+                from utils import WLS
+                beta = WLS(y, X, intercept=False, verbose=False, backend='statsmodels')
+                sse = np.sum((y - X @ beta) ** 2)   # 残差平方和
+                sst = np.sum((y - y.mean()) ** 2)   # 总平方和
+                r2 = 1 - sse / sst if sst > 0 else 0.0
                 vif = 1.0 / (1.0 - r2) if r2 < 1.0 else np.inf
             except Exception:
                 vif = np.inf
@@ -326,7 +333,7 @@ class FactorExposureBuilder:
         output_manager.save_data(standardized, 'debug/standardized.parquet', type='parquet')
 
         # 5. 验证正交性 + VIF 检验（可选，仅用于监控）
-        self.verify_orthogonality(standardized)
+        self.verify_orthogonality(standardized, threshold=0.5)
         self.verify_vif(standardized)
 
         # 6. 合并行业因子
