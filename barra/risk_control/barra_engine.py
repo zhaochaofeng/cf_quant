@@ -148,15 +148,10 @@ class BarraRiskEngine:
             logger.error(err_msg)
             raise ValueError(err_msg)
 
-        # 选择回归窗口
-        # regression_dates = get_trade_cal_inter(
-        #     start_date, end_date)
-        # regression_dates_ts = pd.to_datetime(regression_dates)
-
-        # self.factor_exposure = self.factor_exposure[
-        #     self.factor_exposure.index.get_level_values('datetime').isin(
-        #         com_dates)
-        # ]
+        self.factor_exposure = self.factor_exposure[
+            self.factor_exposure.index.get_level_values('datetime').isin(
+                com_dates)
+        ]
         returns_df = returns_df[
             returns_df.index.get_level_values('datetime').isin(
                 com_dates)
