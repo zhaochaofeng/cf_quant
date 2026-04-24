@@ -40,3 +40,6 @@ from .dt import DateTimeUtils as dt
 from .stats import WLS
 from .tsa import TimeSeriesAnalysis
 
+# 凸优化方法
+from .convex import constrained_wls
+
