@@ -134,8 +134,11 @@ exclude_factors = [
     'EGRO', 'SGRO', 'DTOA', 'BTOP', 'GPM', 'MLEV',
     'BLEV', 'GP', 'ACF', 'ABS'
 ]
+# 多重共线性排除的因子
+exclude_vif = ['LTRSTR', 'STOQ']
 
 STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_factors]
+STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_vif]
 
 
 # 因子计算函数字典
