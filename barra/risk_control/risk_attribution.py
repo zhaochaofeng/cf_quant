@@ -108,9 +108,9 @@ class RiskAttributionAnalyzer:
         # 计算主动因子暴露 x_PA = X^T * h_PA
         common_idx = active_weights.index.intersection(exposure.index)
         h_pa = active_weights.loc[common_idx]
-        X = exposure.loc[common_idx]
+        X = exposure.loc[common_idx]  # N * K
         
-        x_pa = X.T @ h_pa
+        x_pa = X.T @ h_pa   # K * 1
         
         # 对齐因子
         common_factors = x_pa.index.intersection(factor_cov.index)
@@ -153,7 +153,7 @@ class RiskAttributionAnalyzer:
         h_pa = active_weights.loc[common_idx]
         X = exposure.loc[common_idx]
         
-        x_pa = X.T @ h_pa
+        x_pa = X.T @ h_pa   # K * 1
         
         # 对齐
         common_factors = x_pa.index.intersection(fmcar.index)
@@ -223,11 +223,11 @@ class RiskAttributionAnalyzer:
         执行完整的风险归因分析
         
         Args:
-            asset_cov: 资产协方差矩阵
-            factor_cov: 因子协方差矩阵
-            exposure: 因子暴露矩阵
-            portfolio_weights: 组合权重
-            benchmark_weights: 基准权重
+            asset_cov: 资产协方差矩阵 V
+            factor_cov: 因子协方差矩阵 F
+            exposure: 因子暴露矩阵 X
+            portfolio_weights: 组合权重 h_{p}
+            benchmark_weights: 基准权重 h_{b}
             
         Returns:
             完整的风险分析结果
@@ -236,11 +236,11 @@ class RiskAttributionAnalyzer:
         logger.info('开始风险归因分析...')
         
         # 计算主动权重
-        all_instruments = portfolio_weights.index.union(benchmark_weights.index)
-        h_p = portfolio_weights.reindex(all_instruments, fill_value=0.0)
-        h_b = benchmark_weights.reindex(all_instruments, fill_value=0.0)
-        h_pa = h_p - h_b
-        
+        from .portfolio import PortfolioManager
+        h_pa = PortfolioManager.calculate_active_weights(
+            portfolio_weights, benchmark_weights)
+        h_p = portfolio_weights.reindex(h_pa.index, fill_value=0.0)
+
         # 计算风险指标
         total_risk = self.calculate_total_risk(asset_cov, h_p)
         active_risk = self.calculate_active_risk(asset_cov, h_pa)

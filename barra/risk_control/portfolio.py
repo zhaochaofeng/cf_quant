@@ -121,7 +121,8 @@ class PortfolioManager:
         else:
             raise ValueError(f"不支持的持仓输入类型: {type(portfolio_input)}")
     
-    def calculate_active_weights(self, portfolio_weights: pd.Series, 
+    @staticmethod
+    def calculate_active_weights(portfolio_weights: pd.Series,
                                  benchmark_weights: pd.Series) -> pd.Series:
         """
         计算主动权重 h_PA = h_p - h_b
