@@ -2,30 +2,44 @@
 Barra CNE6 风险模型配置
 """
 
+
+######################################
 # qlib 配置
 PROVIDER_URI = '~/.qlib/qlib_data/custom_data_hfq'
 
 # 基准配置
 BENCHMARK_CONFIG = {
-    'csi300': {
-        'market': 'csi300',
-        'name': '沪深300',
-    },
     'market': 'csi300',
     'BENCHMARK': 'SH000300'
 }
 
-# qlib数据字段
-QLIB_FIELDS = {
-    'industry': '$ind_one',
-    'change': '$change',
-    'close': '$close',
-    'circ_mv': '$circ_mv',
-    'total_mv': '$total_mv',
+
+######################################
+# 模型参数
+MODEL_PARAMS = {
+    # Barra 半衰期协方差参数
+    'half_life_corr': 252,     # 相关系数半衰期 H_C（交易日）
+    'half_life_var': 42,       # 方差半衰期 H_D（交易日）
+    'ewma_init_periods': 180,   # 初始化等权样本协方差窗口 m
+    # 特异风险面板回归窗口
+    'panel_regression_window': 120,  # 混合回归窗口（交易日）
+    # 数据时间延长（因子计算需要历史回溯，如SEASON需5年）
+    'data_extend_years': 6,    # 原始字段加载时 start_time 前移年数
 }
 
 
+######################################
+# 输出配置
+OUTPUT_CONFIG = {
+    'stock_risk_filename': 'stock_risk_{date}.csv',
+    'factor_risk_filename': 'factor_risk_{date}.csv',
+    'float_precision': 8,
+    'encoding': 'utf-8',
+}
 
+
+######################################
+# 因子
 from data.factor import (
     LNCAP, MIDCAP,
     BETA, HSIGMA, DASTD, CMRA,
@@ -39,7 +53,6 @@ from data.factor import (
     BTOP, ETOP, CETOP, EM, LTRSTR, LTHALPHA,
     EGRO, SGRO,
 )
-
 
 # Qlib 字段。分组存放
 FIELD_GROUPS = [
@@ -221,25 +234,4 @@ INDUSTRY_MAPPING = {
 
 INDUSTRY_CODES = list(INDUSTRY_MAPPING.keys())
 INDUSTRY_NAMES = list(INDUSTRY_MAPPING.values())
-
-# 模型参数
-MODEL_PARAMS = {
-    # Barra 半衰期协方差参数
-    'half_life_corr': 252,     # 相关系数半衰期 H_C（交易日）
-    'half_life_var': 42,       # 方差半衰期 H_D（交易日）
-    'ewma_init_periods': 180,   # 初始化等权样本协方差窗口 m
-    # 特异风险面板回归窗口
-    'panel_regression_window': 120,  # 混合回归窗口（交易日）
-    # 数据时间延长（因子计算需要历史回溯，如SEASON需5年）
-    'data_extend_years': 6,    # 原始字段加载时 start_time 前移年数
-}
-
-# 输出配置
-OUTPUT_CONFIG = {
-    'stock_risk_filename': 'stock_risk_{date}.csv',
-    'factor_risk_filename': 'factor_risk_{date}.csv',
-    'float_precision': 6,
-    'encoding': 'utf-8',
-}
-
 
