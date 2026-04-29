@@ -29,10 +29,10 @@ class FactorCovarianceEstimator:
         """
         logger.info('估计样本协方差矩阵...')
         col_len = factor_returns.shape[1]
-        cov_matrix = factor_returns.cov(min_periods=col_len)
+        cov_matrix = factor_returns.cov(min_periods=col_len) * 252
         self.covariance_matrix = cov_matrix
         self.mean_returns = factor_returns.mean()
-        logger.info(f'样本协方差完成，{len(factor_returns)}期，'
+        logger.info(f'样本协方差完成（已年化），{len(factor_returns)}期，'
                      f'维度: {cov_matrix.shape}')
         return cov_matrix
 
@@ -104,15 +104,17 @@ class FactorCovarianceEstimator:
         # 正定性检验
         F_final = self._ensure_positive_definite(F_final)
 
+        self.mean_returns = factor_returns.mean()
+
+        # 日频协方差年化（乘以交易日数 252）
         cov_df = pd.DataFrame(
-            F_final,
+            F_final * 252,
             index=factor_returns.columns,
             columns=factor_returns.columns,
         )
         self.covariance_matrix = cov_df
-        self.mean_returns = factor_returns.mean()
 
-        logger.info(f'Barra EWMA 协方差完成，{T}期，维度: {cov_df.shape}')
+        logger.info(f'Barra EWMA 协方差完成（已年化），{T}期，维度: {cov_df.shape}')
         return cov_df
 
     @staticmethod

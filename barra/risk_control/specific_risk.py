@@ -176,7 +176,10 @@ class SpecificRiskEstimator:
         # 7. 合成 u_n^2(t+1) = S(t+1) * [1 + v_n(t+1)]
         specific_var = (S_T1 * (1 + v_T)).clip(lower=1e-8)
 
-        logger.info(f'特异方差范围: [{specific_var.min():.8f}, {specific_var.max():.8f}]')
+        # 日频特异方差年化（乘以交易日数 252）
+        specific_var *= 252
+
+        logger.info(f'特异方差范围（已年化）: [{specific_var.min():.8f}, {specific_var.max():.8f}]')
 
         # 8. 构建特异方差向量
         instruments = specific_var.index.get_level_values('instrument')
