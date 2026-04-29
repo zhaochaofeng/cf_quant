@@ -179,8 +179,9 @@ class BarraRiskEngine:
         self.output_manager.save_data(
             self.factor_returns, 'model/factor_returns.parquet', type='parquet')
 
-        # 估计因子收益率协方差矩阵(F)（先对因子收益率去极值）
+        # 估计因子收益率协方差矩阵(F)
         logger.info('4. 估计因子收益率协方差矩阵（F）...')
+        # 对因子收益率（b）去极值（时间维度）
         factor_returns_winsorized = winsorize(
             self.factor_returns, method='median')
         self.factor_covariance = \
