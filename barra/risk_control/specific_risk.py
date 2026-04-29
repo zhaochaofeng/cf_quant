@@ -53,7 +53,7 @@ class SpecificRiskEstimator:
         logger.info(f'周期长度：{len(S_series)}')
         return S_series, v_df
 
-    def fit_arma(self, S: pd.Series) -> float:
+    def fit_arma(self, S: pd.Series, trend='n') -> float:
         """
         对 S(t) 序列建立 ARMA 模型，预测 S(T+1)
 
@@ -72,13 +72,13 @@ class SpecificRiskEstimator:
             std = S.std()
             S = (S - mean) / std
             tsa = TimeSeriesAnalysis(S)
-            adf = tsa.adf(regression='n', autolag='BIC')
+            adf = tsa.adf(regression=trend, autolag='BIC')
             pvalue = adf[1]
             if pvalue > 0.05:
                 raise Exception(f'pvalue: {pvalue} > 0.05, ADF检验不通过，时间序列非平稳')
-            order = tsa.order_select(max_ar=4, max_ma=2, ic="bic", trend="n")
+            order = tsa.order_select(max_ar=4, max_ma=2, ic="bic", trend=trend)
             logger.info(f'ARMA 模型阶数: {order}')
-            tsa.arma()
+            tsa.arma(trend=trend)
             logger.info(tsa.summary())
             pre = tsa.forecast(steps=1)
             S_T1 = pre.item() * std.item() + mean.item()
