@@ -26,11 +26,11 @@ class TimeSeriesAnalysis:
         self.order = getattr(order, f'{ic}_min_order')
         return self.order
 
-    def arma(self):
+    def arma(self, trend='c'):
         ''' 模型拟合 '''
         if self.order is None:
             raise ValueError("Order is not selected. Please call order_select() first.")
-        model = ARIMA(self.data, order=(self.order[0], 0, self.order[1]))
+        model = ARIMA(self.data, order=(self.order[0], 0, self.order[1]), trend=trend)
         self.model = model
         results = model.fit()
         self.results = results
