@@ -5,6 +5,7 @@
 import sys
 from pathlib import Path
 from typing import Optional
+from utils import send_email
 
 import numpy as np
 import pandas as pd
@@ -342,7 +343,8 @@ class FactorExposureBuilder:
 
         # 5. 验证正交性 + VIF 检验（可选，仅用于监控）
         self.verify_orthogonality(standardized, threshold=0.5)
-        self.verify_vif(standardized)
+        if not self.verify_vif(standardized):
+            send_email('Barra: risk_control', '因子VIF检验未通过，因子间存在多重共线性 ！！！')
 
         # 6. 合并行业因子
         industry_dummies = get_industry_dummies(industry_df, drop_first=False, prefix='ind')
