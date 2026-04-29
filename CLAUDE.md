@@ -114,3 +114,6 @@ TuShare/BaoStock/JQ
 - pandas MultiIndex (instrument, datetime) 是核心数据格式
 - 导入顺序: 标准库 -> 第三方 (numpy, pandas, qlib) -> 本地模块
 - 日志使用 `LoggerFactory.get_logger(__name__)`
+
+## Hard Rule
+- 提交代码到 git 前必须询问
