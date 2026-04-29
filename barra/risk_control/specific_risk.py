@@ -122,8 +122,12 @@ class SpecificRiskEstimator:
         common_idx = residuals_df.index.intersection(exposure_df.index)
         residuals_df = residuals_df.loc[common_idx]
         exposure_df = exposure_df.loc[common_idx]
-        # 删除一个行业列
-        exposure_df = exposure_df.drop(columns=INDUSTRY_NAMES[0])
+        logger.info('索引对齐. residuals_df: {}, exposure_df: {}'.format(residuals_df.shape, exposure_df.shape))
+        # 删除所有行业列，
+        columns = exposure_df.columns.tolist()
+        del_cols = [col for col in columns if col in set(INDUSTRY_NAMES)]
+        exposure_df = exposure_df.drop(columns=del_cols)
+        logger.info('删除 {} 个行业列后 exposure_df: {}'.format(len(del_cols), exposure_df.shape))
 
         # 2. v_n 划分训练集和预测集
         dates = common_idx.get_level_values('datetime').unique().sort_values()
