@@ -39,17 +39,11 @@ class PortfolioManager:
         # 加载市值数据
         mv_df = self.data_loader.load_market_cap(instruments, calc_date, calc_date)
         
-        # 按日期分组计算权重
-        weights_list = []
-        for date, group in mv_df.groupby(level=1):
-            total_mv = group['total_mv'].sum()
-            if total_mv > 0:
-                w = group['total_mv'] / total_mv
-                weights_list.append(w)
-        
-        if weights_list:
-            benchmark_weights = pd.concat(weights_list)
-            benchmark_weights.index = benchmark_weights.index.get_level_values(0)
+        # 直接计算当日总市值权重
+        total_mv = mv_df['total_mv'].sum()
+        if total_mv > 0:
+            benchmark_weights = mv_df['total_mv'] / total_mv
+            benchmark_weights.index = benchmark_weights.index.get_level_values('instrument')
             return benchmark_weights
         else:
             return pd.Series(dtype=float)
