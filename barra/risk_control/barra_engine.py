@@ -51,7 +51,6 @@ class BarraRiskEngine:
         self.cross_sectional = CrossSectionalRegression()
         self.covariance_estimator = FactorCovarianceEstimator()
         self.specific_risk_estimator = SpecificRiskEstimator(
-            arma_order=(MODEL_PARAMS['arma_p'], MODEL_PARAMS['arma_q']),
             panel_window=MODEL_PARAMS['panel_regression_window'],
         )
         self.output_manager = RiskOutputManager(output_dir=output_dir)

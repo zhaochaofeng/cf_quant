@@ -224,9 +224,6 @@ INDUSTRY_NAMES = list(INDUSTRY_MAPPING.values())
 
 # 模型参数
 MODEL_PARAMS = {
-    # ARMA模型阶数
-    'arma_p': 1,
-    'arma_q': 1,
     # Barra 半衰期协方差参数
     'half_life_corr': 252,     # 相关系数半衰期 H_C（交易日）
     'half_life_var': 42,       # 方差半衰期 H_D（交易日）

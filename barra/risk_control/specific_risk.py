@@ -12,16 +12,14 @@ logger = LoggerFactory.get_logger(__name__)
 class SpecificRiskEstimator:
     """特异风险矩阵估计器"""
 
-    def __init__(self, arma_order: Tuple[int, int] = (1, 1),
+    def __init__(self,
                  panel_window: int = 120):
         """
         初始化特异风险估计器
 
         Args:
-            arma_order: ARMA模型阶数(p, q)
             panel_window: 面板回归混合窗口（交易日）
         """
-        self.arma_order = arma_order
         self.panel_window = panel_window
         self.S_forecast = None
         self.v_forecast = None
@@ -52,8 +50,7 @@ class SpecificRiskEstimator:
             level='datetime')['specific_var'].transform(
             lambda x: x / x.mean() - 1
         ).to_frame('v')
-
-        logger.info(f'分解完成，S(t)序列长度: {len(S_series)}')
+        logger.info(f'周期长度：{len(S_series)}')
         return S_series, v_df
 
     def fit_arma(self, S: pd.Series) -> float:
@@ -66,7 +63,7 @@ class SpecificRiskEstimator:
         Returns:
             S(T+1)预测值
         """
-        logger.info(f'拟合 ARMA{self.arma_order} 模型...')
+        logger.info(f'拟合 ARMA 模型...')
         try:
             # 去极值
             S = winsorize(S, method='median')
@@ -75,11 +72,11 @@ class SpecificRiskEstimator:
             std = S.std()
             S = (S - mean) / std
             tsa = TimeSeriesAnalysis(S)
-            adf = tsa.adf(regression='c', autolag='BIC')
+            adf = tsa.adf(regression='n', autolag='BIC')
             pvalue = adf[1]
             if pvalue > 0.05:
                 raise Exception(f'pvalue: {pvalue} > 0.05, ADF检验不通过，时间序列非平稳')
-            order = tsa.order_select(max_ar=4, max_ma=2, ic="bic", trend="c")
+            order = tsa.order_select(max_ar=4, max_ma=2, ic="bic", trend="n")
             logger.info(f'ARMA 模型阶数: {order}')
             tsa.arma()
             logger.info(tsa.summary())
@@ -131,6 +128,7 @@ class SpecificRiskEstimator:
 
         # 2. v_n 划分训练集和预测集
         dates = common_idx.get_level_values('datetime').unique().sort_values()
+        logger.info(f'数据周期：{len(dates)} 天')
 
         # 使用最近 panel_window 个交易日作为 v_n 的计算区间
         if len(dates) > self.panel_window:
@@ -157,12 +155,13 @@ class SpecificRiskEstimator:
 
         # 4. ARMA 预测 S(T+1)
         S_T1 = self.fit_arma(S)
+        logger.info('S_T1: {}'.format(S_T1))
 
         # 5. 对 v_n 中位数去极值
         v_df = winsorize(v_df, method='median', level='datetime')
 
-        # 6. WLS 回归 + 预测 v_n(t+1)
-        merged = v_df.join(v_train_exposure, how='inner').dropna()
+        # 6. WLS 回归 + 预测 v_n(T)
+        merged = v_df.join(v_train_exposure, how='inner')
         y = merged[['v']]
         X = merged[v_train_exposure.columns].copy()
 
