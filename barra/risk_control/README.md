@@ -6,7 +6,7 @@
 - **因子数量**：K (包括行业因子和CNE6因子）
 - **历史时间窗口**：T（日频，交易日）
 - **市场基准**：沪深300 (csi300)
-- **目标**：给定股票持仓，输出风险指标：
+- **目标**：给定股票持仓，输出**年化**风险指标：
   - 所有股票的主动风险边际贡献(MCAR)
   - 所有股票的主动风险贡献(RCAR) (没有持仓的股票值为0)
   - 因子的主动风险边际贡献(FMCAR)
@@ -120,16 +120,20 @@ r_t = c_t + X_t b_t + u_t
 - 将 因子收益率协方差矩阵 F 的估计作为单独的模块（cf_quant/barra/risk_control/covariance.py）
 - 多种实现方法可以选择
 - 输入：因子收益率向量  \hat{b}_t (t=1,2,...,T) \( K \times 1 \)
-- 输出：F \( K \times K \) 因子协方差矩阵
+- 输出：F \( K \times K \) 因子协方差矩阵（**年化**，日频协方差 × 252）
 - 计算前，对\(\hat{b}_t(t=1,2,...,T)\) 以时间维度按照中位数去极值. 减少日频因子收益率的极端值影响
 
 ### 方法1：样本协方差矩阵（基准）
 
 \[
-F = \frac{1}{T-1} \sum_{t=1}^T (\hat{b}_t - \bar{b})(\hat{b}_t - \bar{b})^T
+F_{\text{daily}} = \frac{1}{T-1} \sum_{t=1}^T (\hat{b}_t - \bar{b})(\hat{b}_t - \bar{b})^T
 \]
 
-其中 \( \bar{b} = \frac{1}{T} \sum_{t=1}^T \hat{b}_t \)
+\[
+F = 252 \cdot F_{\text{daily}}
+\]
+
+其中 \( \bar{b} = \frac{1}{T} \sum_{t=1}^T \hat{b}_t \)，252 为年化交易日数。
 
 ### 方法2：Barra 半衰期模型
 **核心思想**：方差与相关系数分离估计，半衰期分别平滑
@@ -198,12 +202,17 @@ V_k(t) = F_{kk}^{\text{raw}}(t), \quad k = 1,\dots,K
 #### 合成最终因子协方差矩阵 \(\mathbf{F}\)
 
 \[
-\mathbf{F} = \mathbf{D}_T \cdot \mathbf{C}_T \cdot \mathbf{D}_T
+\mathbf{F}_{\text{daily}} = \mathbf{D}_T \cdot \mathbf{C}_T \cdot \mathbf{D}_T
+\]
+
+\[
+\mathbf{F} = 252 \cdot \mathbf{F}_{\text{daily}}
 \]
 
 - \(\mathbf{F}\) 综合了**长周期相关结构**与**短周期波动水平**，是当前时点的条件协方差预测。
-- 对角线元素：\sigma_{jj}^{2} , j=1,2,...,K. 表示因子标准差信息
-- 非对角线元素：\sigma_{i} \sigma_{j} c_{ij}。i,j=1,2,...,K. 表示因子协方差信息
+- 对角线元素：\sigma_{jj}^{2} , j=1,2,...,K. 表示年化因子方差
+- 非对角线元素：\sigma_{i} \sigma_{j} c_{ij}。i,j=1,2,...,K. 表示年化因子协方差
+- 252 为年化交易日数，将日频协方差转换为年化协方差
 ---
 
 #### 伪代码
@@ -232,7 +241,7 @@ for b_t in daily_factor_returns:
 # 最终输出
 C = F_raw / np.sqrt(np.outer(np.diag(F_raw), np.diag(F_raw)))
 D = np.diag(np.sqrt(var_smooth))
-F_final = D @ C @ D
+F_final = D @ C @ D * 252  # 年化
 ```
 
 ---
@@ -242,7 +251,7 @@ F_final = D @ C @ D
 - 输入：
   - 特异收益率向量 \hat{u}_t
   - 风格因子暴露度。不包括行业因子，行业信息已经包含在因子收益率中，特异收益率是在剥离了包括行业因子在内的所有共同因子之后剩余的部分
-- 输出：Delta 特异收益率协方差矩阵
+- 输出：Delta 特异收益率协方差矩阵（**年化**，日频协方差 × 252）
 
 ### 步骤 1：计算历史特异方差
 
@@ -288,8 +297,16 @@ S(t) = c + \sum_{i=1}^p \phi_i S(t-i) + \sum_{j=1}^q \theta_j \epsilon_{t-j} + \
 
 ### 步骤 5：合成未来特异方差
 
+先计算日频特异方差：
+
 \[
-\hat{u}_n^2(T+1) = \hat{S}(T+1) \cdot [1 + \hat{v}_n(T+1)]
+\hat{u}_{n,\text{daily}}^2(T+1) = \hat{S}(T+1) \cdot [1 + \hat{v}_n(T+1)]
+\]
+
+再年化：
+
+\[
+\hat{u}_n^2(T+1) = 252 \cdot \hat{u}_{n,\text{daily}}^2(T+1)
 \]
 
 ### 步骤 6：构建特异风险矩阵
@@ -306,11 +323,17 @@ S(t) = c + \sum_{i=1}^p \phi_i S(t-i) + \sum_{j=1}^q \theta_j \epsilon_{t-j} + \
 V = X_{T} F X_{T}^T + \Delta
 \]
 
+- \(F\) 和 \(\Delta\) 均为年化协方差矩阵，因此 \(V\) 为 **年化资产协方差矩阵**
+- 对角线元素 \(\sigma_n^2\) 为股票 \(n\) 的年化方差
+- 非对角线元素 \(\sigma_{ij}\) 为股票 \(i,j\) 的年化协方差
+
 ---
 
 ## 六、风险分析（组合层面）
 
 设投资组合权重向量为 \( h_p \)（\( N \times 1 \)），基准权重向量为 \( h_b \)，以市场基准指数的成分股的市值/总市值 作为基准权重向量。
+
+由于 \(F\) 和 \(\Delta\) 均为年化协方差矩阵，因此 \(V\) 为年化资产协方差，以下所有风险指标均为**年化值**。
 
 ### 6.1 基本定义
 
@@ -325,7 +348,7 @@ V = X_{T} F X_{T}^T + \Delta
 \text{MCAR} = \frac{V h_{PA}}{\psi_p} \quad (N \times 1)
 \]
 
-含义：股票 \( n \) 权重增加 1% 引起的主动风险的变化
+含义：股票 \( n \) 权重增加 1% 引起的年化主动风险的变化
 
 ### 6.3 股票的主动风险贡献（RCAR）
 
@@ -346,7 +369,7 @@ V = X_{T} F X_{T}^T + \Delta
 \text{FMCAR} = \frac{F x_{PA}}{\psi_p} \quad (K \times 1)
 \]
 
-含义：对因子 \( k \) 的主动暴露增加 1 单位导致的主动风险变化。
+含义：对因子 \( k \) 的主动暴露增加 1 单位导致的年化主动风险变化。
 
 ### 6.5 因子的主动风险贡献（FRCAR）
 
