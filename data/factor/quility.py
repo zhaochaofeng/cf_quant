@@ -436,7 +436,7 @@ def IGRO(df):
     数据字段：流通股本 $float_share
     """
     df = df.sort_index()
-    float_share = df['$float_share'].fillna(0)
+    float_share = df['$float_share'].fillna(0) * 10000
     
     # 提取年度数据（每年最后一个交易日）
     annual_circ_mv = get_annual_data_year_end(float_share)
