@@ -94,6 +94,8 @@ class BarraRiskEngine:
                 instruments, start_date, end_date,
                 extend_start=MODEL_PARAMS['data_extend_years'],
                 extend_freq='Y')
+            # 前向填充
+            raw_data = raw_data.groupby('instrument', group_keys=False).apply(lambda x: x.ffill())
             returns_df = self.data_loader.load_returns(
                 instruments, start_date, end_date)
             benchmark_df = self.data_loader.load_returns(
@@ -169,12 +171,13 @@ class BarraRiskEngine:
                      f'因子暴露: {self.factor_exposure.shape}, '
                      f'收益率: {returns_df.shape}, '
                      f'市值: {market_cap_df.shape}')
+        self.factor_exposure = self.factor_exposure.dropna()
+        logger.info('因子暴露 删除NaN后: {}'.format(self.factor_exposure.shape))
 
         # 横截面回归估计因子收益率(b)
-        # Fix: factor_exposure 暂时以 0 填充 NaN
         logger.info('3. 横截面回归...')
         self.factor_returns = self.cross_sectional.fit_multi_periods(
-            returns_df, self.factor_exposure.fillna(0.0), market_cap_df, method='constrained')
+            returns_df, self.factor_exposure, market_cap_df, method='constrained')
         self.output_manager.save_data(
             self.factor_returns, 'model/factor_returns.parquet', type='parquet')
 
@@ -203,9 +206,8 @@ class BarraRiskEngine:
         logger.info(f'residuals_df: {residuals_df.shape}')
         logger.info(f'factor_exposure: {self.factor_exposure.shape}')
 
-        # Fix: 暂时将 factor_exposure 的NaN用 0 填充
         specific_risk_df = self.specific_risk_estimator.estimate_specific_risk(
-            residuals_df, self.factor_exposure.fillna(0.0))
+            residuals_df, self.factor_exposure)
         self.output_manager.save_data(
             specific_risk_df, 'model/specific_risk.parquet', type='parquet')
 
