@@ -10,14 +10,14 @@ import pandas as pd
 from utils import send_email
 
 
-def main(path_in: str, path_out: str, start_date: str, end_date: str):
+def main(path_in: str, path_out: str, start_date: str, end_date: str, suffix: str='quarterly'):
     print('\n{}\n{}'.format('=' * 100, 'split_stock ...'))
     try:
         t = time.time()
         df = pd.read_csv(path_in, sep='\t')
         columns = df.columns.tolist()
 
-        output_dir = os.path.join(path_out, 'pit_{}_{}'.format(start_date, end_date))
+        output_dir = os.path.join(path_out, 'pit_{}_{}_{}'.format(start_date, end_date, suffix))
         output_dir = os.path.expanduser(output_dir)
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir)

@@ -58,170 +58,251 @@ check_success(){
 }
 
 get_data_from_mysql(){
-  echo "get_data_from_mysql ..."
+  type=$1
+  echo "get_data_from_mysql_${type} ..."
   # 提取字段 date、period、symbol、field、value
   # +------------+------------+----------+-----------------+-----------------+
   # | date       | period     | symbol   | field           | value           |
   # +------------+------------+----------+-----------------+-----------------+
   # | 2025-07-22 | 2020-12-31 | sz300500 | n_income        | 44590059.0900   |
   # | 2025-07-22 | 2020-12-31 | sz300500 | n_income_attr_p | 35645240.9500   |
-  sql=$(cat <<-EOF
-    SELECT
-      t.f_ann_date AS date,
-      t.end_date AS period,
-      lower(t.qlib_code) AS symbol,
-      jt.field,
-      jt.value
-    FROM
-      cf_quant.income_ts t,   -- 利润表
-      LATERAL (
-        SELECT 'revenue' AS field, t.revenue AS value
-        UNION ALL
-        SELECT 'oper_cost', t.oper_cost
-        UNION ALL
-        SELECT 'n_income_attr_p', t.n_income_attr_p
-        UNION ALL
-        SELECT 'basic_eps', t.basic_eps
-        UNION ALL
-        SELECT 'ebit', t.ebit
-      ) AS jt
-    WHERE
-      t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}' AND left(t.qlib_code, 2) in ('SZ', 'SH')
-      AND NOT EXISTS (
-        SELECT 1 FROM cf_quant.income_ts t2 
-        WHERE t2.f_ann_date = t.f_ann_date 
-          AND t2.qlib_code = t.qlib_code 
-          AND t2.end_date = t.end_date
-          AND t2.update_flag > t.update_flag
-      )
+  if [ $type == "quarterly" ];then
+    sql=$(cat <<-EOF
+      SELECT
+        t.f_ann_date AS date,
+        t.end_date AS period,
+        lower(t.qlib_code) AS symbol,
+        jt.field,
+        jt.value
+      FROM
+        cf_quant.income_ts t,   -- 利润表
+        LATERAL (
+          SELECT 'revenue' AS field, t.revenue AS value
+          UNION ALL
+          SELECT 'oper_cost', t.oper_cost
+          UNION ALL
+          SELECT 'n_income_attr_p', t.n_income_attr_p
+          UNION ALL
+          SELECT 'basic_eps', t.basic_eps
+          UNION ALL
+          SELECT 'ebit', t.ebit
+        ) AS jt
+      WHERE
+        t.f_ann_date >= '${dt1}' AND t.f_ann_date <= '${dt2}' AND left(t.qlib_code, 2) in ('SZ', 'SH')
+        AND NOT EXISTS (
+          SELECT 1 FROM cf_quant.income_ts t2
+          WHERE t2.f_ann_date = t.f_ann_date
+            AND t2.qlib_code = t.qlib_code
+            AND t2.end_date = t.end_date
+            AND t2.update_flag > t.update_flag
+        )
 
-    UNION ALL
+      UNION ALL
 
-    SELECT
-      c.f_ann_date AS date,
-      c.end_date AS period,
-      lower(c.qlib_code) AS symbol,
-      jc.field,
-      jc.value
-    FROM
-      cf_quant.cashflow_ts c,   -- 现金流量表
-      LATERAL (
-        SELECT 'n_incr_cash_cash_equ' AS field, c.n_incr_cash_cash_equ AS value
-        UNION ALL
-        SELECT 'n_cashflow_act', c.n_cashflow_act
-        UNION ALL
-        SELECT 'c_pay_acq_const_fiolta', c.c_pay_acq_const_fiolta
-        UNION ALL
-        SELECT 'depr_fa_coga_dpba', c.depr_fa_coga_dpba
-        UNION ALL
-        SELECT 'amort_intang_assets', c.amort_intang_assets
-        UNION ALL
-        SELECT 'lt_amort_deferred_exp', c.lt_amort_deferred_exp
-        UNION ALL
-        SELECT 'im_net_cashflow_oper_act', c.im_net_cashflow_oper_act
-      ) AS jc
-    WHERE
-      c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}' AND left(c.qlib_code, 2) in ('SZ', 'SH')
-      AND NOT EXISTS (
-        SELECT 1 FROM cf_quant.cashflow_ts c2 
-        WHERE c2.f_ann_date = c.f_ann_date 
-          AND c2.qlib_code = c.qlib_code 
-          AND c2.end_date = c.end_date
-          AND c2.update_flag > c.update_flag
-      )
+      SELECT
+        c.f_ann_date AS date,
+        c.end_date AS period,
+        lower(c.qlib_code) AS symbol,
+        jc.field,
+        jc.value
+      FROM
+        cf_quant.cashflow_ts c,   -- 现金流量表
+        LATERAL (
+          SELECT 'n_incr_cash_cash_equ' AS field, c.n_incr_cash_cash_equ AS value
+          UNION ALL
+          SELECT 'n_cashflow_act', c.n_cashflow_act
+          UNION ALL
+          SELECT 'c_pay_acq_const_fiolta', c.c_pay_acq_const_fiolta
+          UNION ALL
+          SELECT 'depr_fa_coga_dpba', c.depr_fa_coga_dpba
+          UNION ALL
+          SELECT 'amort_intang_assets', c.amort_intang_assets
+          UNION ALL
+          SELECT 'lt_amort_deferred_exp', c.lt_amort_deferred_exp
+          UNION ALL
+          SELECT 'im_net_cashflow_oper_act', c.im_net_cashflow_oper_act
+        ) AS jc
+      WHERE
+        c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}' AND left(c.qlib_code, 2) in ('SZ', 'SH')
+        AND NOT EXISTS (
+          SELECT 1 FROM cf_quant.cashflow_ts c2
+          WHERE c2.f_ann_date = c.f_ann_date
+            AND c2.qlib_code = c.qlib_code
+            AND c2.end_date = c.end_date
+            AND c2.update_flag > c.update_flag
+        )
 
-    UNION ALL
+      UNION ALL
 
-    SELECT
-      b.f_ann_date AS date,
-      b.end_date AS period,
-      lower(b.qlib_code) AS symbol,
-      jb.field,
-      jb.value
-    FROM
-      cf_quant.balance_ts b,   -- 资产负债表
-      LATERAL (
-        SELECT 'oth_eqt_tools_p_shr' AS field, b.oth_eqt_tools_p_shr AS value
-        UNION ALL
-        SELECT 'total_ncl', b.total_ncl
-        UNION ALL
-        SELECT 'total_hldr_eqy_exc_min_int', b.total_hldr_eqy_exc_min_int
-        UNION ALL
-        SELECT 'total_liab', b.total_liab
-        UNION ALL
-        SELECT 'total_assets', b.total_assets
-        UNION ALL
-        SELECT 'money_cap', b.money_cap
-        UNION ALL
-        SELECT 'st_borr', b.st_borr
-        UNION ALL
-        SELECT 'lt_borr', b.lt_borr
-        UNION ALL
-        SELECT 'non_cur_liab_due_1y', b.non_cur_liab_due_1y
-        UNION ALL
-        SELECT 'bond_payable', b.bond_payable
-      ) AS jb
-    WHERE
-      b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH')
-      AND NOT EXISTS (
-        SELECT 1 FROM cf_quant.balance_ts b2 
-        WHERE b2.f_ann_date = b.f_ann_date 
-          AND b2.qlib_code = b.qlib_code 
-          AND b2.end_date = b.end_date
-          AND b2.update_flag > b.update_flag
-      )
+      SELECT
+        b.f_ann_date AS date,
+        b.end_date AS period,
+        lower(b.qlib_code) AS symbol,
+        jb.field,
+        jb.value
+      FROM
+        cf_quant.balance_ts b,   -- 资产负债表
+        LATERAL (
+          SELECT 'oth_eqt_tools_p_shr' AS field, b.oth_eqt_tools_p_shr AS value
+          UNION ALL
+          SELECT 'total_ncl', b.total_ncl
+          UNION ALL
+          SELECT 'total_hldr_eqy_exc_min_int', b.total_hldr_eqy_exc_min_int
+          UNION ALL
+          SELECT 'total_liab', b.total_liab
+          UNION ALL
+          SELECT 'total_assets', b.total_assets
+          UNION ALL
+          SELECT 'money_cap', b.money_cap
+          UNION ALL
+          SELECT 'st_borr', b.st_borr
+          UNION ALL
+          SELECT 'lt_borr', b.lt_borr
+          UNION ALL
+          SELECT 'non_cur_liab_due_1y', b.non_cur_liab_due_1y
+          UNION ALL
+          SELECT 'bond_payable', b.bond_payable
+        ) AS jb
+      WHERE
+        b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH')
+        AND NOT EXISTS (
+          SELECT 1 FROM cf_quant.balance_ts b2
+          WHERE b2.f_ann_date = b.f_ann_date
+            AND b2.qlib_code = b.qlib_code
+            AND b2.end_date = b.end_date
+            AND b2.update_flag > b.update_flag
+        )
 EOF
 )
+  else
+    sql=$(cat <<-EOF
+      SELECT
+        i.f_ann_date AS date,
+        i.end_date AS period,
+        lower(i.qlib_code) AS symbol,
+        ji.field,
+        ji.value
+      FROM
+        cf_quant.income_ts i,   -- 利润表
+        LATERAL (   -- 列转行，每一行都是一个子查询
+          SELECT 'revenue' AS field, i.revenue AS value
+          UNION ALL
+          SELECT 'oper_cost', i.oper_cost
+          UNION ALL
+          SELECT 'n_income_attr_p', i.n_income_attr_p
+          UNION ALL
+          SELECT 'basic_eps', i.basic_eps
+          UNION ALL
+          SELECT 'ebit', i.ebit
+        ) AS ji
+      WHERE
+        i.f_ann_date >= '${dt1}' AND i.f_ann_date <= '${dt2}' AND left(i.qlib_code, 2) in ('SZ', 'SH') AND right(i.end_date, 5)='12-31'
+        AND NOT EXISTS (   -- 如果 qlib_code, f_ann_date, end_date重复，则取 update_flag 最大的样本
+          SELECT 1 FROM cf_quant.income_ts i2
+          WHERE i2.f_ann_date = i.f_ann_date
+            AND i2.qlib_code = i.qlib_code
+            AND i2.end_date = i.end_date
+            AND i2.update_flag > i.update_flag
+        )
+
+      UNION ALL
+
+      SELECT
+        c.f_ann_date AS date,
+        c.end_date AS period,
+        lower(c.qlib_code) AS symbol,
+        jc.field,
+        jc.value
+      FROM
+        cf_quant.cashflow_ts c,   -- 现金流量表
+        LATERAL (
+          SELECT 'n_incr_cash_cash_equ' AS field, c.n_incr_cash_cash_equ AS value
+          UNION ALL
+          SELECT 'n_cashflow_act', c.n_cashflow_act
+          UNION ALL
+          SELECT 'c_pay_acq_const_fiolta', c.c_pay_acq_const_fiolta
+          UNION ALL
+          SELECT 'depr_fa_coga_dpba', c.depr_fa_coga_dpba
+          UNION ALL
+          SELECT 'amort_intang_assets', c.amort_intang_assets
+          UNION ALL
+          SELECT 'lt_amort_deferred_exp', c.lt_amort_deferred_exp
+          UNION ALL
+          SELECT 'im_net_cashflow_oper_act', c.im_net_cashflow_oper_act
+        ) AS jc
+      WHERE
+        c.f_ann_date >= '${dt1}' AND c.f_ann_date <= '${dt2}' AND left(c.qlib_code, 2) in ('SZ', 'SH') AND right(c.end_date, 5)='12-31'
+        AND NOT EXISTS (
+          SELECT 1 FROM cf_quant.cashflow_ts c2
+          WHERE c2.f_ann_date = c.f_ann_date
+            AND c2.qlib_code = c.qlib_code
+            AND c2.end_date = c.end_date
+            AND c2.update_flag > c.update_flag
+        )
+EOF
+)
+  fi
   echo "${sql}"
-  mysql -u"${mysql_user}" -p"${mysql_password}" -e "${sql}" > "${provider_uri}/pit_${dt1}_${dt2}.csv"
+  mysql -u"${mysql_user}" -p"${mysql_password}" -e "${sql}" > "${provider_uri}/pit_${dt1}_${dt2}_${type}.csv"
   check_success "从mysql中导出数据"
 }
 
 
 split_stock(){
-  echo "split_stock ..."
+  type=$1
+  echo "split_stock_${type} ..."
   ${python_path} "${cur_path}"/split_stock.py \
-  --path_in "${provider_uri}/pit_${dt1}_${dt2}.csv" \
+  --path_in "${provider_uri}/pit_${dt1}_${dt2}_${type}.csv" \
   --path_out "${provider_uri}" \
   --start_date "${dt1}" \
-  --end_date "${dt2}"
+  --end_date "${dt2}" \
+  --suffix "${type}"
   check_success "切分股票数据"
 }
 
 
 format(){
-  echo "format ..."
+  type=$1
+  echo "format_${type} ..."
   ${python_path} ${qlib_path}/scripts/data_collector/pit/collector.py normalize_data \
-  --interval quarterly \
-  --source_dir "${provider_uri}/pit_${dt1}_${dt2}" \
-  --normalize_dir "${provider_uri}/pit_normalized_${dt1}_${dt2}"
+  --interval "${type}" \
+  --source_dir "${provider_uri}/pit_${dt1}_${dt2}_${type}" \
+  --normalize_dir "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}"
   check_success "格式化"
 }
 
 trans_to_qlib(){
-  echo "trans_to_qlib..."
+  type=$1
+  echo "trans_to_qlib_${type}..."
   ${python_path} ${qlib_path}/scripts/dump_pit.py dump \
-  --csv_path "${provider_uri}/pit_normalized_${dt1}_${dt2}" \
+  --csv_path "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}" \
   --qlib_dir "${provider_uri}" \
-  --interval quarterly
+  --interval "${type}"
   check_success "转化为qlib格式"
 }
 
+check(){
+  type=$1
+  if [ $? -eq 0 ];then
+      echo "PIT ${type} 执行完成 ！！！"
+    else
+      echo "PIT ${type} 执行失败！！！"
+      exit 1
+  fi
+}
 
 function_set(){
-  get_data_from_mysql
-  split_stock
-  format
-  trans_to_qlib
+  type=$1
+  get_data_from_mysql ${type}
+  split_stock ${type}
+  format ${type}
+  trans_to_qlib ${type}
+  check ${type}
 }
 
 main(){
-  function_set
-  if [ $? -eq 0 ];then
-      echo "PIT 执行完成 ！！！"
-    else
-      echo "PIT 执行失败！！！"
-  fi
+  function_set "quarterly"
+  function_set "annual"
 }
 
 main
