@@ -1,7 +1,8 @@
 """因子计算工具函数"""
 import pandas as pd
 import numpy as np
-from .config import BENCHMARK
+# from .config import BENCHMARK
+from config import BENCHMARK_CONFIG, PROVIDER_URI
 from utils import WLS, multiprocessing_wrapper
 from utils import LoggerFactory
 
@@ -29,12 +30,12 @@ def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_d
 
 def get_benchmark_ret(start_date: str, end_date: str) -> pd.Series:
     """获取 Benchmark 收益率（带缓存）"""
-    bm_key = (BENCHMARK, start_date, end_date)
+    bm_key = (BENCHMARK_CONFIG['BENCHMARK'], start_date, end_date)
     if bm_key in _benchmark_cache:
         return _benchmark_cache[bm_key]
     try:
         benchmark_df = get_qlib_data(
-            instruments=[BENCHMARK], fields=['$change'],
+            instruments=[BENCHMARK_CONFIG['BENCHMARK']], fields=['$change'],
             start_date=start_date, end_date=end_date,
         )
         benchmark_ret = benchmark_df['$change']
@@ -98,7 +99,7 @@ def get_stock_list_info(instruments: list, date: str) -> tuple:
     return list_date_map, delist_date_map
 
 
-def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, num_worker=1):
+def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK_CONFIG['BENCHMARK'], num_worker=1):
     """CAPM滚动回归
 
     使用滚动窗口WLS回归估计每只股票相对于基准指数的 beta、alpha和残差波动率。
@@ -121,14 +122,14 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK, 
     try:
         from qlib.data import D
         # 尝试使用 D 来检查 qlib 是否已初始化
-        _ = D.instruments(market='csi300')
+        _ = D.instruments(market=BENCHMARK_CONFIG['market'])
     except Exception:
         # qlib 未初始化，尝试初始化
         try:
             import qlib
             from utils.qlib_ops import PTTM
             qlib.init(
-                provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+                provider_uri=PROVIDER_URI,
                 custom_ops=[PTTM],
             )
             logger.info('子进程中 qlib 初始化完成')
