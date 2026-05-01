@@ -213,6 +213,96 @@ def standardize(
     return df.groupby(level=level, group_keys=False).apply(_group_standardize)
 
 
+def _fillna_df(df: pd.DataFrame, method: str, axis: int) -> pd.DataFrame:
+    """对 DataFrame 执行填充操作
+
+    Args:
+        df: 输入数据
+        method: 填充方式
+        axis: 轴向，0=按列，1=按行
+
+    Returns:
+        pd.DataFrame: 填充后的数据
+    """
+    if method == 'zero':
+        return df.fillna(0)
+    elif method == 'ffill':
+        return df.ffill(axis=axis)
+    elif method == 'bfill':
+        return df.bfill(axis=axis)
+    elif method == 'ffill_bfill':
+        return df.ffill(axis=axis).bfill(axis=axis)
+    elif method == 'mean':
+        return df.fillna(df.mean(axis=axis))
+    raise ValueError(f"method 必须为 'zero'/'ffill'/'bfill'/'ffill_bfill'/'mean'，当前值: {method}")
+
+
+def fillna(
+    data: Union[pd.Series, pd.DataFrame],
+    method: str = 'zero',
+    axis: int = 0,
+    level: Optional[Union[int, str]] = None,
+    method_dict: Optional[dict] = None
+) -> Union[pd.Series, pd.DataFrame]:
+    """缺失值填充处理。
+
+    Args:
+        data: 待填充数据，支持 pd.Series / pd.DataFrame
+        method: 填充方式
+            'zero': 用 0 填充
+            'ffill': 向前填充
+            'bfill': 向后填充
+            'ffill_bfill': 先向前再向后填充
+            'mean': 均值填充
+        axis: 填充轴向，0=按列，1=按行（ffill/bfill 时有效）
+        level: 分组索引层级（int 或 str），按该层级 groupby 后分组填充均值，仅对 axis=0 生效
+               None 表示不分组，对全量数据填充
+        method_dict: 对 DataFrame 不同列指定不同填充方式，格式 {col_name: method}。
+                     仅 data 为 DataFrame 时有效。未指定的列不做处理（保留原值）。
+
+    Returns:
+        Union[pd.Series, pd.DataFrame]: 填充后的数据，类型与输入一致
+    """
+    logger.info('fillna ...')
+    is_series = isinstance(data, pd.Series)
+
+    if is_series:
+        if method_dict is not None:
+            logger.warning('method_dict 仅在 DataFrame 模式下生效，当前输入为 Series，忽略 method_dict')
+        df = data.to_frame()
+        result = _fillna_df(df, method, axis) if level is None else df.groupby(level=level, group_keys=False).apply(lambda g: _fillna_df(g, method, axis=0))
+        return result.iloc[:, 0]
+
+    # data is DataFrame
+    df = data.copy()
+
+    if method_dict:
+        # 仅对 method_dict 中指定的列填充，未指定的列不做处理
+        for col, col_method in method_dict.items():
+            if col in df.columns:
+                if level is None:
+                    df[col] = _fillna_df(df[[col]], col_method, axis).iloc[:, 0]
+                else:
+                    _validate_groupby_index(df, level)
+                    df[col] = df.groupby(level=level, group_keys=False).apply(
+                        lambda g, c=col, cm=col_method: _fillna_df(g[[c]], cm, axis=0).iloc[:, 0]
+                    )
+            else:
+                logger.warning(f"method_dict 中指定的列 '{col}' 在 data 中不存在，已忽略")
+        return df
+
+    # 无 method_dict：统一填充
+    if level is None:
+        return _fillna_df(df, method, axis)
+
+    _validate_groupby_index(df, level)
+
+    def _group_fillna(group: pd.DataFrame) -> pd.DataFrame:
+        return _fillna_df(group, method, axis=0)
+
+    return df.groupby(level=level, group_keys=False).apply(_group_fillna)
+
+
 def neutralize(
     y: Union[np.ndarray, pd.Series, pd.DataFrame],
     x: Union[np.ndarray, pd.Series, pd.DataFrame],
