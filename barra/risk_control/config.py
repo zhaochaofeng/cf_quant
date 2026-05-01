@@ -56,23 +56,45 @@ from data.factor import (
 
 # Qlib 字段。分组存放
 FIELD_GROUPS = [
-    # 第1组: 基础交易数据（7个字段）
+    # 第1组: 基础交易数据（8个字段）
     {
-        'name': '基础交易数据',
+        'name': 'base_data',
         'fields': [
-            '$ind_one', '$change', '$close', '$circ_mv',
-            '$total_mv', '$total_share', '$float_share', '$amount',
+            '$ind_one',        # 行业ID
+            '$change',         # 收盘价涨跌幅
+            '$close',          # 收盘价
+            '$circ_mv',        # 流通市值（万元）
+            '$total_mv',       # 总市值 （万元）
+            '$total_share',    # 总股本（万股）
+            '$float_share',    # 流通股本（万股）
+            '$amount',         # 成交金额
         ]
     },
     # 第2组: 资产负债表（6个字段）
     {
-        'name': '资产负债表',
+        'name': 'balance',
         'fields': [
-            'P($$oth_eqt_tools_p_shr_q)', 'P($$total_ncl_q)',
-            'P($$total_hldr_eqy_exc_min_int_q)', 'P($$total_assets_q)',
-            'P($$total_liab_q)', 'P($$money_cap_q)'
+            'P($$oth_eqt_tools_p_shr_q)',          # 优先股
+            'P($$total_ncl_q)',                    # 非流动负债合计
+            'P($$total_hldr_eqy_exc_min_int_q)',   # 股东权益合计(不含少数股东权益)
+            'P($$total_assets_q)',                 # 资产总计
+            'P($$total_liab_q)',                   # 负债合计
+            'P($$money_cap_q)'                     # 货币资金
         ]
     },
+    # 第6组: TTM数据（3个字段）
+    {
+        'name': 'TTM',
+        'fields': [
+            'PTTM($$revenue_q)',           # 营业收入
+            'PTTM($$n_income_attr_p_q)',   # 净利润(不含少数股东损益)
+            'PTTM($$n_cashflow_act_q)'     # 经营活动产生的现金流量净额
+        ]
+    },
+]
+
+
+'''
     # 第3组: 利润表（5个字段）
     {
         'name': '利润表',
@@ -98,15 +120,7 @@ FIELD_GROUPS = [
             'P($$non_cur_liab_due_1y_q)', 'P($$bond_payable_q)'
         ]
     },
-    # 第6组: TTM数据（3个字段）
-    {
-        'name': 'TTM数据',
-        'fields': [
-            'PTTM($$revenue_q)', 'PTTM($$n_income_attr_p_q)',
-            'PTTM($$n_cashflow_act_q)'
-        ]
-    },
-]
+    '''
 
 
 # CNE6 风格因子定义（共38个）
@@ -145,14 +159,13 @@ for category, factors in CNE6_STYLE_FACTORS.items():
 exclude_factors = [
     'VFLO', 'ROA', 'AGRO', 'VSAL', 'VERN', 'CXGRO',
     'EGRO', 'SGRO', 'DTOA', 'BTOP', 'GPM', 'MLEV',
-    'BLEV', 'GP', 'ACF', 'ABS'
+    'BLEV', 'GP', 'ACF', 'ABS', 'EM'
 ]
 # 多重共线性排除的因子
 exclude_vif = ['LTRSTR', 'STOQ']
 
 STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_factors]
 STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_vif]
-
 
 # 因子计算函数字典
 FACTOR_FUNCTIONS = {
