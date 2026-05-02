@@ -270,7 +270,8 @@ format(){
   ${python_path} ${qlib_path}/scripts/data_collector/pit/collector.py normalize_data \
   --interval "${type}" \
   --source_dir "${provider_uri}/pit_${dt1}_${dt2}_${type}" \
-  --normalize_dir "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}"
+  --normalize_dir "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}" \
+  --max_workers 10
   check_success "格式化"
 }
 
@@ -280,7 +281,8 @@ trans_to_qlib(){
   ${python_path} ${qlib_path}/scripts/dump_pit.py dump \
   --csv_path "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}" \
   --qlib_dir "${provider_uri}" \
-  --interval "${type}"
+  --interval "${type}" \
+  --max_workers 10
   check_success "转化为qlib格式"
 }
 

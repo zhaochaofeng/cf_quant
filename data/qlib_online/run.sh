@@ -120,7 +120,8 @@ trans_to_qlib(){
   --date_field_name date \
   --data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
   --qlib_dir ${provider_uri_tmp} \
-  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three,total_share,float_share,total_mv,circ_mv
+  --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three,total_share,float_share,total_mv,circ_mv \
+  --max_workers 10
   check_success "转化为qlib格式"
 }
 
