@@ -37,3 +37,19 @@ scripts/data_collector/pit/collector.py  和 scripts/data_collector/cn_index/col
     
     解决方法：
     get_calendar_list 修改成从 tushare 中获取交易日历
+
+### qlib/qlib/data/_libs/ 下的 C 扩展文件
+    qlib/data/ops.py 算子 需要调用 _libs 目录下两个扩展文件 。生成方式如下：
+
+- 安装 pybind11  
+    pip install pybind11 -i https://pypi.tuna.tsinghua.edu.cn/simple
+- 编译 qlib C 扩展  
+    cd /home/data/qlib  
+    python setup.py build_ext --inplace
+- 验证编译结果  
+  ls -la /home/data/qlib/qlib/data/_libs/*.so  
+  预期输出两个 .so 文件：  
+  /home/data/qlib/qlib/data/_libs/expanding.cpython-311-x86_64-linux-gnu.so
+  /home/data/qlib/qlib/data/_libs/rolling.cpython-311-x86_64-linux-gnu.so
+
+
