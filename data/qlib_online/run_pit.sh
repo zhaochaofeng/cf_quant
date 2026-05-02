@@ -18,6 +18,9 @@ config_file="${SCRIPT_DIR}/../../config.yaml"
 mysql_user=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  user:" | sed 's/.*user:[[:space:]]*\(.*\)$/\1/' | sed 's/['\''\"]//g' | tr -d '[:space:]')
 mysql_password=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  password:" | sed 's/.*password:[[:space:]]*\(.*\)$/\1/' | sed 's/[\'\''\"]//g' | tr -d '[:space:]')
 
+# 临时配置qlib环境，防止0.9.7版本因为一些文件不匹配而报错
+PYTHONPATH="${qlib_path}":$PYTHONPATH
+
 echo "cur_path: ${cur_path}"
 
 if [ $# -eq 0 ]; then
