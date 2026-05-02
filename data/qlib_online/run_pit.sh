@@ -18,8 +18,6 @@ config_file="${SCRIPT_DIR}/../../config.yaml"
 mysql_user=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  user:" | sed 's/.*user:[[:space:]]*\(.*\)$/\1/' | sed 's/['\''\"]//g' | tr -d '[:space:]')
 mysql_password=$(sed -n '/^mysql:/,/^[^[:space:]]/p' "$config_file" | grep "^  password:" | sed 's/.*password:[[:space:]]*\(.*\)$/\1/' | sed 's/[\'\''\"]//g' | tr -d '[:space:]')
 
-# 临时配置qlib环境，防止0.9.7版本因为一些文件不匹配而报错
-PYTHONPATH="${qlib_path}":$PYTHONPATH
 
 echo "cur_path: ${cur_path}"
 
@@ -267,23 +265,35 @@ split_stock(){
 format(){
   type=$1
   echo "format_${type} ..."
+  # 临时配置qlib环境，防止0.9.7版本因为一些文件不匹配而报错
+  PYTHONPATH="${qlib_path}":$PYTHONPATH
+
   ${python_path} ${qlib_path}/scripts/data_collector/pit/collector.py normalize_data \
   --interval "${type}" \
   --source_dir "${provider_uri}/pit_${dt1}_${dt2}_${type}" \
   --normalize_dir "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}" \
   --max_workers 10
   check_success "格式化"
+
+  # 删除临时qlib环境
+  export PYTHONPATH=$(echo "$PYTHONPATH" | sed -e "s|$qlib_path:||g" -e "s|:$qlib_path||g")
 }
 
 trans_to_qlib(){
   type=$1
   echo "trans_to_qlib_${type}..."
+  # 临时配置qlib环境，防止0.9.7版本因为一些文件不匹配而报错
+  PYTHONPATH="${qlib_path}":$PYTHONPATH
+
   ${python_path} ${qlib_path}/scripts/dump_pit.py dump \
   --csv_path "${provider_uri}/pit_normalized_${dt1}_${dt2}_${type}" \
   --qlib_dir "${provider_uri}" \
   --interval "${type}" \
   --max_workers 10
   check_success "转化为qlib格式"
+
+  # 删除临时qlib环境
+  export PYTHONPATH=$(echo "$PYTHONPATH" | sed -e "s|$qlib_path:||g" -e "s|:$qlib_path||g")
 }
 
 check(){

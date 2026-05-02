@@ -116,6 +116,9 @@ process_data(){
 
 trans_to_qlib(){
   echo "trans_to_qlib..."
+  # 临时配置qlib环境，防止0.9.7版本因为一些文件不匹配而报错
+  PYTHONPATH="${qlib_path}":$PYTHONPATH
+
   ${python_path} ${qlib_path}/scripts/dump_bin.py dump_all \
   --date_field_name date \
   --data_path ${provider_uri_tmp}/out_${dt1}_${dt2} \
@@ -123,6 +126,9 @@ trans_to_qlib(){
   --include_fields open,close,high,low,volume,amount,factor,change,ind_one,ind_two,ind_three,total_share,float_share,total_mv,circ_mv \
   --max_workers 10
   check_success "转化为qlib格式"
+
+  # 删除临时qlib环境
+  export PYTHONPATH=$(echo "$PYTHONPATH" | sed -e "s|$qlib_path:||g" -e "s|:$qlib_path||g")
 }
 
 update(){
