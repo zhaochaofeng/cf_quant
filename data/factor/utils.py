@@ -730,9 +730,18 @@ def get_annual_data_year_end(series):
     data = series.reset_index()
     data.columns = ['instrument', 'datetime', 'value']
     data['year'] = data['datetime'].dt.year
-    
+    '''
+      instrument   datetime         value  year
+    0   SZ000001 2018-05-02  1.691798e+10  2018
+    1   SZ000001 2018-05-03  1.691798e+10  2018
+    '''
     # 取每年最后一个交易日的值
     annual = data.groupby(['instrument', 'year']).last().reset_index()
+    '''
+      instrument  year   datetime         value
+    0   SH600000  2018 2018-12-28  2.810377e+10
+    1   SH600000  2019 2019-12-31  2.810377e+10
+    '''
     annual = annual.set_index(['instrument', 'year'])['value']
     annual.index.names = ['instrument', 'year']
     annual.name = series.name
@@ -779,15 +788,19 @@ def calc_growth_rate_slope(series, window=5, min_periods=3):
         valid = y[valid_mask]
         if len(valid) < min_periods:
             return np.nan
-        # 保留原始时间位置（与 barra_cne6_factor._cal_growth_rate 一致）
+        # 保留原始时间位置）
         x = np.arange(1, len(y) + 1)[valid_mask.values]
-        # 线性回归: y = a + b*x
-        coef = np.polyfit(x, valid.values, 1)
-        slope = coef[0]
+        # 线性回归: y = a + b*x，使用 WLS 等权回归（与 BARRA _cal_growth_rate 的 _regress 对应）
+        slope, _, _ = WLS(
+            pd.DataFrame(valid.values),
+            pd.DataFrame(x),
+            intercept=True, weight=1, verbose=True, backend='numpy'
+        )
+        slope_val = slope.iloc[0] if isinstance(slope, pd.Series) and len(slope) > 0 else np.nan
         mean_val = valid.mean()
-        if np.abs(mean_val) < 1e-6 or np.isnan(mean_val):
+        if np.abs(mean_val) < 1e-6 or np.isnan(mean_val) or np.isnan(slope_val):
             return np.nan
-        return slope / mean_val
+        return slope_val / mean_val
     
     return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(_calc_slope, raw=False)
 
