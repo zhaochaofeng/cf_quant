@@ -1073,3 +1073,10 @@ def remap_lyr(series, field_name):
     logger.debug(f'remap_lyr: successfully mapped {len(result.dropna())}/{len(result)} values for {field_name}')
     
     return result
+
+def calc_ind_momentum(group):
+    w = group['weight']
+    w_sum = w.sum()
+    if w_sum <= 0:
+        return pd.Series({'rs_ind': np.nan, 'w_sum': np.nan})
+    return pd.Series({'rs_ind': (group['rs'] * w).sum() / w_sum, 'w_sum': w_sum})
