@@ -70,14 +70,15 @@ def DASTD(df):
     
     # Calculate rolling standard deviation with half-life weighting
     # Window = 252 days, Half-life = 42 days (BARRA CNE6 specification)
-    dastd_series = rolling_with_func(
-        daily_returns, 
-        window=252, 
-        half_life=42,
-        func_name='std'
+    # groupby(level='instrument') ensures per-stock calculation,
+    # preventing rolling across stock boundaries.
+    dastd_series = daily_returns.groupby(level='instrument').apply(
+        lambda x: rolling_with_func(x, window=252, half_life=42, func_name='std')
     )
     # 年化
     dastd_series = np.sqrt(252) * dastd_series
+    # groupby().apply() adds an extra index level, drop it to restore original MultiIndex
+    dastd_series = dastd_series.reset_index(level=0, drop=True)
     # Create result DataFrame
     result_df = pd.DataFrame({'DASTD': dastd_series})
     
