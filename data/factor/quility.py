@@ -302,7 +302,7 @@ def ATO(df):
     df = df.sort_index()
     
     # TTM 营业收入和总资产
-    sales_ttm = df['PTTM($$revenue_q)'].fillna(0)
+    sales_ttm = df['PTTM($$revenue_q)']
     ta = df['P($$total_assets_q)']   # 最近报告期的总资产[资产负债表]
 
     # 计算 ATO
