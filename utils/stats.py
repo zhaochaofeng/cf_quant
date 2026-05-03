@@ -17,6 +17,14 @@ def WLS(y, X, intercept=True, weight=1, verbose=True, backend='statsmodels'):
         verbose: 是否返回残差
         backend: 计算后端，'statsmodels' 或 'numpy'
     """
+    # Series/DataFrame 对齐索引
+    if isinstance(y, (pd.Series, pd.DataFrame)) and isinstance(X, (pd.Series, pd.DataFrame)):
+        common_idx = y.index.intersection(X.index)
+        y = y.loc[common_idx]
+        X = X.loc[common_idx]
+        if len(y) == 0 or len(X) == 0:
+            raise ValueError('y 和 X 的索引无重叠，无法计算')
+
     if backend == 'numpy':
         return _wls_numpy(y, X, intercept, weight, verbose)
     else:
