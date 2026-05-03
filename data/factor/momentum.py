@@ -56,65 +56,98 @@ def SEASON(df, nyears=5):
         计算过去Y年（默认5年）同月份相对于基准的超额收益均值。
         
     计算方法：
-        1. 计算对数收益率 ln(1+r)
-        2. 月度累计对数收益率（每月最后一个交易日的对数收益率累加）
-        3. 使用沪深300指数作为市场基准计算月度基准收益率
-        4. 计算超额收益 = 股票月度收益率 - 基准月度收益率
-        5. 对每个股票，按月份分组，计算过去nyears年同月份超额收益的均值
-        6. 将月度因子值扩展回日度
+        1. 月度累计简单收益率（每月日收益率复利累加）
+        2. 使用沪深300指数作为市场基准计算月度基准简单收益率
+        3. 计算超额收益 = 股票月度收益率 - 基准月度收益率
+        4. 对每个股票，按月份分组，计算过去nyears年同月份超额收益的均值
+        5. 将月度因子值扩展回日度
     """
     # 确保索引排序
     df = df.sort_index()
     
-    # 获取股票日收益率并计算对数收益率
+    # 获取股票日收益率
     stock_ret = df['$change']
-    log_ret = np.log(1 + stock_ret)
-    
-    # 计算月度累计对数收益率（按照每月最后一个交易日分组，对每个月的对数收益率进行累加）
-    monthly_log_ret = log_ret.groupby(level='instrument').resample('ME', level='datetime').sum()
+
+    # 计算月度累计简单收益率（每个月的日收益率复利累加）
+    monthly_simple_ret = (1 + stock_ret).groupby(
+        level='instrument'
+    ).resample('ME', level='datetime').prod() - 1
+    '''
+    instrument  datetime
+    SH600000    2018-05-31   -0.091369
+                2018-06-30   -0.093813
+                2018-07-31    0.074968
+                2018-08-31    0.015579
+    '''
 
     # 获取基准指数数据（沪深300）
     start_date = str(df.index.get_level_values('datetime').min())[:10]
     end_date = str(df.index.get_level_values('datetime').max())[:10]
     benchmark_ret = get_benchmark_ret(start_date, end_date)
-    
-    # 计算基准的对数收益率并月度累计
-    benchmark_log_ret = np.log(1 + benchmark_ret)
-    benchmark_monthly_log_ret = benchmark_log_ret.resample('ME').sum()
-    
-    # 计算超额收益（股票月度对数收益 - 基准月度对数收益）
-    # 将基准数据对齐到股票数据并计算超额收益
-    benchmark_aligned = benchmark_monthly_log_ret.reindex(
-        monthly_log_ret.index.get_level_values('datetime')
+
+    # 计算基准月度累计简单收益率
+    benchmark_monthly_simple_ret = (1 + benchmark_ret).resample('ME').prod() - 1
+
+    # 计算超额收益（股票月度简单收益 - 基准月度简单收益）
+    # 将基准数据对齐到股票数据并计算超额收益. ndarray
+    benchmark_aligned = benchmark_monthly_simple_ret.reindex(
+        monthly_simple_ret.index.get_level_values('datetime')
     ).values
-    excess_ret = monthly_log_ret - benchmark_aligned
+    excess_ret = monthly_simple_ret - benchmark_aligned
 
     # 准备超额收益数据
     excess_ret.name = 'excess_ret'
     excess_ret_df = excess_ret.reset_index()
     excess_ret_df['month'] = excess_ret_df['datetime'].dt.month
+    '''
+      instrument   datetime  excess_ret  month
+    0   SH600000 2018-05-31   -0.103492      5
+    1   SH600000 2018-06-30   -0.017112      6
+    2   SH600000 2018-07-31    0.072887      7
+    '''
 
     # 按股票分组计算季节性。每只股票仅包含月末日期数据
-    # 列：[instrument, datetime, SEASON]
-    seasonality_list = [
-        calc_seasonality(group, nyears=nyears, value_col='excess_ret')
-        for _, group in excess_ret_df.groupby('instrument')
-    ]
+    # 返回列：[instrument, datetime, SEASON]
+    seasonality_monthly = (
+        excess_ret_df.groupby('instrument')
+        .apply(calc_seasonality, nyears=nyears, value_col='excess_ret')
+        .reset_index(drop=True)
+    )
+    '''
+          instrument   datetime    SEASON
+    28795   SZ302132 2025-12-31 -0.014987
+    28796   SZ302132 2026-01-31 -0.081577
+    28797   SZ302132 2026-02-28  0.795816
+    '''
 
-    if not seasonality_list:
+    if seasonality_monthly.empty:
         return pd.DataFrame({'SEASON': []})
-    seasonality_monthly = pd.concat(seasonality_list, ignore_index=True)
 
     # 月度数据扩展回日度：通过月末日期 merge
     daily_index = stock_ret.index.to_frame().reset_index(drop=True)
     daily_index['month_end'] = daily_index['datetime'] + pd.offsets.MonthEnd(0)
+    '''
+      instrument   datetime  month_end
+    0   SZ000001 2018-05-02 2018-05-31
+    1   SZ000001 2018-05-03 2018-05-31
+    '''
     seasonality_monthly['month_end'] = seasonality_monthly['datetime'] + pd.offsets.MonthEnd(0)
+    '''
+          instrument   datetime    SEASON  month_end
+    28795   SZ302132 2025-12-31 -0.014987 2025-12-31
+    28796   SZ302132 2026-01-31 -0.081577 2026-01-31
+    '''
     # 先用daily_index 与 seasonality_monthly 进行merge，然后对缺失值进行前向填充
     merged = daily_index.merge(
         seasonality_monthly[['instrument', 'month_end', 'SEASON']],
         on=['instrument', 'month_end'], how='left'
     ).set_index(['instrument', 'datetime'])
-    merged['SEASON'] = merged.groupby(level='instrument')['SEASON'].ffill()
+    '''
+                           month_end    SEASON
+    instrument datetime
+    SH688981   2026-04-24 2026-04-30  0.020756
+               2026-04-27 2026-04-30  0.020756
+    '''
 
     return merged[['SEASON']].dropna()
 
