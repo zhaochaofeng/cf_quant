@@ -848,6 +848,7 @@ def map_annual_to_daily(annual_series, daily_index, is_map: bool = True):
             year 为财报年份
         daily_index: pd.MultiIndex (instrument, datetime)
             目标日频索引
+        is_map: bool, 是否映射到财年
     
     Returns:
         pd.Series: MultiIndex (instrument, datetime)，日频数据
@@ -865,11 +866,22 @@ def map_annual_to_daily(annual_series, daily_index, is_map: bool = True):
         'datetime': datetimes,
         'annual_year': fiscal_years,
     })
+    '''
+      instrument   datetime  annual_year
+    0   SZ000001 2018-05-02         2017
+    1   SZ000001 2018-05-03         2017
+    2   SZ000001 2018-05-04         2017
+    '''
 
     annual_df = annual_series.reset_index()
     annual_df.columns = ['instrument', 'annual_year', 'value']
 
     merged = day_df.merge(annual_df, on=['instrument', 'annual_year'], how='left')
+    '''
+           instrument   datetime  annual_year     value
+    582595   SH688981 2026-04-24         2024  0.113176
+    582596   SH688981 2026-04-27         2024  0.113176
+    '''
     result = merged.set_index(['instrument', 'datetime'])['value']
     result.name = annual_series.name
     return result
