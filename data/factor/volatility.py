@@ -4,7 +4,7 @@
 
 import pandas as pd
 import numpy as np
-from .utils import capm_regress, cal_cmra, rolling_with_func, SENTINEL
+from .utils import capm_regress, cal_cmra, rolling_with_func
 from utils import dt
 
 time_decorator = dt.time_decorator
@@ -102,16 +102,16 @@ def CMRA(df):
     
     # Extract daily returns and convert to log returns (CNE6 version)
     log_returns = np.log(1 + df['$change'])
-    
-    # Replace NaN with SENTINEL for consistent missing value handling
-    log_returns = log_returns.where(pd.notnull(log_returns), SENTINEL)
-    
+
+    # 保留 NaN 原样，cal_cmra 内部使用 nansum 跳过缺失值
+    # 不再替换为 SENTINEL，以保证滚动窗口分段步长固定
+
     # Apply rolling CMRA calculation per instrument
-    # cal_cmra internally handles SENTINEL values
+    # cal_cmra internally uses nansum for missing values
     cmra_series = log_returns.groupby(level='instrument').rolling(
-        window=252, min_periods=21  # At least 1 month of data
+        window=252, min_periods=252  # Need full 12 months of data
     ).apply(
-        lambda x: cal_cmra(x, months=12, days_per_month=21, sentinel=SENTINEL),
+        lambda x: cal_cmra(x, months=12, days_per_month=21),
         raw=True
     )
     

@@ -401,37 +401,37 @@ def _single_regression(window_y, window_x_vals, stks_to_regress, weight, interce
     return beta_series, alpha_series, sigma_series
 
 
-def cal_cmra(series, months=12, days_per_month=21, sentinel=SENTINEL):
+def cal_cmra(series, months=12, days_per_month=21):
     """计算 Cumulative Return Range over Months (CMRA) 因子
-    
-    支持过滤 sentinel 标记的缺失值。
-    
+
+    保留原始序列长度，对缺失值使用 nansum。
+    确保每月分段基于固定步长 days_per_month，不会因缺失值过滤导致分段偏移。
+
     Args:
-        series: array-like, 股票收益率序列（可能包含 sentinel 标记的缺失值）
+        series: array-like, 股票收益率序列（缺失值应为 NaN 而非 SENTINEL）
         months: int, 计算月份数，默认12个月
         days_per_month: int, 每月交易日数，默认21天
-        sentinel: scalar, 缺失值标记，默认 SENTINEL
-    
+
     Returns:
         float: CMRA值
     """
-    # 过滤 sentinel 缺失值
-    series = np.array(series)
-    valid_mask = series != sentinel
-    valid_series = series[valid_mask]
-    
+    # 转换为 ndarray，np.nansum 会自动跳过 NaN
+    series = np.asarray(series, dtype=float)
+
     # 数据不足时返回 NaN
-    if len(valid_series) < days_per_month:
+    if len(series) < days_per_month:
         return np.nan
-    
+
     # 计算每个月的累计收益 Z_t
+    # Z_t = 最早 t 个月的累计收益率之和（时间正序，索引0为最早数据）
+    # 例如 Z_1 = 第1个月的收益之和，Z_2 = 第1+2个月的累计收益之和
+    # CMRA = max(Z) - min(Z)，衡量12个月内累计收益的最大跨度
     z = []
     for i in range(1, months + 1):
-        end_idx = len(valid_series)
-        start_idx = max(0, end_idx - i * days_per_month)
-        month_sum = valid_series[start_idx:end_idx].sum()
+        end_idx = i * days_per_month
+        month_sum = np.nansum(series[:end_idx])
         z.append(month_sum)
-    
+
     z = sorted(z)
     return z[-1] - z[0]
 
