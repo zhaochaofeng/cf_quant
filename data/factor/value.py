@@ -59,9 +59,8 @@ def ETOP(df):
 
     # ETOP = TTM净利润 / 总市值
     # 避免除以0
-    total_mv_adj = total_mv
-    total_mv_adj = total_mv_adj.replace(0, np.nan)
-    etop = earnings_ttm / total_mv_adj
+    total_mv = total_mv.replace(0, np.nan)
+    etop = earnings_ttm / total_mv
     
     result_df = pd.DataFrame({'ETOP': etop})
     result_df = result_df.dropna()
@@ -85,9 +84,8 @@ def CETOP(df):
 
     # CETOP = TTM经营现金流 / 总市值
     # 避免除以0
-    total_mv_adj = total_mv
-    total_mv_adj = total_mv_adj.replace(0, np.nan)
-    cetop = cash_earnings_ttm / total_mv_adj
+    total_mv = total_mv.replace(0, np.nan)
+    cetop = cash_earnings_ttm / total_mv
     
     result_df = pd.DataFrame({'CETOP': cetop})
     result_df = result_df.dropna()
