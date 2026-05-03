@@ -122,6 +122,14 @@ FIELD_GROUPS = [
     },
     '''
 
+# 单位转换
+UNIT_CONVERSION = {
+    '$circ_mv': 10000,  # 流通市值（万元）
+    '$total_mv': 10000,  # 总市值 （万元）
+    '$total_share': 10000,  # 总股本（万股）
+    '$float_share': 10000,  # 流通股本（万股）
+}
+
 
 # CNE6 风格因子定义（共38个）
 CNE6_STYLE_FACTORS = {

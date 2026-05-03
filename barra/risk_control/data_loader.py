@@ -15,7 +15,7 @@ from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
-from .config import FIELD_GROUPS
+from .config import FIELD_GROUPS, UNIT_CONVERSION
 
 
 class DataLoader:
@@ -189,6 +189,11 @@ class DataLoader:
         logger.info(f'合并 {len(all_data)} 批数据...')
         final_df = pd.concat(all_data, axis=0)
         logger.info(f'最终数据: {final_df.shape}')
+
+        for field, num in UNIT_CONVERSION.items():
+            if field in final_df.columns:
+                logger.info(f'字段 {field} 乘以 {num}')
+                final_df[field] = final_df[field] * num
         
         return final_df
     

@@ -26,12 +26,11 @@ def STOM(df):
     df = df.sort_index()
     
     # 计算日换手率: 成交额 / 流通市值
-    # 注: amount 单位为元, circ_mv 单位为万元, 需要统一单位
-    share_turnover = df['$amount'] / 10000 / df['$circ_mv']
-    
+    share_turnover = df['$amount'] / df['$circ_mv']
+
     # 将 NaN 替换为 SENTINEL
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
-    
+
     # 滚动计算月度流动性因子 (21天窗口)
     # min_periods=17 允许20%缺失 (21*0.8=16.8). 这里的设置是针对 前边界（如前20天不足window个交易日）
     stom_series = share_turnover.groupby(level='instrument').rolling(
@@ -63,12 +62,11 @@ def STOQ(df):
     df = df.sort_index()
     
     # 计算日换手率: 成交额 / 流通市值
-    # 注意: amount 单位为元, circ_mv 单位为万元, 需要统一单位
-    share_turnover = df['$amount'] / 10000 / df['$circ_mv']
-    
+    share_turnover = df['$amount'] / df['$circ_mv']
+
     # 将 NaN 替换为 SENTINEL
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
-    
+
     # 滚动计算季度流动性因子 (63天窗口)
     # min_periods=50 允许20%缺失 (63*0.8=50.4)
     stoq_series = share_turnover.groupby(level='instrument').rolling(
@@ -100,12 +98,11 @@ def STOA(df):
     df = df.sort_index()
     
     # 计算日换手率: 成交额 / 流通市值
-    # 注意: amount 单位为元, circ_mv 单位为万元, 需要统一单位
-    share_turnover = df['$amount'] / 10000 / df['$circ_mv']
-    
+    share_turnover = df['$amount'] / df['$circ_mv']
+
     # 将 NaN 替换为 SENTINEL
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
-    
+
     # 滚动计算年度流动性因子 (252天窗口)
     # min_periods=202 允许20%缺失 (252*0.8=201.6)
     stoa_series = share_turnover.groupby(level='instrument').rolling(
@@ -136,8 +133,7 @@ def ATVR(df):
     # 确保索引排序
     df = df.sort_index()
     
-    # 注意: amount 单位为元, circ_mv 单位为万元, 需要统一单位
-    turnover_rate = df['$amount'] / 10000 / df['$circ_mv']
+    turnover_rate = df['$amount'] / df['$circ_mv']
     
     # 将 NaN 替换为 SENTINEL
     turnover_rate = turnover_rate.where(pd.notnull(turnover_rate), SENTINEL)

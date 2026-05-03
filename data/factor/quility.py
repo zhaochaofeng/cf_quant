@@ -21,7 +21,7 @@ def MLEV(df):
     """
     df = df.sort_index()
 
-    me = df['$total_mv'] * 10000                  # 总市值（万元）
+    me = df['$total_mv']                              # 总市值
     me = me.groupby(level='instrument').shift(1)  # 滞后1日，避免前视偏差
     pe_raw = df['P($$oth_eqt_tools_p_shr_q)']     # 优先股
     ld_raw = df['P($$total_ncl_q)']               # 非流动负债合计
@@ -436,7 +436,7 @@ def IGRO(df):
     数据字段：流通股本 $float_share
     """
     df = df.sort_index()
-    float_share = df['$float_share'].fillna(0) * 10000
+    float_share = df['$float_share'].fillna(0)
     
     # 提取年度数据（每年最后一个交易日）
     annual_circ_mv = get_annual_data_year_end(float_share)

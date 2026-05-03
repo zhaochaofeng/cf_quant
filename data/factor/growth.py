@@ -55,7 +55,7 @@ def SGRO(df):
     df = df.sort_index()
     
     # 获取总股本和营业收入.total_share 单位为万股
-    total_share = df['$total_share'] * 10000
+    total_share = df['$total_share']
     revenue_raw = df['P($$revenue_q)']
     revenue = remap_lyr(revenue_raw, 'revenue_q')
 

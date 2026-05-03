@@ -28,12 +28,12 @@ def BTOP(df):
     total_hldr_eqy = remap_lyr(total_hldr_eqy_raw, 'total_hldr_eqy_exc_min_int_q')
     oth_eqt_tools = remap_lyr(oth_eqt_tools_raw, 'oth_eqt_tools_p_shr_q')
 
-    total_mv = df['$total_mv'] * 10000  # 万元
-    
+    total_mv = df['$total_mv']
+
     # 计算普通股账面价值
     bv = total_hldr_eqy - oth_eqt_tools
-    
-    # BTOP = 账面价值 / 总市值（注意单位转换：total_mv 是万元）
+
+    # BTOP = 账面价值 / 总市值
     total_mv[total_mv == 0] = np.nan
     btop = bv / total_mv
     
@@ -55,11 +55,11 @@ def ETOP(df):
     
     # 获取数据（使用 PTTM 计算的 TTM 净利润）
     earnings_ttm = df['PTTM($$n_income_attr_p_q)']
-    total_mv = df['$total_mv']  # 万元
-    
+    total_mv = df['$total_mv']
+
     # ETOP = TTM净利润 / 总市值
     # 避免除以0
-    total_mv_adj = total_mv * 10000
+    total_mv_adj = total_mv
     total_mv_adj = total_mv_adj.replace(0, np.nan)
     etop = earnings_ttm / total_mv_adj
     
@@ -81,11 +81,11 @@ def CETOP(df):
     
     # 获取数据（使用 PTTM 计算的 TTM 经营现金流）
     cash_earnings_ttm = df['PTTM($$n_cashflow_act_q)']
-    total_mv = df['$total_mv']  # 万元
-    
+    total_mv = df['$total_mv']
+
     # CETOP = TTM经营现金流 / 总市值
     # 避免除以0
-    total_mv_adj = total_mv * 10000
+    total_mv_adj = total_mv
     total_mv_adj = total_mv_adj.replace(0, np.nan)
     cetop = cash_earnings_ttm / total_mv_adj
     
@@ -117,13 +117,13 @@ def EM(df):
     
     # 货币资金和总市值（缺失保留NaN）
     cash = df['P($$money_cap_q)']
-    total_mv = df['$total_mv']  # 万元
-    
+    total_mv = df['$total_mv']
+
     # 计算总带息债务
     total_interest_bearing_debt = st_borr + lt_borr + non_cur_liab + bond_payable
-    
-    # 计算企业价值 EV（注意单位转换）
-    ev = total_mv * 10000 + total_interest_bearing_debt - cash
+
+    # 计算企业价值 EV
+    ev = total_mv + total_interest_bearing_debt - cash
     ev = ev.replace(0, np.nan)
     # EM = EBIT / EV
     em = ebit / ev
