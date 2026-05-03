@@ -438,15 +438,16 @@ def cal_cmra(series, months=12, days_per_month=21, sentinel=SENTINEL):
 
 def weighted_std(series, weights):
     """加权标准差
-    
+
     Args:
         series: array-like, 数据序列
         weights: array-like, 权重（已归一化）
-    
+
     Returns:
         float: 加权标准差
     """
-    return np.sqrt(np.sum((series - np.mean(series)) ** 2 * weights))
+    weighted_mean = np.sum(series * weights)
+    return np.sqrt(np.sum((series - weighted_mean) ** 2 * weights))
 
 
 def weighted_func(func, series, weights):
