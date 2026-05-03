@@ -117,3 +117,4 @@ TuShare/BaoStock/JQ
 
 ## Hard Rule
 - 提交代码到 git 前必须询问
+- 代码提交到 git 前删除生成的测试代码（如果有）
