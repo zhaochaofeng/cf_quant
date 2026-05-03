@@ -577,6 +577,7 @@ def calc_seasonality(group, nyears=5, value_col='$change'):
         current_date = row['datetime']
         
         # 获取过去同月份的数据（不包括当前月，因为当前月是被预测的对象）
+        # 每一行对应一个 historical
         historical = group[
             (group['month'] == current_month) & 
             (group['datetime'] < current_date)
