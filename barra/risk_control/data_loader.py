@@ -190,6 +190,7 @@ class DataLoader:
         final_df = pd.concat(all_data, axis=0)
         logger.info(f'最终数据: {final_df.shape}')
 
+        # 单位转换
         for field, num in UNIT_CONVERSION.items():
             if field in final_df.columns:
                 logger.info(f'字段 {field} 乘以 {num}')
