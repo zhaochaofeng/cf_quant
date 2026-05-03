@@ -32,9 +32,10 @@ def STOM(df):
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
 
     # 滚动计算月度流动性因子 (21天窗口)
-    # min_periods=17 允许20%缺失 (21*0.8=16.8). 这里的设置是针对 前边界（如前20天不足window个交易日）
+    # NaN已通过SENTINEL填充，窗口始终满，min_periods=window确保只计算完整窗口
+    # 有效数据比例由cal_liquidity内部的min_valid_ratio控制
     stom_series = share_turnover.groupby(level='instrument').rolling(
-        window=21, min_periods=17
+        window=21, min_periods=21
     ).apply(
         lambda x: cal_liquidity(x, days_per_month=21, sentinel=SENTINEL, min_valid_ratio=0.8),
         raw=True
@@ -68,9 +69,9 @@ def STOQ(df):
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
 
     # 滚动计算季度流动性因子 (63天窗口)
-    # min_periods=50 允许20%缺失 (63*0.8=50.4)
+    # NaN已通过SENTINEL填充，窗口始终满，min_periods=window确保只计算完整窗口
     stoq_series = share_turnover.groupby(level='instrument').rolling(
-        window=63, min_periods=50
+        window=63, min_periods=63
     ).apply(
         lambda x: cal_liquidity(x, days_per_month=21, sentinel=SENTINEL, min_valid_ratio=0.8),
         raw=True
@@ -104,9 +105,9 @@ def STOA(df):
     share_turnover = share_turnover.where(pd.notnull(share_turnover), SENTINEL)
 
     # 滚动计算年度流动性因子 (252天窗口)
-    # min_periods=202 允许20%缺失 (252*0.8=201.6)
+    # NaN已通过SENTINEL填充，窗口始终满，min_periods=window确保只计算完整窗口
     stoa_series = share_turnover.groupby(level='instrument').rolling(
-        window=252, min_periods=202
+        window=252, min_periods=252
     ).apply(
         lambda x: cal_liquidity(x, days_per_month=21, sentinel=SENTINEL, min_valid_ratio=0.8),
         raw=True
