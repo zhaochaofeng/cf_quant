@@ -224,9 +224,9 @@ def INDMOM(df):
 @time_decorator
 def RSTR(df):
     """
-    Formulation: RSTR = sum(excess_return * weight), then smooth with 11-day MA
-    Description：【相对强度因子】过去1年（252个交易日）的日超额收益率
-        （股票收益率 - 基准收益率）加权之和，使用半衰期为126天的指数权重，
+    Formulation: RSTR = sum(ln((1+R_s)/(1+R_b)) * weight), then smooth with 11-day MA
+    Description：【相对强度因子】过去1年（252个交易日）的日对数相对市场强度
+        （股票收益率 / 基准收益率）加权之和，使用半衰期为126天的指数权重，
         最后进行11天的移动平均平滑。
     """
     # 确保索引排序
@@ -242,11 +242,12 @@ def RSTR(df):
     benchmark_ret = get_benchmark_ret(start_date, end_date)
     benchmark_log_ret = np.log(1 + benchmark_ret)
 
-    # 计算超额收益
-    excess_ret = log_ret - benchmark_log_ret
-    
-    # 计算加权超额收益之和（252天窗口，半衰期126天）
-    rstr_raw = excess_ret.groupby(level='instrument').apply(
+    # 计算对数形式的相对市场强度
+    # ln(1+R_s) - ln(1+R_b) = ln((1+R_s)/(1+R_b))
+    relative_strength = log_ret - benchmark_log_ret
+
+    # 计算加权相对强度之和（252天窗口，半衰期126天）
+    rstr_raw = relative_strength.groupby(level='instrument').apply(
         lambda x: rolling_with_func(x, window=252, half_life=126, func_name='sum')
     )
     # 重置索引，确保格式正确
