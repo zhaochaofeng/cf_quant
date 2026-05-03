@@ -14,7 +14,8 @@ import pandas as pd
 from .utils import (
     rolling_with_func, calc_seasonality,
     capm_regress,
-    get_benchmark_ret
+    get_benchmark_ret,
+    calc_ind_momentum
 )
 from utils.dt import time_decorator
 
@@ -182,25 +183,34 @@ def INDMOM(df):
     data = data.merge(cap_sqrt.reset_index(), on=['instrument', 'datetime'])
     data = data.merge(industry.reset_index(), on=['instrument', 'datetime'])
     data.columns = ['instrument', 'datetime', 'rs', 'weight', 'ind']
-    
+    '''
+           instrument   datetime        rs         weight     ind
+    582595   SZ302132 2026-04-24 -0.002488  198483.234375  801740
+    582596   SZ302132 2026-04-27 -0.002030  199646.156250  801740
+    '''
     # 排除无效行业数据
     data = data[data['ind'] >= 0]
-    
-    # 按日期和行业分组计算行业动量（个股 rolling momentum 的 cap_sqrt 加权平均）
-    def calc_ind_momentum(group):
-        w = group['weight']
-        w_sum = w.sum()
-        if w_sum <= 0:
-            return pd.Series({'rs_ind': np.nan, 'w_sum': np.nan})
-        return pd.Series({'rs_ind': (group['rs'] * w).sum() / w_sum, 'w_sum': w_sum})
-    
+
+    # 按日期和行业分组计算行业动量
     ind_mom = data.groupby(['datetime', 'ind']).apply(
         calc_ind_momentum, include_groups=False
     ).reset_index()
+    '''
+            datetime     ind    rs_ind       w_sum
+    52625 2026-04-30  801880 -0.000224  4027174.50
+    52626 2026-04-30  801890 -0.001324  2530061.50
+    52627 2026-04-30  801950  0.002882  2375644.25
+    '''
     
     # 将行业动量合并回数据
     data = data.merge(ind_mom, on=['datetime', 'ind'], how='left')
-    
+    # w_sum: 行业内权重和，rs_ind: 行业动量RS_{I}
+    '''
+           instrument   datetime        rs         weight     ind    rs_ind       w_sum
+    543766   SZ302132 2026-04-24 -0.002488  198483.234375  801740 -0.000084  2933214.25
+    543767   SZ302132 2026-04-27 -0.002030  199646.156250  801740  0.000112  2942145.25
+    '''
+
     # INDMOM = rs_ind - rs * weight / ind_weight_sum (within industry)
     data['INDMOM'] = data['rs_ind'] - data['rs'] * data['weight'] / data['w_sum']
     
