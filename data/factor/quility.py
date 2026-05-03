@@ -436,15 +436,25 @@ def IGRO(df):
     数据字段：流通股本 $float_share
     """
     df = df.sort_index()
-    float_share = df['$float_share'].fillna(0)
+    float_share = df['$float_share']
     
     # 提取年度数据（每年最后一个交易日）
     annual_circ_mv = get_annual_data_year_end(float_share)
-    
+    '''
+    instrument  year
+    SH600000    2018    2.810377e+10
+                2019    2.810377e+10
+    '''
     # 对年度数据计算5年滚动增长率（斜率/均值）
     growth = calc_growth_rate_slope(annual_circ_mv, window=5, min_periods=3)
     growth = growth.reset_index(level=0, drop=True)
-    
+    '''
+    instrument  year
+    SH600000    2018         NaN
+                2019         NaN
+                2020    0.021886
+                2021    0.017382
+    '''
     # 将年度结果映射回日频，并取负号
     igro = -map_annual_to_daily(growth, df.index)
     
