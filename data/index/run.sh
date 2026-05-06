@@ -12,6 +12,8 @@ qlib_path="${QLIB_PATH}"
 cf_quant_path="${CF_QUANT_PATH}"
 provider_uri="${QLIB_DATA_PATH}/index"
 
+# 临时配置qlib环境，防止0.9.7版本因为一些文件不匹配而报错
+PYTHONPATH="${qlib_path}":$PYTHONPATH
 
 if [ $# -eq 0 ]; then
     dt=`date +%Y-%m-%d`
@@ -99,3 +101,6 @@ check_success "CSIA500"
 ${python_path} ${cur_path}/change_end_date.py
 check_success "change_end_date"
 
+
+# 删除临时qlib环境
+export PYTHONPATH=$(echo "$PYTHONPATH" | sed -e "s|$qlib_path:||g" -e "s|:$qlib_path||g")
