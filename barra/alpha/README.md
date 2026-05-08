@@ -38,7 +38,7 @@ df.set_index(['instrument', 'datetime'], inplace=True)
 ```
 - 每个资产 n 的残差收益率历史序列 {θ_n(t)}(由多因子模型预先计算，用于估计 IC 及计算ω_n)。获取方式：
 ```
-直接读取: barra/risk_control/output/model/residuals.parquet
+直接读取: barra/risk_control/output/{dt}/model/residuals.parquet
 ```
 - 行业、流通市值（万元）数据。
 获取方式：
@@ -63,8 +63,8 @@ df = D.features(instruments, fields=['$ind_one', '$circ_mv'], start_time='2025-0
 
 \[
 z_{CS,n}^{(k)}(t) = \frac{g_n^{(k)}(t) - \mu_{CS}^{(k)}(t)}{\sigma_{CS}^{(k)}(t)}
-\]
-其中
+\]  
+ 其中:  
 \[
 \mu_{CS}^{(k)}(t) = \frac{1}{N}\sum_{n=1}^{N} g_n^{(k)}(t), \quad 
 \sigma_{CS}^{(k)}(t) = \sqrt{\frac{1}{N-1}\sum_{n=1}^{N}\left(g_n^{(k)}(t) - \mu_{CS}^{(k)}(t)\right)^2}
@@ -75,7 +75,7 @@ z_{CS,n}^{(k)}(t) = \frac{g_n^{(k)}(t) - \mu_{CS}^{(k)}(t)}{\sigma_{CS}^{(k)}(t)
 ### 4.2 情形判断
 
 根据信号历史数据判断其属于情形1或情形2。
-每个交易日t使用过去M=500个交易日的数据
+每个交易日 t 使用过去 M=500 个交易日的数据
 
 \[
 \mathrm{Std}_{TS}\{g_n^{(k)}\} = a + b \cdot \omega_n + \epsilon_n
