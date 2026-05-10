@@ -1,12 +1,11 @@
 """
 数据加载模块 - 信号、残差、行业市值数据
 """
-import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Optional
 
-from .config import SIGNAL_TABLE, RESIDUALS_PATH
+import pandas as pd
+
 from utils import sql_engine, LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -53,7 +52,7 @@ class AlphaDataLoader:
         )
         df = pd.read_sql(sql, engine)
         if df.empty:
-            raise ValueError(f'{SIGNAL_TABLE} 在 [{start_time}, {end_time}] 无数据')
+            raise ValueError(f'信号数据在 [{start_time}, {end_time}] 无数据')
 
         df['datetime'] = pd.to_datetime(df['datetime'])
         df = df.set_index(['instrument', 'datetime'])
