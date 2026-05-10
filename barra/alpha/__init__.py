@@ -15,7 +15,6 @@ from .config import (
     SCENARIO_WINDOW,
     R2_THRESHOLD,
     IC_LAG,
-    OUTPUT_DIR,
 )
 from .data_loader import AlphaDataLoader
 from .signal_processor import SignalProcessor
@@ -35,7 +34,6 @@ __all__ = [
     'SCENARIO_WINDOW',
     'R2_THRESHOLD',
     'IC_LAG',
-    'OUTPUT_DIR',
     # 核心模块
     'AlphaDataLoader',
     'SignalProcessor',

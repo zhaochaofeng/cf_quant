@@ -33,7 +33,8 @@ def run(calc_date: str,
         history_months: int = 24,
         market: str = 'csi300',
         output_dir: str = 'output',
-        portfolio: str = 'default') -> None:
+        portfolio: str = 'default',
+        use_cache: bool = False) -> None:
     """运行每日Alpha预测
 
     Args:
@@ -41,24 +42,27 @@ def run(calc_date: str,
         market: 市场代码
         output_dir: 输出目录
         portfolio: 持仓组合名称
+        use_cache: 是否使用缓存数据
     """
     engine = AlphaEngine(market=market, output_dir=output_dir)
-    engine.run(calc_date, history_months, portfolio=portfolio)
+    engine.run(calc_date, history_months, portfolio=portfolio, use_cache=use_cache)
 
 
 def main():
     try:
         parser = argparse.ArgumentParser(description='多信号Alpha每日预测')
         parser.add_argument('--calc_date', type=str, required=True,
-                            help='计算日期，如 2026-03-06')
+                            help='计算日期，如 2026-04-24')
         parser.add_argument('--history-months', type=int, default=24,
                             help='历史数据月数')
         parser.add_argument('--market', type=str, default='csi300',
                             help='市场代码，默认 csi300')
-        parser.add_argument('--output_dir', type=str, default='output',
-                            help='输出目录')
+        parser.add_argument('--output_dir', type=str, default='barra/alpha/output',
+                            help='输出目录，默认 barra/alpha/output')
         parser.add_argument('--portfolio', type=str, default='default',
                             help='持仓组合名称，默认 default')
+        parser.add_argument('--use-cache', action='store_true',
+                            help='使用缓存数据（从output/debug/加载parquet）')
         args = parser.parse_args()
 
         init_qlib()
@@ -66,7 +70,8 @@ def main():
             args.history_months,
             args.market,
             args.output_dir + f'/{args.calc_date}',
-            args.portfolio)
+            args.portfolio,
+            use_cache=args.use_cache)
 
     except Exception as e:
         logger.error(f'运行出错: {e}')

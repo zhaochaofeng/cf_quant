@@ -65,7 +65,7 @@ class AlphaDataLoader:
         logger.info(f'信号数据加载完成: {df.shape}')
         return df
 
-    def load_residuals(self, residuals_path: Optional[str] = None, date: str = None) -> pd.DataFrame:
+    def load_residuals(self, date: str = None, residuals_path: Optional[str] = None) -> pd.DataFrame:
         """加载残差收益率
 
         Args:

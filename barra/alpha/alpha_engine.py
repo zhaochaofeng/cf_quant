@@ -44,13 +44,15 @@ class AlphaEngine:
         self.orthogonalizer = AlphaOrthogonalizer()
         self.output_manager = AlphaOutputManager(output_dir=output_dir)
 
-    def run(self, calc_date: str, history_months: int, portfolio: str = 'default') -> pd.DataFrame:
+    def run(self, calc_date: str, history_months: int, portfolio: str = 'default',
+            use_cache: bool = False) -> pd.DataFrame:
         """执行完整Alpha预测流水线
 
         Args:
             calc_date: 计算日期，如 '2026-03-06'
             history_months: 历史数据月份数
             portfolio: 持仓组合名称
+            use_cache: 是否使用缓存数据
 
         Returns:
             DataFrame(index=instrument, column='alpha')
@@ -64,25 +66,48 @@ class AlphaEngine:
 
         # Step 2: 加载数据
         logger.info('Step 1: 加载数据...')
-        signal_df = self.data_loader.load_signal(start_date, calc_date)
-        residuals = self.data_loader.load_residuals(calc_date)
-        logger.info('signal_df: {}, start_date: {}, end_date'.format(
+
+        cache_root = Path(self.output_manager.output_dir) / 'debug'
+
+        if use_cache:
+            logger.info('使用缓存数据...')
+            signal_df = pd.read_parquet(cache_root / 'signal.parquet')
+            residuals = pd.read_parquet(cache_root / 'residuals.parquet')
+            ind_mv_df = pd.read_parquet(cache_root / 'industry_market_cap.parquet')
+        else:
+            signal_df = self.data_loader.load_signal(start_date, calc_date)
+            residuals = self.data_loader.load_residuals(calc_date)
+
+            # 过滤残差到窗口范围内
+            resid_dates = residuals.index.get_level_values('datetime')
+            residuals = residuals.loc[
+                (resid_dates >= pd.Timestamp(start_date)) &
+                (resid_dates <= pd.Timestamp(calc_date))
+            ]
+
+            # 加载行业和市值
+            instruments = signal_df.index.get_level_values('instrument').unique().tolist()
+            ind_mv_df = self.data_loader.load_industry_and_market_cap(
+                instruments, start_date, calc_date
+            )
+
+            # 保存缓存
+            cache_root.mkdir(parents=True, exist_ok=True)
+            signal_df.to_parquet(cache_root / 'signal.parquet')
+            residuals.to_parquet(cache_root / 'residuals.parquet')
+            ind_mv_df.to_parquet(cache_root / 'industry_market_cap.parquet')
+            logger.info(f'数据缓存已保存到 {cache_root}')
+
+        logger.info('signal_df: {}, start_date: {}, end_date: {}'.format(
             signal_df.shape,
             signal_df.index.get_level_values('datetime').min(),
             signal_df.index.get_level_values('datetime').max()
         ))
-        logger.info('residuals: {}, start_date: {}, end_date'.format(
+        logger.info('residuals: {}, start_date: {}, end_date: {}'.format(
             residuals.shape,
             residuals.index.get_level_values('datetime').min(),
             residuals.index.get_level_values('datetime').max()
         ))
-
-        # 过滤残差到窗口范围内
-        resid_dates = residuals.index.get_level_values('datetime')
-        residuals = residuals.loc[
-            (resid_dates >= pd.Timestamp(start_date)) &
-            (resid_dates <= pd.Timestamp(calc_date))
-        ]
         n_resid_days = residuals.index.get_level_values('datetime').nunique()
         logger.info(f'残差数据: {n_resid_days}天, {residuals.shape[0]}条')
         if n_resid_days < RESIDUAL_VOL_WINDOW:
@@ -91,11 +116,6 @@ class AlphaEngine:
                 f'请先运行 barra/risk_control 积累足够的残差数据'
             )
 
-        # 加载行业和市值
-        instruments = signal_df.index.get_level_values('instrument').unique().tolist()
-        ind_mv_df = self.data_loader.load_industry_and_market_cap(
-            instruments, start_date, calc_date
-        )
         industry_df = ind_mv_df[['industry_code']]
         market_cap_df = ind_mv_df[['circ_mv']]
 
