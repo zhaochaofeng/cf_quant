@@ -40,23 +40,6 @@ class AlphaOutputManager:
         logger.info(f'Alpha保存完成: {filepath}')
         return str(filepath)
 
-    def save_diagnostics(self, diagnostics: pd.DataFrame, calc_date: str) -> str:
-        """保存诊断信息到parquet
-
-        Args:
-            diagnostics: 诊断信息（IC, case, omega等）
-            calc_date: 计算日期
-
-        Returns:
-            保存的文件路径
-        """
-        date_str = calc_date.replace('-', '')
-        diag_dir = self.output_dir / 'diagnostics'
-        diag_dir.mkdir(parents=True, exist_ok=True)
-        filepath = diag_dir / f'diag_{date_str}.parquet'
-        diagnostics.to_parquet(filepath)
-        logger.info(f'诊断信息保存完成: {filepath}')
-        return str(filepath)
 
     def load_alpha(self, calc_date: str) -> Optional[pd.DataFrame]:
         """加载Alpha预测

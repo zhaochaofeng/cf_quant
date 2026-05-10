@@ -157,7 +157,7 @@ class AlphaEngine:
         diagnostics = self._build_diagnostics(
             final_alpha, omega, ic, case, calc_date
         )
-        self.output_manager.save_diagnostics(diagnostics, calc_date)
+        diagnostics.to_parquet(cache_root / 'diagnostics.parquet')
 
         # 摘要
         logger.info('=' * 60)
