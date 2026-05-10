@@ -46,7 +46,7 @@ function check() {
 is_trade_day ${dt}
 
 echo "run_daily..."
-${python_path} ${cur_path}/run_daily.py --calc_date ${dt}
+${python_path} ${cur_path}/run.py --calc_date ${dt}
 check
 
 
