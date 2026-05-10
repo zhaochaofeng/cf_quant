@@ -29,10 +29,11 @@ def init_qlib():
     logger.info('Qlib初始化完成 !')
 
 
-def run_alpha(calc_date: str,
-              market: str = 'csi300',
-              output_dir: str = 'output',
-              portfolio: str = 'default') -> None:
+def run(calc_date: str,
+        history_months: int = 24,
+        market: str = 'csi300',
+        output_dir: str = 'output',
+        portfolio: str = 'default') -> None:
     """运行每日Alpha预测
 
     Args:
@@ -42,7 +43,7 @@ def run_alpha(calc_date: str,
         portfolio: 持仓组合名称
     """
     engine = AlphaEngine(market=market, output_dir=output_dir)
-    engine.run(calc_date, portfolio=portfolio)
+    engine.run(calc_date, history_months, portfolio=portfolio)
 
 
 def main():
@@ -50,6 +51,8 @@ def main():
         parser = argparse.ArgumentParser(description='多信号Alpha每日预测')
         parser.add_argument('--calc_date', type=str, required=True,
                             help='计算日期，如 2026-03-06')
+        parser.add_argument('--history-months', type=int, default=24,
+                            help='历史数据月数')
         parser.add_argument('--market', type=str, default='csi300',
                             help='市场代码，默认 csi300')
         parser.add_argument('--output_dir', type=str, default='output',
@@ -59,10 +62,12 @@ def main():
         args = parser.parse_args()
 
         init_qlib()
-        run_alpha(args.calc_date,
-                  args.market,
-                  args.output_dir + f'/{args.calc_date}',
-                  args.portfolio)
+        run(args.calc_date,
+            args.history_months,
+            args.market,
+            args.output_dir + f'/{args.calc_date}',
+            args.portfolio)
+
     except Exception as e:
         logger.error(f'运行出错: {e}')
         send_email(f'Alpha预测每日计算出错: {e}', traceback.format_exc())

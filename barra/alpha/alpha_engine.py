@@ -6,7 +6,7 @@ import numpy as np
 from pathlib import Path
 
 from .config import (
-    ROLLING_WINDOW, RESIDUAL_VOL_WINDOW, OUTPUT_DIR, IC_LAG,
+    RESIDUAL_VOL_WINDOW,
 )
 from .data_loader import AlphaDataLoader
 from .signal_processor import SignalProcessor
@@ -28,7 +28,7 @@ class AlphaEngine:
     -> 单信号Alpha -> (正交化合成) -> 输出
     """
 
-    def __init__(self, market: str = 'csi300', output_dir: str = OUTPUT_DIR):
+    def __init__(self, market: str = 'csi300', output_dir: str = 'output'):
         """初始化
 
         Args:
@@ -44,11 +44,12 @@ class AlphaEngine:
         self.orthogonalizer = AlphaOrthogonalizer()
         self.output_manager = AlphaOutputManager(output_dir=output_dir)
 
-    def run(self, calc_date: str, portfolio: str = 'default') -> pd.DataFrame:
+    def run(self, calc_date: str, history_months: int, portfolio: str = 'default') -> pd.DataFrame:
         """执行完整Alpha预测流水线
 
         Args:
             calc_date: 计算日期，如 '2026-03-06'
+            history_months: 历史数据月份数
             portfolio: 持仓组合名称
 
         Returns:
@@ -58,13 +59,23 @@ class AlphaEngine:
         logger.info(f'Alpha预测开始: calc_date={calc_date}')
 
         # Step 1: 计算数据窗口
-        start_date = dt.subtract_months(calc_date, 36)
+        start_date = dt.subtract_months(calc_date, history_months)
         logger.info(f'数据窗口: [{start_date}, {calc_date}]')
 
         # Step 2: 加载数据
         logger.info('Step 1: 加载数据...')
         signal_df = self.data_loader.load_signal(start_date, calc_date)
-        residuals = self.data_loader.load_residuals()
+        residuals = self.data_loader.load_residuals(calc_date)
+        logger.info('signal_df: {}, start_date: {}, end_date'.format(
+            signal_df.shape,
+            signal_df.index.get_level_values('datetime').min(),
+            signal_df.index.get_level_values('datetime').max()
+        ))
+        logger.info('residuals: {}, start_date: {}, end_date'.format(
+            residuals.shape,
+            residuals.index.get_level_values('datetime').min(),
+            residuals.index.get_level_values('datetime').max()
+        ))
 
         # 过滤残差到窗口范围内
         resid_dates = residuals.index.get_level_values('datetime')

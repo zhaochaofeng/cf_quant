@@ -48,7 +48,7 @@ class AlphaDataLoader:
         engine = sql_engine()
         sql = (
             f"SELECT qlib_code AS instrument, day AS datetime, score AS g "
-            f"FROM {SIGNAL_TABLE} "
+            f"FROM monitor_return_rate "
             f"WHERE day >= '{start_time}' AND day <= '{end_time}' AND model='lightgbm_alpha_csi300'"
         )
         df = pd.read_sql(sql, engine)
@@ -66,16 +66,17 @@ class AlphaDataLoader:
         logger.info(f'信号数据加载完成: {df.shape}')
         return df
 
-    def load_residuals(self, residuals_path: Optional[str] = None) -> pd.DataFrame:
+    def load_residuals(self, residuals_path: Optional[str] = None, date: str = None) -> pd.DataFrame:
         """加载残差收益率
 
         Args:
             residuals_path: parquet文件路径，默认使用config中的路径
+            date: 更新日期
 
         Returns:
             MultiIndex(instrument, datetime), column='residual'
         """
-        path = Path(residuals_path or RESIDUALS_PATH)
+        path = Path(residuals_path or f'barra/risk_control/output/{date}/model/residuals.parquet')
         if not path.exists():
             raise FileNotFoundError(f'残差文件不存在: {path}')
 
