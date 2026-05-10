@@ -137,7 +137,7 @@ class AlphaEngine:
 
         # Step 6: IC估计
         logger.info('Step 5: IC估计...')
-        ic = self.ic_estimator.compute_ic(z_cs, residuals, calc_date)
+        ic = self.ic_estimator.compute_ic(z_cs, residuals)
 
         # Step 7: 单信号Alpha
         logger.info('Step 6: 单信号Alpha计算...')
