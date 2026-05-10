@@ -57,8 +57,8 @@ def main():
                             help='历史数据月数')
         parser.add_argument('--market', type=str, default='csi300',
                             help='市场代码，默认 csi300')
-        parser.add_argument('--output_dir', type=str, default='barra/alpha/output',
-                            help='输出目录，默认 barra/alpha/output')
+        parser.add_argument('--output_dir', type=str, default='output',
+                            help='输出目录，默认 output')
         parser.add_argument('--portfolio', type=str, default='default',
                             help='持仓组合名称，默认 default')
         parser.add_argument('--use-cache', action='store_true',

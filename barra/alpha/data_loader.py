@@ -7,6 +7,7 @@ from typing import Optional
 import pandas as pd
 
 from utils import sql_engine, LoggerFactory
+project_root = Path(__file__).parent.parent.parent
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -75,7 +76,7 @@ class AlphaDataLoader:
         Returns:
             MultiIndex(instrument, datetime), column='residual'
         """
-        path = Path(residuals_path or f'barra/risk_control/output/{date}/model/residuals.parquet')
+        path = Path(residuals_path or f'{project_root}/barra/risk_control/output/{date}/model/residuals.parquet')
         if not path.exists():
             raise FileNotFoundError(f'残差文件不存在: {path}')
 

@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 # 滚动窗口（交易日数）
 ROLLING_WINDOW = 500            # 3年，用于IC估计、协方差估计
-RESIDUAL_VOL_WINDOW = 500       # 2年，用于历史残差波动率
+RESIDUAL_VOL_WINDOW = 400       # 2年，用于历史残差波动率
 SCENARIO_WINDOW = 500           # M=500，用于情形判断回归
 MIN_IC_WINDOW = 250             # IC估计最少所需天数
 
