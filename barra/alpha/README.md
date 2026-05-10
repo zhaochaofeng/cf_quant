@@ -24,7 +24,15 @@
 
 ## 3. 输入数据
 
-- 每个信号 k(k=1,2,...,K) 的原始历史时间序列 {g_n^{(k)}(t)}(所有资产、所有交易日)。获取方式：
+- 股票收盘价 close_n{t}，用于计算股票收益率 close_n{t+2}/close_n{t+1}-1，进而计算 IC. 获取方式：
+```python
+import qlib
+from qlib.data import D
+qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
+df = D.features(['SZ000001'], fields=['$close'], start_time='2026-01-01', end_time='2026-01-31')
+```
+
+- 股票的预测信号 {g_n^{(k)}(t)} (k=1,2,...,K)。获取方式：
 ```python
 import pandas as pd
 from utils import sql_engine
@@ -36,9 +44,10 @@ where day>='2026-03-06' and day<='2026-03-06';
 df = pd.read_sql(sql, engine)
 df.set_index(['instrument', 'datetime'], inplace=True)
 ```
-- 每个资产 n 的残差收益率历史序列 {θ_n(t)}(由多因子模型预先计算，用于估计 IC 及计算ω_n)。获取方式：
+- 每个资产 n 的残差收益率历史序列 {θ_n(t)}. 由风控模块 risk_control 模块预先计算，用于计算ω_n。获取方式：
 ```
 直接读取: barra/risk_control/output/{dt}/model/residuals.parquet
+数据格式：index ['instrument', 'datetime'], columns ['residual']
 ```
 - 行业、流通市值（万元）数据。
 获取方式：
@@ -50,8 +59,6 @@ instruments = D.instruments(market='csi300')
 # $ind_one: 行业； circ_mv: 流通市值
 df = D.features(instruments, fields=['$ind_one', '$circ_mv'], start_time='2025-01-01', end_time='2026-01-01')
 ```
-
-注：残差波动率 \(\omega_n\) 由 \(\theta_n(t)\) 派生，无需单独输入。
 
 ---
 
