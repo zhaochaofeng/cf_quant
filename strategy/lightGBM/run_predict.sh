@@ -52,10 +52,11 @@ ${python_path} ${cur_path}/predict.py main \
   --uri "${uri}" \
   --instruments "csi300" \
   --exp_name "lightgbm_alpha_csi300" \
-  --horizon "[1,2,3,4,5]"
+  --horizon "[1]" \
+  --is_redis False
 check_success "csi300"
 
-
+<<comm
 ${python_path} ${cur_path}/predict.py main \
   --start_date "${dt1}" \
   --end_date "${dt2}" \
@@ -74,4 +75,4 @@ ${python_path} ${cur_path}/predict.py main \
   --exp_name "lightgbm_alpha_csia500" \
   --horizon "[1,2,3,4,5]"
 check_success "csia500"
-
+comm

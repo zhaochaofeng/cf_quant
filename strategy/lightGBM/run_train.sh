@@ -52,7 +52,7 @@ ${python_path} ${cur_path}/lightgbm_alpha.py \
   --instruments "csi300" \
   --exp_name "lightgbm_alpha_csi300" \
   --is_online False \
-  --horizon "[1,2,3,4,5]" \
+  --horizon "[1]" \
   --start_wid "${start_wid}" \
   --test_wid 252 \
   --valid_wid 100 \
@@ -60,7 +60,7 @@ ${python_path} ${cur_path}/lightgbm_alpha.py \
   main
 check_success "csi300"
 
-
+<<comm
 ${python_path} ${cur_path}/lightgbm_alpha.py \
   --provider_uri "${provider_uri}" \
   --uri "${uri}" \
@@ -89,3 +89,4 @@ ${python_path} ${cur_path}/lightgbm_alpha.py \
   --train_wid 800 \
   main
 check_success "csia500"
+comm
