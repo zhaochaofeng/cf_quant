@@ -50,16 +50,19 @@ class ResidualVolEstimator:
             Series(instrument -> omega)
         """
         omega_hist = self._compute_historical_vol(residuals, as_of_date)
+        # 区分老股、新股
         old_stocks, new_stocks = self._classify_stock_age(residuals, as_of_date)
 
         omega_old = omega_hist.loc[omega_hist.index.isin(old_stocks)]
         logger.info(f'老股票 {len(old_stocks)} 只, 新股 {len(new_stocks)} 只')
+        logger.info(f'新股：\n{new_stocks}')
 
         if not new_stocks:
             return omega_old
 
+        # Fix: 仅使用 1天数据，样本数是否太少
         # 为新股预测omega
-        # 取as_of_date当天的行业和市值截面数据
+        # 取 as_of_date 当天的行业和市值截面数据
         as_of_ts = pd.Timestamp(as_of_date)
         try:
             ind_cross = industry_df.xs(as_of_ts, level='datetime')
@@ -68,6 +71,7 @@ class ResidualVolEstimator:
             # 若as_of_date无数据，取最近日期
             dates = industry_df.index.get_level_values('datetime').unique()
             nearest = dates[dates <= as_of_ts].max()
+            logger.warning(f'{as_of_date} 无行业/市值数据，取最近日期：{nearest}')
             ind_cross = industry_df.xs(nearest, level='datetime')
             mv_cross = market_cap_df.xs(nearest, level='datetime')
 
@@ -76,7 +80,7 @@ class ResidualVolEstimator:
         old_in_mv = mv_cross.loc[mv_cross.index.isin(old_stocks)]
         common_old = omega_old.index.intersection(old_in_ind.index).intersection(old_in_mv.index)
 
-        if len(common_old) < 30:
+        if len(common_old) < 50:
             logger.warning(f'老股票样本不足({len(common_old)})，新股omega取中位数')
             median_omega = omega_old.median()
             omega_new = pd.Series(median_omega, index=new_stocks, name='omega')
@@ -259,7 +263,7 @@ class ResidualVolEstimator:
         # 行业哑变量
         dummies = pd.get_dummies(ind, prefix='ind', drop_first=True).astype(float)
 
-        # log(流通市值)，万元单位
+        # log(流通市值)
         log_mv = np.log(mv.astype(float).clip(lower=1)).rename('log_circ_mv')
 
         X = dummies.join(log_mv.to_frame(), how='inner')

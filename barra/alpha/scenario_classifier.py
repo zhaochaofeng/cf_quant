@@ -58,8 +58,8 @@ class ScenarioClassifier:
         dates = dates[dates <= as_of_ts].sort_values()
 
         if len(dates) < self.window:
-            logger.warning(f'情形判断数据不足({len(dates)}<{self.window})，默认Case 1')
-            return 1
+            logger.warning(f'情形判断数据不足({len(dates)}<{self.window})，默认Case 2')
+            return 2
 
         # 取最近window天
         recent_dates = dates[-self.window:]
@@ -73,8 +73,8 @@ class ScenarioClassifier:
         # 对齐omega和ts_std
         common = ts_std.index.intersection(omega.index)
         if len(common) < 30:
-            logger.warning(f'情形判断样本不足({len(common)}<30)，默认Case 1')
-            return 1
+            logger.warning(f'情形判断样本不足({len(common)}<30)，默认Case 2')
+            return 2
 
         ts_std = ts_std.loc[common].values
         omega_vals = omega.loc[common].values

@@ -122,12 +122,14 @@ class AlphaEngine:
         # Step 3: 横截面z-score标准化
         logger.info('Step 2: 横截面z-score标准化...')
         z_cs = self.signal_processor.cross_sectional_zscore(signal_df)
+        z_cs.to_parquet(cache_root / 'z_cs.parquet')
 
         # Step 4: 残差波动率估计
         logger.info('Step 3: 残差波动率估计...')
         omega = self.residual_vol_estimator.estimate_all(
             residuals, industry_df, market_cap_df, calc_date
         )
+        omega.to_frame().to_parquet(cache_root / 'omega.parquet')
 
         # Step 5: 情形判断
         logger.info('Step 4: 情形判断...')
