@@ -33,9 +33,3 @@ VOL_ROLLING_WINDOW = 50
 # 数据源
 SIGNAL_TABLE = 'monitor_return_rate'
 RESIDUALS_PATH = str(PROJECT_ROOT / 'barra/risk_control/output/model/residuals.parquet')
-
-# 输出
-OUTPUT_DIR = str(PROJECT_ROOT / 'barra/alpha/output')
-
-# Qlib
-QLIB_PROVIDER_URI = '~/.qlib/qlib_data/custom_data_hfq'
