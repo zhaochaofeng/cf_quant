@@ -221,7 +221,7 @@ class AlphaOrthogonalizer:
         for j, col in enumerate(y_df.columns):
             y_j = y_df[[col]].copy()
             y_j.columns = ['z_cs']  # ICEstimator期望此列名
-            gamma[j] = ic_est.compute_ic(y_j, residuals, as_of_date)
+            gamma[j] = ic_est.compute_ic(y_j, residuals)
 
         logger.info(f'正交化IC (gamma): {gamma}')
         return gamma
