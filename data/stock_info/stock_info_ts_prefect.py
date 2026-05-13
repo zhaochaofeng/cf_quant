@@ -154,10 +154,9 @@ from prefect import flow
 
 
 @flow(log_prints=True)
-def stock_info_ts_flow(now_date: str = None):
+def stock_info_ts_flow(now_date: str = ''):
     '''Prefect flow: 每日定时拉取股票信息'''
-    if now_date is None:
-        now_date = datetime.now().strftime('%Y-%m-%d')
+    now_date = now_date or datetime.now().strftime('%Y-%m-%d')
     processor = TSStockInfoProcessor(now_date=now_date)
     processor.main()
 
