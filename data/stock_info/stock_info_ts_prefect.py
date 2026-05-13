@@ -156,6 +156,8 @@ from prefect import flow
 @flow(log_prints=True)
 def stock_info_ts_flow(now_date: str = None):
     '''Prefect flow: 每日定时拉取股票信息'''
+    if now_date is None:
+        now_date = datetime.now().strftime('%Y-%m-%d')
     processor = TSStockInfoProcessor(now_date=now_date)
     processor.main()
 
@@ -168,7 +170,7 @@ if __name__ == '__main__':
         from prefect.schedules import Schedule
 
         schedule = Schedule(
-            cron="55 16 * * *",       # 每天 8:30 开盘前更新
+            cron="59 16 * * *",       # 每天 8:30 开盘前更新
             timezone="Asia/Shanghai",
         )
         stock_info_ts_flow.from_source(
