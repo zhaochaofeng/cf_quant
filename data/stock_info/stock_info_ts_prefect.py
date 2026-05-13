@@ -169,7 +169,7 @@ if __name__ == '__main__':
         from prefect.schedules import Schedule
 
         schedule = Schedule(
-            cron="1 17 * * *",       # 每天 8:30 开盘前更新
+            cron="5 17 * * *",       # 每天 8:30 开盘前更新
             timezone="Asia/Shanghai",
         )
         stock_info_ts_flow.from_source(
