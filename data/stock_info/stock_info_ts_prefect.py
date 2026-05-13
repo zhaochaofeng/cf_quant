@@ -150,19 +150,22 @@ class TSStockInfoProcessor(Base):
             raise Exception(error_msg)
 
 
+from prefect import flow
+
+
+@flow(log_prints=True)
+def stock_info_ts_flow(now_date: str = None):
+    '''Prefect flow: 每日定时拉取股票信息'''
+    processor = TSStockInfoProcessor(now_date=now_date)
+    processor.main()
+
+
 if __name__ == '__main__':
     import sys
 
     if '--deploy' in sys.argv:
         # Prefect 部署注册
-        from prefect import flow
         from prefect.schedules import Schedule
-
-        @flow(log_prints=True)
-        def stock_info_ts_flow(now_date: str = None):
-            '''Prefect flow: 每日定时拉取股票信息'''
-            processor = TSStockInfoProcessor(now_date=now_date)
-            processor.main()
 
         schedule = Schedule(
             cron="55 16 * * *",       # 每天 8:30 开盘前更新
