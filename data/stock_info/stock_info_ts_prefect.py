@@ -170,15 +170,12 @@ if __name__ == '__main__':
         from pathlib import Path
 
         schedule = Schedule(
-            cron="10 17 * * *",       # 每天 8:30 开盘前更新
+            cron="30 18 * * *",       # 每天 8:30 开盘前更新
             timezone="Asia/Shanghai",
         )
         stock_info_ts_flow.from_source(
-            # source="https://github.com/zhaochaofeng/cf_quant.git",
-            # source='/Users/chaofeng/code/cf_quant',
             source=str(Path(__file__).parent),
             entrypoint="stock_info_ts_prefect.py:stock_info_ts_flow",
-            # entrypoint="data/stock_info/stock_info_ts_prefect.py:stock_info_ts_flow",
         ).deploy(
             name="stock-info-ts-daily",
             work_pool_name="cf_quant",

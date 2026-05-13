@@ -8,7 +8,8 @@ def my_flow():
 
 if __name__ == '__main__':
     schedule = Schedule(
-        cron="*/1 * * * *"
+        cron="41 16 * * *",
+        timezone="Asia/Shanghai",
     )
     my_flow.from_source(
     source="https://github.com/zhaochaofeng/cf_quant.git",
@@ -16,7 +17,10 @@ if __name__ == '__main__':
     ).deploy(
         name='my-flow-test',
         work_pool_name='cf_quant',   #  指定 work pool
+        schedule=schedule,
     )
+
+
 
 
 
