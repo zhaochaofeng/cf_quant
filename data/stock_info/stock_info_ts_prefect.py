@@ -10,6 +10,11 @@ import pandas as pd
 from data.process_data import Base, ts_api
 from utils import tushare_pro, send_email, is_trade_day
 
+from pathlib import Path
+import sys
+project_dir = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_dir))
+
 feas = {
     'ts_code': 'ts_code',
     'qlib_code': 'ts_code',
