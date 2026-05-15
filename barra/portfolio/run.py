@@ -3,8 +3,11 @@
 """
 import argparse
 import sys
-from pathlib import Path
 
+import qlib
+
+from config import PROVIDER_URI
+from portfolio_engine import PortfolioEngine
 from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -73,38 +76,21 @@ def parse_args():
     parser.add_argument(
         '--output_dir',
         type=str,
-        default=None,
+        default="output",
         help='输出目录'
     )
     
     return parser.parse_args()
 
 
-def get_latest_trade_date() -> str:
-    """获取最新交易日"""
-    from qlib.data import D
-    import pandas as pd
-    
-    # 获取交易日历
-    cal = D.calendar(freq='day')
-    latest = pd.Timestamp(cal[-1])
-    return latest.strftime('%Y-%m-%d')
-
-
 def init_qlib():
-    """初始化Qlib"""
-    import qlib
-    from utils import get_config
-    
-    config = get_config()
-    provider_uri = config.get('qlib', {}).get('provider_uri', '~/.qlib/qlib_data/custom_data_hfq')
-    
-    try:
-        qlib.init(provider_uri=provider_uri)
-        logger.info(f'Qlib初始化成功: provider_uri={provider_uri}')
-    except Exception as e:
-        logger.error(f'Qlib初始化失败: {e}')
-        raise
+    """初始化qlib，注册PTTM自定义操作符"""
+    from utils.qlib_ops import PTTM
+    qlib.init(
+        provider_uri=PROVIDER_URI,
+        custom_ops=[PTTM]
+    )
+    logger.info('Qlib初始化完成 !')
 
 
 def main():
@@ -112,11 +98,7 @@ def main():
     args = parse_args()
     
     # 确定计算日期
-    if args.date:
-        calc_date = args.date
-    else:
-        init_qlib()
-        calc_date = get_latest_trade_date()
+    calc_date = args.date
     
     logger.info(f'计算日期: {calc_date}')
     logger.info(f'组合净值: {args.value:,.0f}元')
@@ -128,17 +110,15 @@ def main():
         init_qlib()
         
         # 导入并创建引擎
-        from portfolio_engine import PortfolioEngine
-        
         engine = PortfolioEngine(
             calc_date=calc_date,
-            output_dir=args.output_dir,
+            output_dir=args.output_dir + f'/{calc_date}',
             risk_aversion=args.risk_aversion,
             max_turnover=args.max_turnover
         )
-        
+
         # 执行优化
-        result = engine.run(
+        engine.run(
             position_input=args.position,
             portfolio_value=args.value,
             use_qp_init=args.use_qp,
