@@ -37,14 +37,7 @@ class NoTradeZoneIterator:
     迭代调整直至收敛。
     """
     
-    def __init__(
-        self,
-        risk_aversion: float = None,
-        buy_cost: Optional[np.ndarray] = None,
-        sell_cost: Optional[np.ndarray] = None,
-        max_iterations: int = None,
-        convergence_threshold: float = None
-    ):
+    def __init__(self):
         """初始化迭代器
         
         Args:
@@ -57,16 +50,12 @@ class NoTradeZoneIterator:
         opt_params = OPTIMIZATION_PARAMS.copy()
         iter_params = ITERATION_PARAMS.copy()
         
-        self.risk_aversion = risk_aversion or opt_params['risk_aversion']
-        self.max_iterations = max_iterations or iter_params['max_iterations']
-        self.convergence_threshold = convergence_threshold or iter_params['convergence_threshold']
-        
-        # 成本向量
-        self.buy_cost_scalar = opt_params['buy_cost_rate']
-        self.sell_cost_scalar = opt_params['sell_cost_rate']
-        self.buy_cost = buy_cost
-        self.sell_cost = sell_cost
-    
+        self.risk_aversion = opt_params['risk_aversion']
+        self.buy_cost = opt_params['buy_cost_rate']
+        self.sell_cost = opt_params['sell_cost_rate']
+        self.max_iterations = iter_params['max_iterations']
+        self.convergence_threshold = iter_params['convergence_threshold']
+
     def iterate(
         self,
         alpha: np.ndarray,
@@ -99,8 +88,8 @@ class NoTradeZoneIterator:
         logger.info(f'开始无交易区域迭代: N={N}, max_iter={self.max_iterations}')
         
         # 处理成本向量
-        c_b = self.buy_cost if self.buy_cost is not None else np.full(N, self.buy_cost_scalar)
-        c_s = self.sell_cost if self.sell_cost is not None else np.full(N, self.sell_cost_scalar)
+        c_b = self.buy_cost
+        c_s = self.sell_cost
         
         # 预计算对角元素（用于单股票调整）
         V_diag = np.diag(V)
@@ -118,7 +107,7 @@ class NoTradeZoneIterator:
         iteration = 0
         
         for iteration in range(1, self.max_iterations + 1):
-            # 计算边际贡献
+            # 计算附加值边际贡献
             mcva = compute_mcva(alpha, V, h, self.risk_aversion)
             
             # 计算调整量
@@ -149,10 +138,11 @@ class NoTradeZoneIterator:
             
             # 检查数值溢出
             if not np.all(np.isfinite(h_new)):
-                logger.warning(f'数值溢出检测，使用前一次有效结果')
-                break
+                err_msg = '数值溢出检测'
+                logger.error(err_msg)
+                raise ValueError(err_msg)
             
-            # 检查收敛
+            # 检查收敛. 新旧头寸向量之间的欧几里得距离
             change = np.linalg.norm(h_new - h)
             
             if change < self.convergence_threshold:

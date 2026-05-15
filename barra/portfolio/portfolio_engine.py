@@ -140,11 +140,10 @@ class PortfolioEngine:
         
         # 准备numpy数组
         alpha = self.data['alpha'].values
-        h_cur = self.data['current_position'].values - self.data['benchmark_weights'].values
         w_b = self.data['benchmark_weights'].values
-        
+        h_cur = self.data['current_position'].values - w_b
+
         # Step 3: 初始解（可选）
-        h_init = None
         if use_qp_init:
             logger.info('Step 3: QP优化求解初始解...')
             try:
@@ -165,11 +164,7 @@ class PortfolioEngine:
         
         # Step 4: 无交易区域迭代
         logger.info('Step 4: 无交易区域迭代...')
-        iterator = NoTradeZoneIterator(
-            risk_aversion=self.params['risk_aversion'],
-            max_iterations=100,
-            convergence_threshold=1e-6
-        )
+        iterator = NoTradeZoneIterator()
         self.iteration_result = iterator.iterate(alpha, self.V, h_cur, w_b, h_init)
         
         # Step 5: 生成交易指令

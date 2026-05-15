@@ -1,10 +1,10 @@
 """
 投资组合优化数据加载模块
 """
-import pandas as pd
-import numpy as np
 from pathlib import Path
 from typing import Optional, Union, Dict, List
+
+import pandas as pd
 
 from barra.portfolio.config import DATA_PATHS
 from utils import LoggerFactory
