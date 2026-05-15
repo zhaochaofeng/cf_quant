@@ -26,7 +26,6 @@ from .config import (
     ITERATION_PARAMS,
     OUTPUT_CONFIG,
     DATA_PATHS,
-    DEFAULT_MARKET,
     DEFAULT_PORTFOLIO_VALUE
 )
 
@@ -43,7 +42,6 @@ __all__ = [
     'ITERATION_PARAMS',
     'OUTPUT_CONFIG',
     'DATA_PATHS',
-    'DEFAULT_MARKET',
     'DEFAULT_PORTFOLIO_VALUE',
     
     # 核心类

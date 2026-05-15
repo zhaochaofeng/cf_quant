@@ -6,8 +6,10 @@ import pandas as pd
 from typing import Dict, Optional, Union
 from dataclasses import dataclass, asdict
 
+from config import BENCHMARK_CONFIG
+
 from barra.portfolio.config import (
-    OPTIMIZATION_PARAMS, OUTPUT_CONFIG, DEFAULT_MARKET, DEFAULT_PORTFOLIO_VALUE
+    OPTIMIZATION_PARAMS, DEFAULT_PORTFOLIO_VALUE
 )
 from barra.portfolio.data_loader import PortfolioDataLoader
 from barra.portfolio.optimizer import QPOptimizer, OptimizationResult
@@ -60,9 +62,8 @@ class PortfolioEngine:
     def __init__(
         self,
         calc_date: str,
-        market: str = DEFAULT_MARKET,
+        market: str = BENCHMARK_CONFIG['market'],
         risk_output_dir: str = None,
-        alpha_output_dir: str = None,
         output_dir: str = None,
         **optimization_params
     ):
@@ -72,7 +73,6 @@ class PortfolioEngine:
             calc_date: 计算日期 'YYYY-MM-DD'
             market: 市场代码
             risk_output_dir: 风险模型输出目录
-            alpha_output_dir: Alpha输出目录
             output_dir: 组合优化输出目录
             **optimization_params: 优化参数（覆盖默认配置）
         """
@@ -86,8 +86,7 @@ class PortfolioEngine:
         # 初始化组件
         self.data_loader = PortfolioDataLoader(
             market=market,
-            risk_output_dir=risk_output_dir,
-            alpha_output_dir=alpha_output_dir
+            risk_output_dir=risk_output_dir
         )
         self.output_manager = PortfolioOutputManager(output_dir=output_dir)
         self.trade_generator = TradeGenerator(

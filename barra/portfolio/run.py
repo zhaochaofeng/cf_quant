@@ -112,6 +112,7 @@ def main():
         # 导入并创建引擎
         engine = PortfolioEngine(
             calc_date=calc_date,
+            risk_output_dir=f'barra/risk_control/output/{calc_date}',
             output_dir=args.output_dir + f'/{calc_date}',
             risk_aversion=args.risk_aversion,
             max_turnover=args.max_turnover

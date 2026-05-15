@@ -6,9 +6,7 @@ import numpy as np
 from pathlib import Path
 from typing import Optional, Union, Dict, List
 
-from barra.portfolio.config import (
-    RISK_OUTPUT_DIR, ALPHA_OUTPUT_DIR, DATA_PATHS, DEFAULT_MARKET
-)
+from barra.portfolio.config import DATA_PATHS
 from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -27,21 +25,18 @@ class PortfolioDataLoader:
     
     def __init__(
         self,
-        market: str = DEFAULT_MARKET,
+        market: str = 'csi300',
         risk_output_dir: Optional[str] = None,
-        alpha_output_dir: Optional[str] = None
     ):
         """初始化数据加载器
         
         Args:
             market: 市场代码，如 'csi300'
             risk_output_dir: 风险模型输出目录
-            alpha_output_dir: Alpha输出目录
-        """
+=        """
         self.market = market
-        self.risk_output_dir = Path(risk_output_dir or RISK_OUTPUT_DIR)
-        self.alpha_output_dir = Path(alpha_output_dir or ALPHA_OUTPUT_DIR)
-        
+        self.risk_output_dir = Path(risk_output_dir)
+
     def load_alpha(self, calc_date: str) -> pd.Series:
         """从MySQL加载Alpha预测值
 
@@ -71,12 +66,12 @@ class PortfolioDataLoader:
         logger.info(f'加载Alpha(MySQL): {len(alpha)}只股票, 日期={calc_date}')
         return alpha
     
-    def load_risk_model(self, calc_date: str = None) -> Dict[str, Union[pd.DataFrame, pd.Series]]:
+    def load_risk_model(self, calc_date: str) -> Dict[str, Union[pd.DataFrame, pd.Series]]:
         """加载风险模型数据
-        
+
         Args:
             calc_date: 计算日期（用于提取对应日期的因子暴露）
-            
+
         Returns:
             {
                 'exposure': DataFrame(index=instrument, columns=factors),
@@ -88,67 +83,34 @@ class PortfolioDataLoader:
         exposure_path = self.risk_output_dir / DATA_PATHS['exposure']
         if not exposure_path.exists():
             raise FileNotFoundError(f'因子暴露文件不存在: {exposure_path}')
-        
+
         exposure_df = pd.read_parquet(exposure_path)
-        
-        # 提取指定日期的数据（MultiIndex: instrument, datetime）
-        if isinstance(exposure_df.index, pd.MultiIndex):
-            if calc_date is not None:
-                # 使用指定日期
-                try:
-                    exposure_df = exposure_df.xs(calc_date, level='datetime')
-                    logger.info(f'因子暴露提取日期: {calc_date}')
-                except KeyError:
-                    # 如果指定日期不存在，使用最新日期
-                    latest_date = exposure_df.index.get_level_values('datetime').max()
-                    exposure_df = exposure_df.xs(latest_date, level='datetime')
-                    logger.warning(f'指定日期{calc_date}不存在，使用最新日期: {latest_date}')
-                    calc_date = str(latest_date)
-            else:
-                # 使用最新日期
-                latest_date = exposure_df.index.get_level_values('datetime').max()
-                exposure_df = exposure_df.xs(latest_date, level='datetime')
-                logger.info(f'因子暴露提取日期: {latest_date}')
-        
+        # MultiIndex (instrument, datetime)，提取指定日期
+        exposure_df = exposure_df.xs(calc_date, level='datetime')
+
         # 加载因子协方差矩阵
         factor_cov_path = self.risk_output_dir / DATA_PATHS['factor_cov']
         if not factor_cov_path.exists():
             raise FileNotFoundError(f'因子协方差文件不存在: {factor_cov_path}')
-        
+
         factor_cov_df = pd.read_parquet(factor_cov_path)
-        
+
         # 加载特异风险
         specific_risk_path = self.risk_output_dir / DATA_PATHS['specific_risk']
         if not specific_risk_path.exists():
             raise FileNotFoundError(f'特异风险文件不存在: {specific_risk_path}')
-        
-        specific_risk_df = pd.read_parquet(specific_risk_path)
-        
-        # 转换为Series（提取对角元素）
-        if isinstance(specific_risk_df, pd.DataFrame):
-            # 如果是对角矩阵格式，提取对角元素
-            if specific_risk_df.shape[0] == specific_risk_df.shape[1]:
-                specific_risk = pd.Series(
-                    specific_risk_df.values.diagonal(),
-                    index=specific_risk_df.index,
-                    name='specific_var'
-                )
-            else:
-                # 否则取第一列
-                specific_risk = specific_risk_df.iloc[:, 0]
-        else:
-            specific_risk = specific_risk_df
-            specific_risk.name = 'specific_var'
-        
+
+        specific_risk = pd.read_parquet(specific_risk_path).iloc[:, 0]
+        specific_risk.name = 'specific_var'
+
         logger.info(f'加载风险模型: exposure={exposure_df.shape}, '
                    f'factor_cov={factor_cov_df.shape}, '
                    f'specific_risk={len(specific_risk)}')
-        
+
         return {
             'exposure': exposure_df,
             'factor_cov': factor_cov_df,
             'specific_risk': specific_risk,
-            'calc_date': calc_date
         }
     
     def load_benchmark_weights(self, calc_date: str) -> pd.Series:
@@ -311,7 +273,7 @@ class PortfolioDataLoader:
         risk_model = self.load_risk_model(calc_date)
         exposure = risk_model['exposure']
         factor_cov = risk_model['factor_cov']
-        specific_risk = risk_model['specific_risk']
+        specific_risk = risk_model['specific_risk']  # Series
         
         # 3. 加载基准权重（使用相同的calc_date）
         benchmark_weights = self.load_benchmark_weights(calc_date)
@@ -356,6 +318,7 @@ class PortfolioDataLoader:
         logger.info('数据加载与对齐完成')
         logger.info('=' * 50)
 
+        # 每个元素都独立，仅总体 instrument 索引对齐
         align_data = {
             'instruments': common_instruments,
             'alpha': aligned_alpha,
@@ -365,7 +328,7 @@ class PortfolioDataLoader:
             'benchmark_weights': aligned_benchmark,
             'current_position': aligned_position,
             'prices': aligned_prices,
-            'calc_date': risk_model['calc_date']
+            'calc_date': calc_date
         }
         # logger.info(align_data)
         return align_data

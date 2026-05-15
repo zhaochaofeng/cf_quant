@@ -1,13 +1,6 @@
 """
 投资组合优化配置模块
 """
-from pathlib import Path
-
-# 基础路径
-BASE_DIR = Path(__file__).parent.parent.parent
-OUTPUT_DIR = BASE_DIR / 'barra' / 'portfolio' / 'output'
-RISK_OUTPUT_DIR = BASE_DIR / 'barra' / 'risk_control' / 'output'
-ALPHA_OUTPUT_DIR = BASE_DIR / 'barra' / 'alpha' / 'output'
 
 # 优化参数
 OPTIMIZATION_PARAMS = {
@@ -27,7 +20,7 @@ ITERATION_PARAMS = {
 
 # 输出配置
 OUTPUT_CONFIG = {
-    'output_dir': str(OUTPUT_DIR),
+    'output_dir': "output",
     'trade_order_filename': 'trade_order_{date}.parquet',
     'position_filename': 'portfolio_position_{date}.parquet',
     'log_filename': 'optimization_log_{date}.parquet',
@@ -39,12 +32,8 @@ OUTPUT_CONFIG = {
 DATA_PATHS = {
     'exposure': 'debug/exposure_matrix.parquet',
     'factor_cov': 'model/factor_covariance.parquet',
-    'specific_risk': 'model/specific_risk.parquet',
-    'alpha': 'alpha_{date}.parquet',
+    'specific_risk': 'model/specific_risk.parquet'
 }
-
-# 默认市场
-DEFAULT_MARKET = 'csi300'
 
 # 默认组合净值（元）
 DEFAULT_PORTFOLIO_VALUE = 1e8
