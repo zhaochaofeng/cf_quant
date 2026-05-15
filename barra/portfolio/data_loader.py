@@ -43,30 +43,32 @@ class PortfolioDataLoader:
         self.alpha_output_dir = Path(alpha_output_dir or ALPHA_OUTPUT_DIR)
         
     def load_alpha(self, calc_date: str) -> pd.Series:
-        """加载Alpha预测值
-        
+        """从MySQL加载Alpha预测值
+
         Args:
             calc_date: 计算日期，如 '2026-03-28'
-            
+
         Returns:
             Series(index=instrument, name='alpha')
         """
-        date_str = calc_date.replace('-', '')
-        filepath = self.alpha_output_dir / DATA_PATHS['alpha'].format(date=date_str)
-        
-        if not filepath.exists():
-            raise FileNotFoundError(f'Alpha文件不存在: {filepath}')
-        
-        df = pd.read_parquet(filepath)
-        
-        # 确保index为instrument
-        if 'instrument' in df.columns:
-            df = df.set_index('instrument')
-        
-        alpha = df['alpha'] if 'alpha' in df.columns else df.iloc[:, 0]
+        from utils import sql_engine
+
+        engine = sql_engine()
+        sql = """
+            SELECT qlib_code AS instrument, alpha
+            FROM alpha
+            WHERE day = %(calc_date)s
+        """
+        df = pd.read_sql(sql, engine, params={'calc_date': calc_date})
+
+        if df.empty:
+            raise FileNotFoundError(f'Alpha数据不存在: calc_date={calc_date}')
+
+        df = df.set_index('instrument')
+        alpha = df['alpha']
         alpha.name = 'alpha'
-        
-        logger.info(f'加载Alpha: {len(alpha)}只股票, 文件={filepath.name}')
+
+        logger.info(f'加载Alpha(MySQL): {len(alpha)}只股票, 日期={calc_date}')
         return alpha
     
     def load_risk_model(self, calc_date: str = None) -> Dict[str, Union[pd.DataFrame, pd.Series]]:

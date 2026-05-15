@@ -19,10 +19,10 @@ import pandas as pd
 from utils import sql_engine
 engine = sql_engine()
 sql = ''' 
-    select qlib_code as instrument, day as datetime, alpha from alpha where day='2026-05-08';
+    select qlib_code as instrument, alpha from alpha where day='2026-05-08';
 '''
 df = pd.read_sql(sql, engine)
-df.set_index(['instrument', 'datetime'], inplace=True)
+df.set_index(['instrument'], inplace=True)
 ```
 - **风险模型**：多因子模型 \(V = X F X^T + \Delta\)
   - \(X \in \mathbb{R}^{N \times K}\)：因子暴露矩阵
