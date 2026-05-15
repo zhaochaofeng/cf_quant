@@ -1,6 +1,6 @@
 # 主动投资组合构建工程化设计文档
 
-## 1. 输入参数
+## 1. 输入数据
 
 - **股票池**：\(N\) 只股票，基准权重向量 \(w_b \in \mathbb{R}^N\)（基准外股票权重为0），基准为沪深300指数(csi300)，股票n的权重=股票n的流通市值/指数所有股票流通市值之和。数据获取方式：
 ```python
@@ -14,8 +14,15 @@ df = D.features(instruments, fields=['$circ_mv', '$close'], start_time='2025-01-
 - **当前持仓**：\(w_{\text{cur}}\)，默认 w_{\text{cur}} 是一个长度与w_b相同的零向量。作为输入参数，表示当前的股票持仓权重。
 - **初始金额**：\(\text{PortfolioValue}\)，默认为1亿元。作为输入参数，表示初始的组合资产净值。
 - **阿尔法**：\(\alpha \in \mathbb{R}^N\)，由预测模型提供，获取方式：
-```
-    直接读取：barra/alpha/output/alpha_{%Y%m%d}.parquet
+```python
+import pandas as pd
+from utils import sql_engine
+engine = sql_engine()
+sql = ''' 
+    select qlib_code as instrument, day as datetime, alpha from alpha where day='2026-05-08';
+'''
+df = pd.read_sql(sql, engine)
+df.set_index(['instrument', 'datetime'], inplace=True)
 ```
 - **风险模型**：多因子模型 \(V = X F X^T + \Delta\)
   - \(X \in \mathbb{R}^{N \times K}\)：因子暴露矩阵
@@ -23,11 +30,11 @@ df = D.features(instruments, fields=['$circ_mv', '$close'], start_time='2025-01-
   - \(\Delta = \text{diag}(\sigma^2_1,\dots,\sigma^2_N)\)：特异风险方差对角阵
 ```
     数据获取方式：读取文件
-    X: barra/risk_control/output/debug/exposure_matrix.parquet
-    F: barra/risk_control/output/model/factor_covariance.parquet
-    Delta: barra/risk_control/output/model/specific_risk.parquet
+    X: barra/risk_control/output/{dt}/debug/exposure_matrix.parquet
+    F: barra/risk_control/output/{dt}/model/factor_covariance.parquet
+    Delta: barra/risk_control/output/{dt}/model/specific_risk.parquet
 ```
-- **风险厌恶系数**：\(\lambda\)（以百分数单位，例如 \(\lambda=0.05\) 对应目标主动风险5%）。作为输入参数
+- **风险厌恶系数**：\(\lambda\)（以百分数为单位，例如 \(\lambda=0.05\) 对应目标主动风险5%）。作为输入参数
 - **交易成本**：
   - 买入成本率 \(c_b\)（如0.03%），卖出成本率 \(c_s\)（如0.13%），c_b和c_s 都是长度为N的常向量。作为输入参数
 - **当前主动头寸**：\(h_{\text{cur}} = w_{\text{cur}} - w_b\)，已知
@@ -87,7 +94,7 @@ df = D.features(instruments, fields=['$circ_mv', '$close'], start_time='2025-01-
 求解上述QP，得到：
 - 理论最优主动头寸 \(h^*\)
 - 对应的主动风险 \(\psi^* = \sqrt{h^{*T} V h^*}\)
-- 边际贡献 \(MCVA_n^* = \alpha_n - 2\lambda (V h^*)_n\)
+- 附加值边际贡献 \(MCVA_n^* = \alpha_n - 2\lambda (V h^*)_n\)
 
 此时 \(h^*\) 是假设成本为线性的条件下的最优解。在实际交易中，可以包含如下情况：
  - 交易成本可能包含固定部分（如最低佣金5元）
@@ -116,7 +123,8 @@ MCVA_n(h) = \alpha_n - 2\lambda (V h)_n
 - 若 \(MCVA_n^{\text{cur}} < -SC_n\)：需卖出，调整至边界 \(MCVA_n = -SC_n\)
 
 ### 4.3 边界头寸的线性近似（单股票调整）
-假设只调整股票 \(n\)，其他股票头寸固定，则 \(MCVA_n\) 对 \(h_n\) 是线性的：
+目的：持仓调整 与 附加值边际贡献 的动态关系。  
+假设只调整股票 \(n\)，其他股票头寸固定，则 \(MCVA_n\) 对 \(h_n\) 是线性的。
 \[
 MCVA_n(h_n) = MCVA_n^{\text{cur}} - 2\lambda V_{nn} (h_n - h_{\text{cur},n})
 \]
@@ -183,7 +191,7 @@ MCVA_n(h_n) = \alpha_n - 2\lambda (V_{nn} h_n + C_n)
 
 ---
 
-#### 4. 当前状态的边际贡献
+#### 4. 当前状态的附加值边际贡献
 
 在当前头寸 \(h_n = h_{\text{cur},n}\) 下：
 
@@ -210,7 +218,7 @@ MCVA_n(h_n) - MCVA_n^{\text{cur}} &= \left[ \alpha_n - 2\lambda (V_{nn} h_n + C_
 MCVA_n(h_n) = MCVA_n^{\text{cur}} - 2\lambda V_{nn} (h_n - h_{\text{cur},n})
 \]
 
-这就是图片中的线性关系。
+这就是\(MCVA_n\) 对 \(h_n\) 的线性关系。
 
 ---
 
@@ -355,7 +363,7 @@ h_n^{\text{target}} = h_{\text{cur},n} + \frac{MCVA_n^{\text{cur}} + SC_n}{2\lam
    \end{aligned}
    \]
    
-   每轮迭代结束后，施加现金中性约束：
+   每轮迭代结束后，施加现金中性约束（低配某些股票的钱全部用来高配另一些股票），保证\sum_{n=1}^{N} h_{n}=0，即：
    \[
    h \leftarrow h - \frac{1}{N}\sum_{n=1}^N h_n
    \]
@@ -380,6 +388,8 @@ h_n^{\text{target}} = h_{\text{cur},n} + \frac{MCVA_n^{\text{cur}} + SC_n}{2\lam
      \[
      \text{交易金额} = |\Delta h_n| \times \text{净值}, \quad \text{交易股数} = \frac{\text{交易金额}}{P_n}
      \]
+
+    其中，净值是指 股票持仓市值与现金之和
 
 ## 7. 注意事项
 - 计算过程对齐索引 
