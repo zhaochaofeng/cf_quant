@@ -17,77 +17,6 @@ from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
 
-
-def parse_args():
-    """解析命令行参数"""
-    parser = argparse.ArgumentParser(
-        description='主动投资组合优化'
-    )
-    
-    parser.add_argument(
-        '--date',
-        type=str,
-        default=None,
-        help='计算日期 (YYYY-MM-DD)，默认为最新交易日'
-    )
-    
-    parser.add_argument(
-        '--position',
-        type=str,
-        default='zero',
-        help='当前持仓输入: zero/dict/CSV路径'
-    )
-    
-    parser.add_argument(
-        '--value',
-        type=float,
-        default=1e8,
-        help='组合净值（元），默认1亿'
-    )
-    
-    parser.add_argument(
-        '--risk_aversion',
-        type=float,
-        default=0.05,
-        help='风险厌恶系数，默认0.05'
-    )
-    
-    parser.add_argument(
-        '--max_turnover',
-        type=float,
-        default=0.10,
-        help='换手率上限，默认0.10'
-    )
-    
-    parser.add_argument(
-        '--use_qp',
-        action='store_true',
-        help='是否使用QP优化作为初始解'
-    )
-    
-    parser.add_argument(
-        '--save_mysql',
-        action='store_true',
-        help='是否保存到MySQL'
-    )
-    
-    parser.add_argument(
-        '--portfolio',
-        type=str,
-        default='default',
-        help='组合名称'
-    )
-    
-    parser.add_argument(
-        '--output_dir',
-        type=str,
-        default="output",
-        help='输出目录'
-    )
-    
-    return parser.parse_args()
-
-
 def init_qlib():
     """初始化qlib，注册PTTM自定义操作符"""
     from utils.qlib_ops import PTTM
@@ -96,6 +25,21 @@ def init_qlib():
         custom_ops=[PTTM]
     )
     logger.info('Qlib初始化完成 !')
+
+
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description='主动投资组合优化')
+    parser.add_argument('--date', type=str, default=None, help='计算日期 (YYYY-MM-DD)，默认为最新交易日')
+    parser.add_argument('--position', type=str, default='zero', help='当前持仓输入: zero/dict/CSV路径')
+    parser.add_argument('--value', type=float, default=1e8, help='组合净值（元），默认1亿')
+    parser.add_argument('--risk_aversion', type=float, default=0.05, help='风险厌恶系数，默认0.05')
+    parser.add_argument('--max_turnover', type=float, default=0.10, help='换手率上限，默认0.10')
+    parser.add_argument('--use_qp', action='store_true', help='是否使用QP优化作为初始解')
+    parser.add_argument('--save_mysql', action='store_true', help='是否保存到MySQL')
+    parser.add_argument('--portfolio', type=str, default='default', help='组合名称')
+    parser.add_argument('--output_dir', type=str, default='output', help='输出目录')
+    return parser.parse_args()
 
 
 def main():
