@@ -5,7 +5,7 @@ import os
 
 import numpy as np
 import pandas as pd
-from typing import Dict, Optional, Union
+from typing import Optional
 from dataclasses import dataclass, asdict
 
 from config import BENCHMARK_CONFIG
@@ -67,19 +67,22 @@ class PortfolioEngine:
         market: str = BENCHMARK_CONFIG['market'],
         risk_output_dir: str = None,
         output_dir: str = None,
+        portfolio_name: str = 'default',
         **optimization_params
     ):
         """初始化引擎
-        
+
         Args:
             calc_date: 计算日期 'YYYY-MM-DD'
             market: 市场代码
             risk_output_dir: 风险模型输出目录
             output_dir: 组合优化输出目录
+            portfolio_name: 组合名称
             **optimization_params: 优化参数（覆盖默认配置）
         """
         self.calc_date = calc_date
         self.market = market
+        self.portfolio_name = portfolio_name
         
         # 合并优化参数
         self.params = OPTIMIZATION_PARAMS.copy()
@@ -88,7 +91,8 @@ class PortfolioEngine:
         # 初始化组件
         self.data_loader = PortfolioDataLoader(
             market=market,
-            risk_output_dir=risk_output_dir
+            risk_output_dir=risk_output_dir,
+            portfolio_name=portfolio_name
         )
         self.output_manager = PortfolioOutputManager(output_dir=output_dir)
         self.trade_generator = TradeGenerator(
@@ -104,21 +108,19 @@ class PortfolioEngine:
         
     def run(
         self,
-        position_input: Union[str, Dict, pd.Series] = 'zero',
+        position_input: str = 'zero',
         portfolio_value: float = DEFAULT_PORTFOLIO_VALUE,
         use_qp_init: bool = False,
         save_to_mysql: bool = False,
-        portfolio_name: str = 'default'
     ) -> PortfolioResult:
         """执行完整优化流程
-        
+
         Args:
             position_input: 当前持仓输入
             portfolio_value: 组合净值（元）
             use_qp_init: 是否用QP解作为迭代初始值
             save_to_mysql: 是否保存到MySQL
-            portfolio_name: 组合名称
-            
+
         Returns:
             PortfolioResult: 优化结果
         """
@@ -211,7 +213,7 @@ class PortfolioEngine:
         # 保存到MySQL
         if save_to_mysql:
             self.output_manager.save_to_mysql(
-                position, self.calc_date, portfolio_name
+                position, self.calc_date, self.portfolio_name
             )
         
         # 构建结果

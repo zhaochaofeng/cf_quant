@@ -2,7 +2,7 @@
 投资组合优化数据加载模块
 """
 from pathlib import Path
-from typing import Optional, Union, Dict, List
+from typing import Optional, Union, List, Dict
 
 import pandas as pd
 
@@ -27,15 +27,18 @@ class PortfolioDataLoader:
         self,
         market: str = 'csi300',
         risk_output_dir: Optional[str] = None,
+        portfolio_name: str = 'default',
     ):
         """初始化数据加载器
-        
+
         Args:
             market: 市场代码，如 'csi300'
             risk_output_dir: 风险模型输出目录
-=        """
+            portfolio_name: 组合名称
+        """
         self.market = market
         self.risk_output_dir = Path(risk_output_dir)
+        self.portfolio_name = portfolio_name
 
     def load_alpha(self, calc_date: str) -> pd.Series:
         """从MySQL加载Alpha预测值
@@ -149,22 +152,15 @@ class PortfolioDataLoader:
     
     def load_current_position(
         self,
-        calc_date: str,
-        position_input: Union[str, Dict, pd.Series] = 'zero',
-        instruments: Optional[pd.Index] = None
+        position_input: str = 'zero',
+        instruments: Optional[List[str]] = None
     ) -> pd.Series:
         """加载当前持仓
-        
+
         Args:
-            calc_date: 计算日期
-            position_input: 持仓输入，支持：
-                - 'zero': 零持仓
-                - 'mysql': 从MySQL读取
-                - dict: {instrument: weight}
-                - pd.Series: 直接使用
-                - str(CSV路径): 从CSV读取
-            instruments: 股票代码索引（用于对齐）
-            
+            position_input: 持仓输入，'zero'（零持仓）或 'mysql'（从MySQL读取）
+            instruments: 股票代码索引（用于对齐，zero模式需要）
+
         Returns:
             Series(index=instrument, name='weight')
         """
@@ -174,37 +170,30 @@ class PortfolioDataLoader:
                 raise ValueError('零持仓模式需要提供instruments参数')
             position = pd.Series(0.0, index=instruments, name='weight')
             logger.info('当前持仓: 零持仓')
-            
+
         elif position_input == 'mysql':
-            # 从MySQL读取（TODO: 实现数据库读取）
-            raise NotImplementedError('MySQL持仓读取尚未实现')
-            
-        elif isinstance(position_input, pd.Series):
-            # 直接使用Series
-            position = position_input.copy()
+            # 从MySQL读取最新持仓
+            from utils import sql_engine
+            engine = sql_engine()
+            sql = """
+                SELECT qlib_code AS instrument, total_weight, day
+                FROM portfolio
+                WHERE portfolio = %(portfolio)s
+                  AND day = (
+                      SELECT MAX(day) FROM portfolio WHERE portfolio = %(portfolio)s
+                  )
+            """
+            df = pd.read_sql(sql, engine, params={'portfolio': self.portfolio_name})
+            latest_day = df['day'].iloc[0] if not df.empty else 'N/A'
+            position = df.set_index('instrument')['total_weight']
             position.name = 'weight'
-            logger.info(f'当前持仓: {len(position)}只股票（Series输入）')
-            
-        elif isinstance(position_input, dict):
-            # 字典转Series
-            position = pd.Series(position_input, name='weight')
-            position.index.name = 'instrument'
-            logger.info(f'当前持仓: {len(position)}只股票（字典输入）')
-            
-        elif isinstance(position_input, str) and position_input.endswith('.csv'):
-            # 从CSV读取
-            df = pd.read_csv(position_input)
-            if 'instrument' in df.columns and 'weight' in df.columns:
-                position = df.set_index('instrument')['weight']
-            else:
-                position = df.iloc[:, 1]
-                position.index = df.iloc[:, 0]
-            position.name = 'weight'
-            logger.info(f'当前持仓: {len(position)}只股票（CSV输入）')
-            
+            logger.info(f'当前持仓(MySQL): {len(position)}只股票, '
+                       f'portfolio={self.portfolio_name}, '
+                       f'latest_day={latest_day}')
+
         else:
-            raise ValueError(f'不支持的持仓输入类型: {type(position_input)}')
-        
+            raise ValueError(f'不支持的持仓输入: {position_input}')
+
         return position
     
     def load_stock_prices(
@@ -296,9 +285,9 @@ class PortfolioDataLoader:
         aligned_specific_risk = specific_risk.reindex(common_instruments)
         aligned_benchmark = benchmark_weights.reindex(common_instruments, fill_value=0.0)
         
-        # 6. 加载当前持仓并对其
+        # 6. 加载当前持仓并对齐
         current_position = self.load_current_position(
-            calc_date, position_input, common_instruments
+            position_input, common_instruments
         )
         aligned_position = current_position.reindex(common_instruments, fill_value=0.0)
         
