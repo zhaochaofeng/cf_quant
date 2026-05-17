@@ -2,22 +2,20 @@
 投资组合优化主引擎
 """
 import os
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from typing import Optional
-from dataclasses import dataclass, asdict
-
-from config import BENCHMARK_CONFIG
 
 from barra.portfolio.config import (
     OPTIMIZATION_PARAMS, DEFAULT_PORTFOLIO_VALUE
 )
 from barra.portfolio.data_loader import PortfolioDataLoader
-from barra.portfolio.optimizer import QPOptimizer, OptimizationResult
-from barra.portfolio.no_trade_zone import NoTradeZoneIterator, IterationResult, build_asset_covariance
-from barra.portfolio.trade_generator import TradeGenerator
+from barra.portfolio.no_trade_zone import NoTradeZoneIterator, build_asset_covariance
+from barra.portfolio.optimizer import QPOptimizer
 from barra.portfolio.output import PortfolioOutputManager
+from barra.portfolio.trade_generator import TradeGenerator
+from config import BENCHMARK_CONFIG
 from utils import LoggerFactory, PickleIO
 
 logger = LoggerFactory.get_logger(__name__)

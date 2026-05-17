@@ -2,6 +2,9 @@
 投资组合优化配置模块
 """
 
+# 默认组合净值（元）
+DEFAULT_PORTFOLIO_VALUE = 1e8
+
 # 优化参数
 OPTIMIZATION_PARAMS = {
     'risk_aversion': 0.05,           # λ，风险厌恶系数（百分数单位）
@@ -28,12 +31,10 @@ OUTPUT_CONFIG = {
     'encoding': 'utf-8',
 }
 
-# 数据路径配置
+# risk_control 数据路径配置
 DATA_PATHS = {
     'exposure': 'debug/exposure_matrix.parquet',
     'factor_cov': 'model/factor_covariance.parquet',
     'specific_risk': 'model/specific_risk.parquet'
 }
 
-# 默认组合净值（元）
-DEFAULT_PORTFOLIO_VALUE = 1e8
