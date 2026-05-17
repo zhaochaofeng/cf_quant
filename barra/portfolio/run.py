@@ -6,9 +6,6 @@ from pathlib import Path
 project_root = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, project_root)
 
-import os
-os.chdir(project_root)
-
 import argparse
 import sys
 
@@ -120,7 +117,7 @@ def main():
         # 导入并创建引擎
         engine = PortfolioEngine(
             calc_date=calc_date,
-            risk_output_dir=f'barra/risk_control/output/{calc_date}',
+            risk_output_dir=f'{project_root}/barra/risk_control/output/{calc_date}',
             output_dir=args.output_dir + f'/{calc_date}',
             risk_aversion=args.risk_aversion,
             max_turnover=args.max_turnover

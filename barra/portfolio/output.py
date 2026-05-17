@@ -39,14 +39,12 @@ class PortfolioOutputManager:
         self,
         trade_orders: pd.DataFrame,
         calc_date: str,
-        filename: Optional[str] = None
     ) -> str:
         """保存交易指令
         
         Args:
             trade_orders: 交易指令DataFrame
             calc_date: 计算日期
-            filename: 自定义文件名
             
         Returns:
             保存的文件路径
@@ -62,11 +60,7 @@ class PortfolioOutputManager:
                 df[col] = df[col].round(self.float_precision)
         
         # 生成文件名
-        if filename is None:
-            date_str = calc_date.replace('-', '')
-            filename = OUTPUT_CONFIG['trade_order_filename'].format(date=date_str)
-        
-        filepath = self.output_dir / filename
+        filepath = self.output_dir / OUTPUT_CONFIG['trade_order_filename']
         
         # 保存parquet
         df.to_parquet(filepath, index=False)
