@@ -87,10 +87,10 @@ class NoTradeZoneIterator:
         N = len(alpha)
         logger.info(f'开始无交易区域迭代: N={N}, max_iter={self.max_iterations}')
         
-        # 处理成本向量
-        c_b = self.buy_cost
-        c_s = self.sell_cost
-        
+        # 处理成本向量（广播为数组）
+        c_b = np.full(N, self.buy_cost)
+        c_s = np.full(N, self.sell_cost)
+
         # 预计算对角元素（用于单股票调整）
         V_diag = np.diag(V)
         # 避免除零
