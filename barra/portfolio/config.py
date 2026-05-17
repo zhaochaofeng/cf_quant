@@ -21,9 +21,9 @@ ITERATION_PARAMS = {
 # 输出配置
 OUTPUT_CONFIG = {
     'output_dir': "output",
-    'trade_order_filename': 'trade_order_{date}.parquet',
-    'position_filename': 'portfolio_position_{date}.parquet',
-    'log_filename': 'optimization_log_{date}.parquet',
+    'trade_order_filename': 'trade_order.parquet',
+    'position_filename': 'portfolio_position.parquet',
+    'log_filename': 'optimization_log.parquet',
     'float_precision': 6,
     'encoding': 'utf-8',
 }
