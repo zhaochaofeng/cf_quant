@@ -11,9 +11,10 @@ import sys
 
 import qlib
 
+import traceback
 from config import PROVIDER_URI
 from portfolio_engine import PortfolioEngine
-from utils import LoggerFactory
+from utils import LoggerFactory, send_email
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -78,15 +79,11 @@ def main():
         
         logger.info('投资组合优化完成')
         return 0
-        
-    except FileNotFoundError as e:
-        logger.error(f'文件不存在: {e}')
-        return 1
-    except ValueError as e:
-        logger.error(f'参数错误: {e}')
-        return 1
+
     except Exception as e:
-        logger.error(f'运行失败: {e}', exc_info=True)
+        err_msg = traceback.format_exc()
+        logger.error(err_msg)
+        send_email('主动投资组合优化运行失败', err_msg)
         return 1
 
 
