@@ -117,7 +117,7 @@ class PortfolioDataLoader:
         }
     
     def load_benchmark_weights(self, calc_date: str) -> pd.Series:
-        """计算基准权重（沪深300成分股流通市值加权）
+        """计算基准权重（沪深300成分股流通市值 占比）
         
         Args:
             calc_date: 计算日期
@@ -184,7 +184,7 @@ class PortfolioDataLoader:
                   )
             """
             df = pd.read_sql(sql, engine, params={'portfolio': self.portfolio_name})
-            latest_day = df['day'].iloc[0] if not df.empty else 'N/A'
+            latest_day = df['day'].iloc[0]
             position = df.set_index('instrument')['total_weight']
             position.name = 'weight'
             logger.info(f'当前持仓(MySQL): {len(position)}只股票, '
@@ -242,14 +242,14 @@ class PortfolioDataLoader:
             
         Returns:
             {
-                'instruments': Index, 股票代码
-                'alpha': Series,
-                'exposure': DataFrame,
-                'factor_cov': DataFrame,
-                'specific_risk': Series,
-                'benchmark_weights': Series,
-                'current_position': Series,
-                'prices': Series
+                'instruments': Index,         股票代码
+                'alpha': Series,              Alpha 值
+                'exposure': DataFrame,        因子曝光数据。N * K
+                'factor_cov': DataFrame,      因子收益率相关矩阵 K * K
+                'specific_risk': Series,      特异风险矩阵 Delta N * N
+                'benchmark_weights': Series,  基准权重
+                'current_position': Series,   当前持仓
+                'prices': Series              股票价格
             }
         """
         logger.info('=' * 50)
@@ -284,6 +284,7 @@ class PortfolioDataLoader:
         aligned_factor_cov = factor_cov
         aligned_specific_risk = specific_risk.reindex(common_instruments)
         aligned_benchmark = benchmark_weights.reindex(common_instruments, fill_value=0.0)
+        aligned_benchmark = aligned_benchmark / aligned_benchmark.sum()    # 权重归一化
         
         # 6. 加载当前持仓并对齐
         current_position = self.load_current_position(
