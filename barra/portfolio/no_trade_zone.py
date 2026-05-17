@@ -38,23 +38,15 @@ class NoTradeZoneIterator:
     """
     
     def __init__(self):
-        """初始化迭代器
-        
-        Args:
-            risk_aversion: 风险厌恶系数 λ
-            buy_cost: 买入成本率向量 c_b
-            sell_cost: 卖出成本率向量 c_s
-            max_iterations: 最大迭代次数
-            convergence_threshold: 收敛阈值
-        """
+        """ 初始化迭代器 """
         opt_params = OPTIMIZATION_PARAMS.copy()
         iter_params = ITERATION_PARAMS.copy()
         
-        self.risk_aversion = opt_params['risk_aversion']
-        self.buy_cost = opt_params['buy_cost_rate']
-        self.sell_cost = opt_params['sell_cost_rate']
-        self.max_iterations = iter_params['max_iterations']
-        self.convergence_threshold = iter_params['convergence_threshold']
+        self.risk_aversion = opt_params['risk_aversion']     # 风险厌恶系数 λ
+        self.buy_cost = opt_params['buy_cost_rate']          # 买入成本率向量 c_b
+        self.sell_cost = opt_params['sell_cost_rate']        # 卖出成本率向量 c_s
+        self.max_iterations = iter_params['max_iterations']  # 最大迭代次数
+        self.convergence_threshold = iter_params['convergence_threshold']  # 收敛阈值
 
     def iterate(
         self,
@@ -138,12 +130,14 @@ class NoTradeZoneIterator:
             
             # 检查数值溢出
             if not np.all(np.isfinite(h_new)):
-                err_msg = '数值溢出检测'
+                err_msg = '数值溢出 !!!'
                 logger.error(err_msg)
                 raise ValueError(err_msg)
             
             # 检查收敛. 新旧头寸向量之间的欧几里得距离
-            change = np.linalg.norm(h_new - h)
+            change = np.linalg.norm(delta_h)
+            if iteration % 10 == 0:
+                logger.info(f'迭代: iter={iteration}, change={change:.2e}')
             
             if change < self.convergence_threshold:
                 converged = True
@@ -154,7 +148,8 @@ class NoTradeZoneIterator:
         
         if not converged:
             logger.warning(f'迭代未收敛: iter={iteration}, change={change:.2e}')
-        
+
+
         # 最终计算
         mcva_final = compute_mcva(alpha, V, h, self.risk_aversion)
         active_risk = np.sqrt(h @ V @ h)

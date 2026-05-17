@@ -150,6 +150,7 @@ class PortfolioEngine:
         h_cur = self.data['current_position'].values - w_b
 
         # Step 3: 初始解（可选）
+        h_init = None
         if use_qp_init:
             logger.info('Step 3: QP优化求解初始解...')
             try:
@@ -164,9 +165,6 @@ class PortfolioEngine:
             except Exception as e:
                 logger.warning(f'QP优化失败，使用当前持仓作为初始值: {e}')
                 h_init = h_cur.copy()
-        else:
-            logger.info('Step 3: 跳过QP优化，使用当前持仓作为初始值')
-            h_init = h_cur.copy()
         
         # Step 4: 无交易区域迭代
         logger.info('Step 4: 无交易区域迭代...')
