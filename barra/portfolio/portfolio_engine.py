@@ -1,6 +1,8 @@
 """
 投资组合优化主引擎
 """
+import os
+
 import numpy as np
 import pandas as pd
 from typing import Dict, Optional, Union
@@ -16,7 +18,7 @@ from barra.portfolio.optimizer import QPOptimizer, OptimizationResult
 from barra.portfolio.no_trade_zone import NoTradeZoneIterator, IterationResult, build_asset_covariance
 from barra.portfolio.trade_generator import TradeGenerator
 from barra.portfolio.output import PortfolioOutputManager
-from utils import LoggerFactory
+from utils import LoggerFactory, PickleIO
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -92,7 +94,9 @@ class PortfolioEngine:
         self.trade_generator = TradeGenerator(
             min_trade_threshold=self.params['min_trade_threshold']
         )
-        
+        self.debug_output_dir = f'{output_dir}/debug'
+        os.makedirs(self.debug_output_dir, exist_ok=True)
+
         # 结果缓存
         self.data = None
         self.V = None
@@ -128,6 +132,7 @@ class PortfolioEngine:
             calc_date=self.calc_date,
             position_input=position_input
         )
+        PickleIO.write(self.data, f'{self.debug_output_dir}/data.pkl')
         
         # Step 2: 构建资产协方差矩阵
         logger.info('Step 2: 构建协方差矩阵...')
@@ -137,6 +142,7 @@ class PortfolioEngine:
             specific_risk=self.data['specific_risk']
         )
         logger.info('V shape: {}'.format(self.V.shape))
+        PickleIO.write(self.V, f'{self.debug_output_dir}/V.pkl')
         
         # 准备numpy数组
         alpha = self.data['alpha'].values
@@ -205,7 +211,7 @@ class PortfolioEngine:
         # 保存到MySQL
         if save_to_mysql:
             self.output_manager.save_to_mysql(
-                trade_orders, position, self.calc_date, portfolio_name
+                position, self.calc_date, portfolio_name
             )
         
         # 构建结果

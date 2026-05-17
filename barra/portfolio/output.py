@@ -170,63 +170,56 @@ class PortfolioOutputManager:
     
     def save_to_mysql(
         self,
-        trade_orders: pd.DataFrame,
         position: pd.DataFrame,
         calc_date: str,
-        portfolio: str = 'default'
+        portfolio_name: str = 'default'
     ) -> bool:
-        """保存到MySQL数据库
-        
+        """保存持仓信息到MySQL数据库
+
         Args:
-            trade_orders: 交易指令
             position: 持仓信息
             calc_date: 计算日期
-            portfolio: 组合名称
-            
+            portfolio_name: 组合名称
+
         Returns:
             是否成功
         """
         try:
             from utils import MySQLDB
-            
-            # 保存交易指令
+
+            sql = '''INSERT INTO portfolio
+                     (day, portfolio, qlib_code, active_weight, total_weight,
+                      shares, market_value, weight_pct)
+                     VALUES (%(day)s, %(portfolio)s, %(qlib_code)s,
+                             %(active_weight)s, %(total_weight)s,
+                             %(shares)s, %(market_value)s, %(weight_pct)s)
+                     ON DUPLICATE KEY UPDATE
+                     active_weight = VALUES(active_weight),
+                     total_weight = VALUES(total_weight),
+                     shares = VALUES(shares),
+                     market_value = VALUES(market_value),
+                     weight_pct = VALUES(weight_pct)'''
+
+            params = []
+            for _, row in position.iterrows():
+                params.append({
+                    'day': calc_date,
+                    'portfolio': portfolio_name,
+                    'qlib_code': row['instrument'],
+                    'active_weight': float(row['active_weight']),
+                    'total_weight': float(row['total_weight']),
+                    'shares': int(row['shares']),
+                    'market_value': float(row['market_value']),
+                    'weight_pct': float(row['weight_pct']),
+                })
+
             with MySQLDB() as db:
-                # 删除已有数据
-                db.execute(
-                    'DELETE FROM portfolio_order WHERE day = %s AND portfolio = %s',
-                    (calc_date, portfolio)
-                )
-                
-                # 插入新数据
-                for _, row in trade_orders.iterrows():
-                    if row['direction'] != 'hold':
-                        db.execute(
-                            '''INSERT INTO portfolio_order 
-                               (day, portfolio, qlib_code, direction, weight_change, amount, shares, price)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
-                            (calc_date, portfolio, row['instrument'], row['direction'],
-                             row['weight_change'], row['amount'], row['shares'], row['price'])
-                        )
-                
-                # 删除已有持仓数据
-                db.execute(
-                    'DELETE FROM portfolio_position WHERE day = %s AND portfolio = %s',
-                    (calc_date, portfolio)
-                )
-                
-                # 插入新持仓数据
-                for _, row in position.iterrows():
-                    db.execute(
-                        '''INSERT INTO portfolio_position 
-                           (day, portfolio, qlib_code, active_weight, total_weight, shares, market_value)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-                        (calc_date, portfolio, row['instrument'],
-                         row['active_weight'], row['total_weight'], row['shares'], row['market_value'])
-                    )
-            
-            logger.info(f'数据已保存到MySQL: {calc_date}, portfolio={portfolio}')
+                db.executemany(sql, params)
+
+            logger.info(f'持仓数据已保存到MySQL: {calc_date}, portfolio={portfolio_name}, '
+                       f'共{len(params)}条')
             return True
-            
+
         except Exception as e:
             logger.warning(f'MySQL保存失败: {e}')
             return False
