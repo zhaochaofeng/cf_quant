@@ -34,7 +34,7 @@ df.set_index(['instrument'], inplace=True)
     F: barra/risk_control/output/{dt}/model/factor_covariance.parquet
     Delta: barra/risk_control/output/{dt}/model/specific_risk.parquet
 ```
-- **风险厌恶系数**：\(\lambda\)（以百分数为单位，例如 \(\lambda=0.05\) 对应目标主动风险5%）。作为输入参数
+- **风险厌恶系数**：\(\lambda\)(如 0.05)。作为输入参数
 - **交易成本**：
   - 买入成本率 \(c_b\)（如0.03%），卖出成本率 \(c_s\)（如0.13%），c_b和c_s 都是长度为N的常向量。作为输入参数
 - **当前主动头寸**：\(h_{\text{cur}} = w_{\text{cur}} - w_b\)，已知
@@ -47,6 +47,7 @@ df.set_index(['instrument'], inplace=True)
 - 辅助变量 \(b, s \in \mathbb{R}^N_{\ge 0}\)，表示买入、卖出权重变化量
 
 ### 2.2 交易量关系
+ 持仓变化 = 买入卖出股票的变化(b: 买入权重；s: 卖出权重)
 \[
 \Delta h = h - h_{\text{cur}} = b - s
 \]
@@ -57,7 +58,7 @@ df.set_index(['instrument'], inplace=True)
 \]
 
 ### 2.4 约束条件
-- **现金中性**（全额投资）：
+- **现金中性**（全额投资。相对于基准，买入卖出的金额相同）：
   \[
   \sum_{n=1}^N h_n = 0
   \]
