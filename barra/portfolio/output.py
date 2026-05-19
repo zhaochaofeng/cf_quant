@@ -47,6 +47,8 @@ class PortfolioOutputManager:
         trade_orders.set_index('instrument', inplace=True)
         trade_shares = trade_orders['trade_shares'].copy()
         direction = trade_orders['direction']
+        # 卖出的股票不能超过当前持有的
+        trade_shares[direction == 'sell'][trade_shares > current_position] = current_position[direction == 'sell'][trade_shares > current_position]
         trade_shares[direction == 'sell'] = -trade_shares[direction == 'sell']
         # 新持仓
         new_position = current_position.reindex(instrument).fillna(0) + trade_shares
