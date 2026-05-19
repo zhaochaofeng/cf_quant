@@ -1,10 +1,9 @@
 """
 凸二次规划优化模块（cvxpy实现）
 """
-import numpy as np
-import pandas as pd
-from typing import Dict, Optional
 from dataclasses import dataclass
+
+import numpy as np
 
 from barra.portfolio.config import OPTIMIZATION_PARAMS
 from utils import LoggerFactory
@@ -47,37 +46,20 @@ class QPOptimizer:
         6. 非负性: b >= 0, s >= 0
     """
 
-    def __init__(
-        self,
-        risk_aversion: float = None,
-        buy_cost: Optional[np.ndarray] = None,
-        sell_cost: Optional[np.ndarray] = None,
-        max_turnover: float = None,
-        max_active_position: float = None
-    ):
-        """初始化优化器
-
-        Args:
-            risk_aversion: 风险厌恶系数 λ
-            buy_cost: 买入成本率向量 c_b（长度为N的向量）
-            sell_cost: 卖出成本率向量 c_s（长度为N的向量）
-            max_turnover: 换手率上限 T_max
-            max_active_position: 个股主动头寸上限 U
-        """
+    def __init__(self):
+        """初始化优化器"""
         if not CVXPY_AVAILABLE:
             raise ImportError('cvxpy未安装，请先安装: pip install cvxpy')
 
         params = OPTIMIZATION_PARAMS.copy()
 
-        self.risk_aversion = risk_aversion or params['risk_aversion']
-        self.max_turnover = max_turnover or params['max_turnover']
-        self.max_active_position = max_active_position or params['max_active_position']
+        self.risk_aversion = params['risk_aversion']
+        self.max_turnover = params['max_turnover']
+        self.max_active_position = params['max_active_position']
 
         # 成本向量（可以是标量或向量）
-        self.buy_cost_scalar = params['buy_cost_rate']
-        self.sell_cost_scalar = params['sell_cost_rate']
-        self.buy_cost = buy_cost
-        self.sell_cost = sell_cost
+        self.buy_cost = params['buy_cost_rate']
+        self.sell_cost = params['sell_cost_rate']
 
     def solve(
         self,
@@ -101,8 +83,8 @@ class QPOptimizer:
         logger.info(f'开始QP优化: N={N}, λ={self.risk_aversion}')
 
         # 处理成本向量
-        c_b = self.buy_cost if self.buy_cost is not None else np.full(N, self.buy_cost_scalar)
-        c_s = self.sell_cost if self.sell_cost is not None else np.full(N, self.sell_cost_scalar)
+        c_b = np.full(N, self.buy_cost)
+        c_s = np.full(N, self.sell_cost)
 
         # 个股上限向量
         U = np.full(N, self.max_active_position)
@@ -111,24 +93,17 @@ class QPOptimizer:
         V_processed = self._ensure_positive_definite(V)
 
         # 构建cvxpy问题
+        # 变量
         h = cp.Variable(N)
         b = cp.Variable(N, nonneg=True)
         s = cp.Variable(N, nonneg=True)
 
         # 目标函数: min 0.5 * h' * Q * h - alpha @ h + c_b @ b + c_s @ s
-        # Q = 2 * self.risk_aversion * V_processed
         Q = 2 * self.risk_aversion * V_processed
 
-        # 使用psd_wrap包装Q以确保数值稳定性
-        try:
-            objective = cp.Minimize(
-                0.5 * cp.quad_form(h, cp.psd_wrap(Q)) - alpha @ h + c_b @ b + c_s @ s
-            )
-        except AttributeError:
-            # 旧版本cvxpy可能没有psd_wrap
-            objective = cp.Minimize(
-                0.5 * cp.quad_form(h, Q) - alpha @ h + c_b @ b + c_s @ s
-            )
+        objective = cp.Minimize(
+            0.5 * cp.quad_form(h, Q) - alpha @ h + c_b @ b + c_s @ s
+        )
 
         # 约束条件
         constraints = [
@@ -165,22 +140,16 @@ class QPOptimizer:
                 continue
 
         if not solved:
-            # 最后尝试默认求解器
-            try:
-                problem.solve(verbose=False)
-            except Exception as e:
-                logger.error(f'所有求解器都失败: {e}')
-
-        # 检查求解状态
-        if problem.status not in ['optimal', 'optimal_inaccurate']:
-            logger.warning(f'QP求解状态: {problem.status}')
+            err_msg = f'所有求解器都失败: {e}'
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
         # 提取结果
-        h_optimal = h.value if h.value is not None else h_cur
-        b_optimal = b.value if b.value is not None else np.zeros(N)
-        s_optimal = s.value if s.value is not None else np.zeros(N)
+        h_optimal = h.value
+        b_optimal = b.value
+        s_optimal = s.value
 
-        # 计算主动风险
+        # 计算主动风险 phi
         active_risk = np.sqrt(h_optimal @ V @ h_optimal)
 
         logger.info(f'QP求解完成: status={problem.status}, '
@@ -213,6 +182,10 @@ class QPOptimizer:
         eigenvalues = np.linalg.eigvalsh(V)
         min_eigenvalue = eigenvalues.min()
         max_eigenvalue = eigenvalues.max()
+        if min_eigenvalue < 0:
+            err_msg = f'最小特征值为负: {min_eigenvalue:.2e}'
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
         # 计算条件数
         cond_number = max_eigenvalue / max(min_eigenvalue, 1e-15)

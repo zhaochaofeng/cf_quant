@@ -149,28 +149,24 @@ class PortfolioEngine:
         w_b = self.data['benchmark_weights'].values
         h_cur = self.data['current_position'].values - w_b
 
-        # Step 3: 初始解（可选）
-        h_init = None
-        if use_qp_init:
-            logger.info('Step 3: QP优化求解初始解...')
-            try:
-                optimizer = QPOptimizer(
-                    risk_aversion=self.params['risk_aversion'],
-                    max_turnover=self.params['max_turnover'],
-                    max_active_position=self.params['max_active_position']
-                )
-                qp_result = optimizer.solve(alpha, self.V, h_cur, w_b)
-                h_init = qp_result.h_optimal
-                logger.info(f'QP初始解: active_risk={qp_result.active_risk:.4f}')
-            except Exception as e:
-                logger.warning(f'QP优化失败，使用当前持仓作为初始值: {e}')
-                h_init = h_cur.copy()
-        
+        # Step 3: 最优持仓（可选）
+        logger.info('Step 3: QP求解最优持仓...')
+        try:
+            optimizer = QPOptimizer()
+            qp_result = optimizer.solve(alpha, self.V, h_cur, w_b)
+            h_star = qp_result.h_optimal
+            logger.info(f'QP解: active_risk={qp_result.active_risk:.4f}')
+            PickleIO.write(h_star, f'{self.debug_output_dir}/h_star.pkl')
+        except Exception as e:
+            err_msg = f'QP计算失败{e}'
+            logger.error(err_msg)
+            raise Exception(err_msg)
+
         # Step 4: 无交易区域迭代
-        logger.info('Step 4: 无交易区域迭代...')
-        iterator = NoTradeZoneIterator()
-        self.iteration_result = iterator.iterate(alpha, self.V, h_cur, w_b, h_init)
-        
+        # logger.info('Step 4: 无交易区域迭代...')
+        # iterator = NoTradeZoneIterator()
+        # self.iteration_result = iterator.iterate(alpha, self.V, h_cur, w_b, self.debug_output_dir)
+
         # Step 5: 生成交易指令
         logger.info('Step 5: 生成交易指令...')
         h_final = pd.Series(self.iteration_result.h_final, index=self.data['instruments'])
