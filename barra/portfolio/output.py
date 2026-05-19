@@ -47,9 +47,23 @@ class PortfolioOutputManager:
         trade_orders.set_index('instrument', inplace=True)
         trade_shares = trade_orders['trade_shares'].copy()
         direction = trade_orders['direction']
-        # 卖出的股票不能超过当前持有的
-        trade_shares[direction == 'sell'][trade_shares > current_position] = current_position[direction == 'sell'][trade_shares > current_position]
-        trade_shares[direction == 'sell'] = -trade_shares[direction == 'sell']
+
+        # 处理卖出的股票
+        sell_mask = direction == 'sell'
+        # 对于卖出的股票，如果卖出数量超过当前持仓，则限制为当前持仓数量
+        if sell_mask.any():
+            # 获取卖出股票对应的当前持仓
+            sell_instruments = trade_shares[sell_mask].index
+            current_hold = current_position.reindex(sell_instruments).fillna(0)
+
+            # 限制卖出数量不超过持仓
+            excess_mask = trade_shares[sell_mask] > current_hold
+            if excess_mask.any():
+                trade_shares.loc[sell_mask & excess_mask] = current_hold[excess_mask]
+
+        # 将卖出数量转为负数
+        trade_shares.loc[sell_mask] = -trade_shares.loc[sell_mask]
+
         # 新持仓
         new_position = current_position.reindex(instrument).fillna(0) + trade_shares
         hold_value = new_position * trade_orders['price']
@@ -85,7 +99,7 @@ class PortfolioOutputManager:
                     'active_weight': float(row['active_weight']),
                     'total_weight': float(row['total_weight']),
                     'hold_shares': int(new_position[row['instrument']]),
-                    'trade_shares': int(row['trade_shares']),
+                    'trade_shares': int(trade_shares[row['instrument']]),
                     'direction': row['direction'],
                     'price': float(row['price']),
                     'cash': float(cash)
