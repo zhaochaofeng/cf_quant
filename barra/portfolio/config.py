@@ -10,14 +10,14 @@ OPTIMIZATION_PARAMS = {
     'risk_aversion': 0.05,           # λ，风险厌恶系数（百分数单位）
     'buy_cost_rate': 0.0003,         # c_b，买入成本率 0.03%
     'sell_cost_rate': 0.0013,        # c_s，卖出成本率 0.13%
-    'max_turnover': 0.10,            # T_max，换手率上限 10%
-    'max_active_position': 0.05,     # U_n，个股主动头寸上限 5%
+    'max_turnover': 1.0,            # T_max，换手率上限 10%。这个值小于1导致求解最优持仓不收敛
+    'max_active_position': 0.10,     # U_n，个股主动头寸上限 5%
     'min_trade_threshold': 1e-5,     # 最小交易阈值
 }
 
 # 迭代参数
 ITERATION_PARAMS = {
-    'max_iterations': 100,           # 最大迭代次数
+    'max_iterations': 20,           # 最大迭代次数
     'convergence_threshold': 1e-6,   # 收敛阈值
 }
 
