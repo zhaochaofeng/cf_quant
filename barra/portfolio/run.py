@@ -32,7 +32,6 @@ def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description='主动投资组合优化')
     parser.add_argument('--date', type=str, default=None, help='计算日期 (YYYY-MM-DD)，默认为最新交易日')
-    parser.add_argument('--position', type=str, default='zero', help='当前持仓输入: zero,mysql')
     parser.add_argument('--value', type=float, default=1e8, help='组合净值（元），默认1亿')
     parser.add_argument('--risk_aversion', type=float, default=0.05, help='风险厌恶系数，默认0.05')
     parser.add_argument('--max_turnover', type=float, default=0.10, help='换手率上限，默认0.10')
@@ -71,7 +70,6 @@ def main():
 
         # 执行优化
         engine.run(
-            position_input=args.position,
             portfolio_value=args.value,
             use_qp_init=args.use_qp,
             save_to_mysql=args.save_mysql,

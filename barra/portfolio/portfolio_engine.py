@@ -104,7 +104,6 @@ class PortfolioEngine:
         
     def run(
         self,
-        position_input: str = 'zero',
         portfolio_value: float = DEFAULT_PORTFOLIO_VALUE,
         use_qp_init: bool = False,
         save_to_mysql: bool = False,
@@ -112,7 +111,6 @@ class PortfolioEngine:
         """执行完整优化流程
 
         Args:
-            position_input: 当前持仓输入
             portfolio_value: 组合净值（元）
             use_qp_init: 是否用QP解作为迭代初始值
             save_to_mysql: 是否保存到MySQL
@@ -127,8 +125,7 @@ class PortfolioEngine:
         # Step 1: 加载并对齐数据
         logger.info('Step 1: 加载数据...')
         self.data = self.data_loader.align_all_data(
-            calc_date=self.calc_date,
-            position_input=position_input
+            calc_date=self.calc_date
         )
         PickleIO.write(self.data, f'{self.debug_output_dir}/data.pkl')
         

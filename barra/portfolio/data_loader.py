@@ -152,47 +152,41 @@ class PortfolioDataLoader:
     
     def load_current_position(
         self,
-        position_input: str = 'zero',
-        instruments: Optional[List[str]] = None
+        instruments: Optional[List[str]] = None,
+        calc_date: str = None
     ) -> pd.Series:
         """加载当前持仓
 
         Args:
-            position_input: 持仓输入，'zero'（零持仓）或 'mysql'（从MySQL读取）
-            instruments: 股票代码索引（用于对齐，zero模式需要）
-
+            instruments: 股票代码索引
         Returns:
             Series(index=instrument, name='weight')
         """
-        if position_input == 'zero':
-            # 零持仓
-            if instruments is None:
-                raise ValueError('零持仓模式需要提供instruments参数')
-            position = pd.Series(0.0, index=instruments, name='weight')
-            logger.info('当前持仓: 零持仓')
-
-        elif position_input == 'mysql':
+        if instruments is None:
+            raise ValueError('零持仓模式需要提供instruments参数')
+        try:
             # 从MySQL读取最新持仓
             from utils import sql_engine
             engine = sql_engine()
             sql = """
-                SELECT qlib_code AS instrument, total_weight, day
-                FROM portfolio
-                WHERE portfolio = %(portfolio)s
-                  AND day = (
-                      SELECT MAX(day) FROM portfolio WHERE portfolio = %(portfolio)s
-                  )
-            """
-            df = pd.read_sql(sql, engine, params={'portfolio': self.portfolio_name})
+                            SELECT qlib_code AS instrument, total_weight, day
+                            FROM portfolio
+                            WHERE portfolio = %(portfolio)s
+                              AND day = (
+                                  SELECT MAX(day) FROM portfolio WHERE portfolio = %(portfolio)s
+                              )
+                              AND day < %(calc_date)s
+                        """
+            df = pd.read_sql(sql, engine, params={'portfolio': self.portfolio_name, 'calc_date': calc_date})
             latest_day = df['day'].iloc[0]
             position = df.set_index('instrument')['total_weight']
             position.name = 'weight'
             logger.info(f'当前持仓(MySQL): {len(position)}只股票, '
-                       f'portfolio={self.portfolio_name}, '
-                       f'latest_day={latest_day}')
-
-        else:
-            raise ValueError(f'不支持的持仓输入: {position_input}')
+                        f'portfolio={self.portfolio_name}, '
+                        f'latest_day={latest_day}')
+        except Exception as e:
+            position = pd.Series(0.0, index=instruments, name='weight')
+            logger.info('当前持仓: 零持仓')
 
         return position
     
@@ -232,13 +226,11 @@ class PortfolioDataLoader:
     def align_all_data(
         self,
         calc_date: str,
-        position_input: Union[str, Dict, pd.Series] = 'zero'
     ) -> Dict:
         """对齐所有数据，返回完整数据集
         
         Args:
             calc_date: 计算日期
-            position_input: 当前持仓输入
             
         Returns:
             {
@@ -287,9 +279,7 @@ class PortfolioDataLoader:
         aligned_benchmark = aligned_benchmark / aligned_benchmark.sum()    # 权重归一化
         
         # 6. 加载当前持仓并对齐
-        current_position = self.load_current_position(
-            position_input, common_instruments
-        )
+        current_position = self.load_current_position(common_instruments, calc_date)
         aligned_position = current_position.reindex(common_instruments, fill_value=0.0)
         
         # 7. 加载股价
