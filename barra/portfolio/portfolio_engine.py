@@ -93,9 +93,7 @@ class PortfolioEngine:
             portfolio_name=portfolio_name
         )
         self.output_manager = PortfolioOutputManager(output_dir=output_dir)
-        self.trade_generator = TradeGenerator(
-            min_trade_threshold=self.params['min_trade_threshold']
-        )
+        self.trade_generator = TradeGenerator()
         self.debug_output_dir = f'{output_dir}/debug'
         os.makedirs(self.debug_output_dir, exist_ok=True)
 
@@ -151,16 +149,11 @@ class PortfolioEngine:
 
         # Step 3: 最优持仓（可选）
         logger.info('Step 3: QP求解最优持仓...')
-        try:
-            optimizer = QPOptimizer()
-            qp_result = optimizer.solve(alpha, self.V, h_cur, w_b)
-            h_star = qp_result.h_optimal
-            logger.info(f'QP解: active_risk={qp_result.active_risk:.4f}')
-            PickleIO.write(h_star, f'{self.debug_output_dir}/h_star.pkl')
-        except Exception as e:
-            err_msg = f'QP计算失败{e}'
-            logger.error(err_msg)
-            raise Exception(err_msg)
+        optimizer = QPOptimizer()
+        qp_result = optimizer.solve(alpha, self.V, h_cur, w_b)
+        h_star = qp_result.h_optimal
+        logger.info(f'QP解: active_risk={qp_result.active_risk:.4f}')
+        PickleIO.write(h_star, f'{self.debug_output_dir}/h_star.pkl')
 
         # Step 4: 无交易区域迭代
         # logger.info('Step 4: 无交易区域迭代...')
@@ -169,7 +162,8 @@ class PortfolioEngine:
 
         # Step 5: 生成交易指令
         logger.info('Step 5: 生成交易指令...')
-        h_final = pd.Series(self.iteration_result.h_final, index=self.data['instruments'])
+        # h_final = pd.Series(self.iteration_result.h_final, index=self.data['instruments'])
+        h_final = pd.Series(h_star, index=self.data['instruments'])
         h_cur_series = pd.Series(h_cur, index=self.data['instruments'])
         
         trade_orders = self.trade_generator.generate(
@@ -179,89 +173,16 @@ class PortfolioEngine:
             prices=self.data['prices'],
             w_b=self.data['benchmark_weights']
         )
-        
-        # 生成持仓摘要
-        position = self.trade_generator.generate_position_summary(trade_orders, portfolio_value)
-        
-        # 计算换手率
-        turnover = np.sum(np.abs(self.iteration_result.h_final - h_cur))
-        
+        PickleIO.write(trade_orders, f'{self.debug_output_dir}/trade_orders.pkl')
+
         # Step 6: 保存结果
-        logger.info('Step 6: 保存结果...')
-        self.output_manager.save_trade_orders(trade_orders, self.calc_date)
-        self.output_manager.save_position(position, self.calc_date)
-        
-        # 保存诊断日志
-        v_diag = np.diag(self.V)
-        self.output_manager.save_optimization_log(
-            instruments=self.data['instruments'],
-            alpha=self.data['alpha'],
-            mcva=self.iteration_result.marginal_contributions,
-            in_no_trade_zone=self.iteration_result.in_no_trade_zone,
-            v_diag=v_diag,
-            calc_date=self.calc_date
-        )
-        
         # 保存到MySQL
         if save_to_mysql:
             self.output_manager.save_to_mysql(
-                position, self.calc_date, self.portfolio_name
+                trade_orders, self.calc_date, self.portfolio_name
             )
-        
-        # 构建结果
-        result = PortfolioResult(
-            trade_orders=trade_orders,
-            position=position,
-            active_risk=self.iteration_result.active_risk,
-            turnover=turnover,
-            iterations=self.iteration_result.iterations,
-            converged=self.iteration_result.converged,
-            calc_date=self.calc_date
-        )
-        
-        # 打印摘要
-        self.print_summary(result)
-        
+
         logger.info('=' * 60)
         logger.info('投资组合优化完成')
         logger.info('=' * 60)
-        
-        return result
-    
-    def print_summary(self, result: PortfolioResult):
-        """打印优化结果摘要
-        
-        Args:
-            result: 优化结果
-        """
-        print('\n' + '=' * 60)
-        print('投资组合优化结果摘要')
-        print('=' * 60)
-        print(f'计算日期: {result.calc_date}')
-        print(f'主动风险: {result.active_risk:.4f} ({result.active_risk*100:.2f}%)')
-        print(f'换手率: {result.turnover:.4f} ({result.turnover*100:.2f}%)')
-        print(f'迭代次数: {result.iterations}')
-        print(f'收敛状态: {"已收敛" if result.converged else "未收敛"}')
-        print('-' * 60)
-        
-        # 交易统计
-        orders = result.trade_orders
-        buy_count = (orders['direction'] == 'buy').sum()
-        sell_count = (orders['direction'] == 'sell').sum()
-        hold_count = (orders['direction'] == 'hold').sum()
-        
-        print(f'买入股票: {buy_count}只')
-        print(f'卖出股票: {sell_count}只')
-        print(f'持有股票: {hold_count}只')
-        print('-' * 60)
-        
-        # 约束检查
-        h_final = self.iteration_result.h_final
-        w_b = self.data['benchmark_weights'].values
-        
-        cash_neutral = abs(np.sum(h_final))
-        short_violation = (h_final < -w_b).sum()
-        
-        print(f'现金中性偏差: {cash_neutral:.2e}')
-        print(f'卖空约束违反: {short_violation}只')
-        print('=' * 60)
+

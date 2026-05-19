@@ -189,16 +189,14 @@ class PortfolioOutputManager:
 
             sql = '''INSERT INTO portfolio
                      (day, portfolio, qlib_code, active_weight, total_weight,
-                      shares, market_value, weight_pct)
+                      shares)
                      VALUES (%(day)s, %(portfolio)s, %(qlib_code)s,
                              %(active_weight)s, %(total_weight)s,
-                             %(shares)s, %(market_value)s, %(weight_pct)s)
+                             %(shares)s)
                      ON DUPLICATE KEY UPDATE
                      active_weight = VALUES(active_weight),
                      total_weight = VALUES(total_weight),
-                     shares = VALUES(shares),
-                     market_value = VALUES(market_value),
-                     weight_pct = VALUES(weight_pct)'''
+                     shares = VALUES(shares)'''
 
             params = []
             for _, row in position.iterrows():
@@ -208,9 +206,7 @@ class PortfolioOutputManager:
                     'qlib_code': row['instrument'],
                     'active_weight': float(row['active_weight']),
                     'total_weight': float(row['total_weight']),
-                    'shares': int(row['shares']),
-                    'market_value': float(row['market_value']),
-                    'weight_pct': float(row['weight_pct']),
+                    'shares': int(row['shares'])
                 })
 
             with MySQLDB() as db:

@@ -3,7 +3,6 @@
 """
 import numpy as np
 import pandas as pd
-from typing import Dict
 
 from barra.portfolio.config import OPTIMIZATION_PARAMS
 from utils import LoggerFactory
@@ -22,7 +21,6 @@ class TradeGenerator:
     
     def __init__(
         self,
-        min_trade_threshold: float = None,
         lot_size: int = 100
     ):
         """初始化生成器
@@ -32,7 +30,7 @@ class TradeGenerator:
             lot_size: 每手股数，A股为100股
         """
         params = OPTIMIZATION_PARAMS.copy()
-        self.min_trade_threshold = min_trade_threshold or params['min_trade_threshold']
+        self.min_trade_threshold = params['min_trade_threshold']
         self.lot_size = lot_size
     
     def generate(
@@ -62,7 +60,6 @@ class TradeGenerator:
         
         # 对齐索引
         instruments = h_final.index
-        h_final = h_final.reindex(instruments)
         h_cur = h_cur.reindex(instruments, fill_value=0.0)
         prices = prices.reindex(instruments)
         w_b = w_b.reindex(instruments, fill_value=0.0)
@@ -79,7 +76,7 @@ class TradeGenerator:
         
         # 确定交易方向
         directions = np.where(delta_h > self.min_trade_threshold, 'buy',
-                     np.where(delta_h < -self.min_trade_threshold, 'sell', 'hold'))
+                        np.where(delta_h < -self.min_trade_threshold, 'sell', 'hold'))
         
         # 计算总权重
         total_weight = w_b + h_final
@@ -108,7 +105,7 @@ class TradeGenerator:
         logger.info(f'交易指令生成完成: 买入={buy_count}, 卖出={sell_count}, 持有={hold_count}')
         
         return result.reset_index(drop=True)
-    
+
     def _calculate_shares(self, amounts: np.ndarray, prices: np.ndarray) -> np.ndarray:
         """计算交易股数（向下取整到lot_size整数倍）
         
@@ -132,42 +129,3 @@ class TradeGenerator:
         shares = shares.astype(int)
         
         return shares
-    
-    def generate_position_summary(
-        self,
-        trade_orders: pd.DataFrame,
-        portfolio_value: float
-    ) -> pd.DataFrame:
-        """生成持仓摘要
-        
-        Args:
-            trade_orders: 交易指令DataFrame
-            portfolio_value: 组合净值
-            
-        Returns:
-            DataFrame(columns=[
-                'instrument', 'active_weight', 'total_weight',
-                'shares', 'market_value', 'weight_pct'
-            ])
-        """
-        df = trade_orders.copy()
-        
-        # 计算市值
-        df['market_value'] = df['shares'] * df['price']
-        
-        # 计算权重百分比
-        df['weight_pct'] = df['total_weight'] * 100
-        
-        # 选择输出列
-        result = df[['instrument', 'active_weight', 'total_weight', 
-                     'shares', 'market_value', 'weight_pct']].copy()
-        
-        # 只保留有持仓的股票
-        result = result[result['total_weight'] != 0].copy()
-        
-        # 按权重排序
-        result = result.sort_values('total_weight', ascending=False).reset_index(drop=True)
-        
-        logger.info(f'持仓摘要: {len(result)}只股票')
-        
-        return result

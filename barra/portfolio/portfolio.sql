@@ -9,8 +9,6 @@ CREATE TABLE IF NOT EXISTS portfolio (
     active_weight DECIMAL(10, 6) NOT NULL COMMENT '主动权重',
     total_weight DECIMAL(10, 6) NOT NULL COMMENT '总持仓权重',
     shares BIGINT NOT NULL COMMENT '持仓股数',
-    market_value DECIMAL(16, 2) NOT NULL COMMENT '持仓市值（元）',
-    weight_pct DECIMAL(8, 4) NOT NULL COMMENT '总权重百分比',
     PRIMARY KEY (id),
     UNIQUE KEY un_day_portfolio_code (day, portfolio, qlib_code)
 ) ENGINE=InnoDB

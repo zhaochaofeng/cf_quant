@@ -140,7 +140,7 @@ class QPOptimizer:
                 continue
 
         if not solved:
-            err_msg = f'所有求解器都失败: {e}'
+            err_msg = f'所有求解器都失败 !!!'
             logger.error(err_msg)
             raise ValueError(err_msg)
 
