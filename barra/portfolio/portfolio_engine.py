@@ -66,6 +66,7 @@ class PortfolioEngine:
         risk_output_dir: str = None,
         output_dir: str = None,
         portfolio_name: str = 'default',
+        position: str = 'zero',
         **optimization_params
     ):
         """初始化引擎
@@ -76,11 +77,13 @@ class PortfolioEngine:
             risk_output_dir: 风险模型输出目录
             output_dir: 组合优化输出目录
             portfolio_name: 组合名称
+            position: 持仓信息来源
             **optimization_params: 优化参数（覆盖默认配置）
         """
         self.calc_date = calc_date
         self.market = market
         self.portfolio_name = portfolio_name
+        self.position = position
         
         # 合并优化参数
         self.params = OPTIMIZATION_PARAMS.copy()
@@ -92,7 +95,7 @@ class PortfolioEngine:
             risk_output_dir=risk_output_dir,
             portfolio_name=portfolio_name
         )
-        self.output_manager = PortfolioOutputManager(output_dir=output_dir)
+        self.output_manager = PortfolioOutputManager()
         self.trade_generator = TradeGenerator()
         self.debug_output_dir = f'{output_dir}/debug'
         os.makedirs(self.debug_output_dir, exist_ok=True)
@@ -107,7 +110,7 @@ class PortfolioEngine:
         portfolio_value: float = DEFAULT_PORTFOLIO_VALUE,
         use_qp_init: bool = False,
         save_to_mysql: bool = False,
-    ) -> PortfolioResult:
+    ):
         """执行完整优化流程
 
         Args:
@@ -115,8 +118,6 @@ class PortfolioEngine:
             use_qp_init: 是否用QP解作为迭代初始值
             save_to_mysql: 是否保存到MySQL
 
-        Returns:
-            PortfolioResult: 优化结果
         """
         logger.info('=' * 60)
         logger.info(f'投资组合优化开始: calc_date={self.calc_date}')
@@ -125,7 +126,7 @@ class PortfolioEngine:
         # Step 1: 加载并对齐数据
         logger.info('Step 1: 加载数据...')
         self.data = self.data_loader.align_all_data(
-            calc_date=self.calc_date
+            calc_date=self.calc_date, position=self.position
         )
         PickleIO.write(self.data, f'{self.debug_output_dir}/data.pkl')
         
@@ -140,9 +141,19 @@ class PortfolioEngine:
         PickleIO.write(self.V, f'{self.debug_output_dir}/V.pkl')
         
         # 准备numpy数组
+        cash = self.data['cash']
+        hold_value = self.data['current_position'] * self.data['prices']   # 持仓金额
+        if self.position == 'zero':
+            hold_weight = pd.Series(np.zeros_like(hold_value), index=hold_value.index)
+            total_value = cash
+        else:
+            hold_weight = hold_value / hold_value.sum()  # 持仓权重
+            total_value = cash + hold_value.sum().item()
+        logger.info(f'total_value: {total_value}')
+        PickleIO.write(hold_weight, f'{self.debug_output_dir}/hold_weight.pkl')
         alpha = self.data['alpha'].values
         w_b = self.data['benchmark_weights'].values
-        h_cur = self.data['current_position'].values - w_b
+        h_cur = hold_weight.values - w_b
 
         # Step 3: 最优持仓（可选）
         logger.info('Step 3: QP求解最优持仓...')
@@ -166,7 +177,7 @@ class PortfolioEngine:
         trade_orders = self.trade_generator.generate(
             h_final=h_final,
             h_cur=h_cur_series,
-            portfolio_value=portfolio_value,
+            portfolio_value=total_value,
             prices=self.data['prices'],
             w_b=self.data['benchmark_weights']
         )
@@ -176,7 +187,8 @@ class PortfolioEngine:
         # 保存到MySQL
         if save_to_mysql:
             self.output_manager.save_to_mysql(
-                trade_orders, self.calc_date, self.portfolio_name
+                trade_orders, self.calc_date, self.portfolio_name,
+                total_value, self.data['current_position']
             )
 
         logger.info('=' * 60)

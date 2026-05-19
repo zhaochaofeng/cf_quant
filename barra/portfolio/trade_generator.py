@@ -72,7 +72,7 @@ class TradeGenerator:
         amounts = np.abs(delta_h.values) * portfolio_value
         
         # 计算交易股数（向下取整到lot_size整数倍）
-        shares = self._calculate_shares(amounts, prices.values)
+        trade_shares = self._calculate_shares(amounts, prices.values)
         
         # 确定交易方向
         directions = np.where(delta_h > self.min_trade_threshold, 'buy',
@@ -87,16 +87,12 @@ class TradeGenerator:
             'direction': directions,
             'weight_change': delta_h.values,
             'amount': amounts,
-            'shares': shares,
+            'trade_shares': trade_shares,
             'price': prices.values,
             'active_weight': h_final.values,
             'total_weight': total_weight.values
         })
-        
-        # 过滤持仓为0且不交易的股票
-        result = result[~((result['direction'] == 'hold') & 
-                          (result['total_weight'] == 0))].copy()
-        
+
         # 统计
         buy_count = (result['direction'] == 'buy').sum()
         sell_count = (result['direction'] == 'sell').sum()
@@ -104,7 +100,7 @@ class TradeGenerator:
         
         logger.info(f'交易指令生成完成: 买入={buy_count}, 卖出={sell_count}, 持有={hold_count}')
         
-        return result.reset_index(drop=True)
+        return result
 
     def _calculate_shares(self, amounts: np.ndarray, prices: np.ndarray) -> np.ndarray:
         """计算交易股数（向下取整到lot_size整数倍）
