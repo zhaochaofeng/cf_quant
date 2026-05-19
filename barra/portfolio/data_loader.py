@@ -169,11 +169,10 @@ class PortfolioDataLoader:
             sql = """
                     SELECT qlib_code AS instrument, total_weight, day
                     FROM portfolio
-                    WHERE portfolio = {}
+                    WHERE portfolio = '{}'
                       AND day = (
-                          SELECT MAX(day) FROM portfolio WHERE portfolio = {}
+                          SELECT MAX(day) FROM portfolio WHERE portfolio = '{}' AND day < '{}'
                       )
-                      AND day < {}
                 """.format(self.portfolio_name, self.portfolio_name, calc_date)
             logger.info('{}\n{}\n{}'.format('-'*50, sql, '-'*50))
             df = pd.read_sql(sql, engine)
@@ -184,6 +183,7 @@ class PortfolioDataLoader:
                         f'portfolio={self.portfolio_name}, '
                         f'latest_day={latest_day}')
         except Exception as e:
+            logger.warning(f'无法加载当前持仓: {e}')
             if instruments is None:
                 raise ValueError('零持仓模式需要提供instruments参数')
             position = pd.Series(0.0, index=instruments, name='weight')
