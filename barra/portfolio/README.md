@@ -123,6 +123,46 @@ df.set_index(['instrument'], inplace=True)
 
 ---
 
+### 2.7 Alpha因子中性化
+
+为避免优化结果在行业和风格因子上暴露系统性风险，对基准中性化后的Alpha进一步进行因子中性化处理，剔除能被共同因子解释的部分，保留特异Alpha。
+
+#### 2.7.1 特异Alpha (GLS投影)
+
+借鉴 Grinold & Kahn 式 (14A-8)，使用广义最小二乘（GLS）投影将Alpha投影到因子暴露矩阵的补空间上：
+
+\[
+\alpha_{\text{sp}} = \alpha - X (X^T \Delta^{-1} X)^{-1} X^T \Delta^{-1} \alpha
+\]
+
+其中：
+- \(X \in \mathbb{R}^{N \times K}\)：因子暴露矩阵（含行业哑变量 + 风格因子）
+- \(\Delta = \text{diag}(\sigma^2_1, \dots, \sigma^2_N)\)：特异风险方差对角阵
+- \(\Delta^{-1}\) 作为 GLS 权重矩阵，低风险股票获得更高权重
+- 正则化参数 \(1 \times 10^{-6}\) 添加到 \(X^T \Delta^{-1} X\) 对角线，防止行业哑变量导致的奇异矩阵
+
+#### 2.7.2 数学等价形式
+
+将投影矩阵记为 \(P\)：
+
+\[
+\alpha_{\text{sp}} = (I - P) \alpha, \quad P = X (X^T \Delta^{-1} X)^{-1} X^T \Delta^{-1}
+\]
+
+性质：
+- \(P\) 是到因子列空间的**斜投影**（非正交投影，因加权矩阵 \(\Delta^{-1}\)）
+- \(X^T \Delta^{-1} \alpha_{\text{sp}} = 0\)（残差与因子加权正交）
+- 当 \(\Delta \propto I\)（同方差）时，退化为 OLS 投影
+
+#### 2.7.3 检验指标
+
+因子中性化后在日志中输出两个检验指标：
+
+1. **波动率变化率**：\(\text{vol\_reduction} = \sqrt{\text{Var}(\alpha_{\text{sp}}) / \text{Var}(\alpha)}\)，反映因子部分被剔除后的波动变化
+2. **Spearman 排序相关性**：\(\rho(\alpha, \alpha_{\text{sp}})\)，验证中性化未过度破坏排序信息
+
+---
+
 ## 3. 求解理论最优组合
 
 求解上述QP，得到：
@@ -374,7 +414,7 @@ h_n^{\text{target}} = h_{\text{cur},n} + \frac{MCVA_n^{\text{cur}} + SC_n}{2\lam
 ### 算法步骤
 
 1. **（可选）求解理论最优组合**  
-   构建二次规划问题（Alpha已在前一步完成基准中性化），求解得到理论最优主动头寸 \(h^*\)（可作为迭代初始值的参考，非必需）
+   构建二次规划问题（Alpha已完成基准中性化和因子中性化），求解得到理论最优主动头寸 \(h^*\)（可作为迭代初始值的参考，非必需）
 
 2. **初始化**  
    设当前主动头寸 \(h = h_{\text{cur}}\)

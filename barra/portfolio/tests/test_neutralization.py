@@ -215,3 +215,190 @@ class TestDataDictCompleteness:
                          'prices', 'beta', 'calc_date', 'cash']
         # 从实际code review确认包含'beta'
         assert 'beta' in expected_keys
+
+
+class TestFactorNeutralizeAlpha:
+    """factor_neutralize_alpha 函数测试"""
+
+    def test_basic_gls_projection(self):
+        """基本GLS投影: 验证残差alpha与因子暴露正交
+
+        即 X^T Δ⁻¹ α_sp ≈ 0
+        """
+        N, K = 20, 3
+        np.random.seed(42)
+        alpha = np.random.randn(N) * 0.01
+        exposure = pd.DataFrame(np.random.randn(N, K), columns=['f1', 'f2', 'f3'])
+        specific_variance = pd.Series(np.abs(np.random.randn(N)) * 0.001 + 0.001, name='specific_var')
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        assert alpha_sp.shape == (N,)
+        assert not np.any(np.isnan(alpha_sp))
+
+        # 验证正交性: X^T Δ⁻¹ α_sp ≈ 0
+        Δ_inv = 1.0 / specific_variance.values
+        orthogonality = exposure.values.T @ (Δ_inv * alpha_sp)
+        np.testing.assert_array_almost_equal(orthogonality, np.zeros(K), decimal=8)
+
+    def test_alpha_fully_explained_by_factors(self):
+        """当alpha完全由因子线性组合构成时，残差应 ≈ 0"""
+        N, K = 15, 3
+        np.random.seed(123)
+        X = np.random.randn(N, K)
+        exposure = pd.DataFrame(X, columns=['f1', 'f2', 'f3'])
+
+        # alpha = X @ theta  (完全由因子解释)
+        theta_true = np.array([0.01, -0.005, 0.008])
+        alpha = X @ theta_true
+        specific_variance = pd.Series(np.full(N, 0.001), name='specific_var')
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        # 残差应非常接近零
+        np.testing.assert_array_almost_equal(alpha_sp, np.zeros(N), decimal=8)
+
+    def test_irrelevant_specific_variance_weights(self):
+        """当所有股票特异风险方差相同时，GLS退化为OLS
+
+        此时 P = X(X^T X)⁻¹ X^T，投影矩阵
+        """
+        N, K = 10, 2
+        np.random.seed(456)
+        X = np.random.randn(N, K)
+        exposure = pd.DataFrame(X, columns=['f1', 'f2'])
+        alpha = np.random.randn(N) * 0.01
+        specific_variance = pd.Series(np.full(N, 0.002), name='specific_var')
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        # 同方差下应与OLS投影一致
+        Xt_X = X.T @ X
+        Xt_X_inv = np.linalg.inv(Xt_X)
+        P_ols = X @ Xt_X_inv @ X.T
+        alpha_sp_ols = alpha - P_ols @ alpha
+
+        np.testing.assert_array_almost_equal(alpha_sp, alpha_sp_ols, decimal=8)
+
+    def test_chain_with_benchmark_neutralize(self):
+        """验证两次中性化串联: 基准中性化 -> 因子中性化
+
+        先做基准中性化，再做因子中性化不应破坏正交性
+        """
+        N, K = 20, 3
+        np.random.seed(789)
+        alpha = np.random.randn(N) * 0.01
+        w_b = np.abs(np.random.randn(N))
+        w_b = w_b / w_b.sum()
+        beta = np.abs(np.random.randn(N)) + 0.5
+        exposure = pd.DataFrame(np.random.randn(N, K), columns=['f1', 'f2', 'f3'])
+        specific_variance = pd.Series(np.abs(np.random.randn(N)) * 0.001 + 0.001, name='specific_var')
+
+        # 基准中性化
+        alpha_bench_neutral = PortfolioEngine.benchmark_neutralize_alpha(alpha, w_b, beta)
+
+        # 因子中性化
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha_bench_neutral, exposure, specific_variance)
+
+        # 验证因子正交性
+        Δ_inv = 1.0 / specific_variance.values
+        orthogonality = exposure.values.T @ (Δ_inv * alpha_sp)
+        np.testing.assert_array_almost_equal(orthogonality, np.zeros(K), decimal=8)
+
+    def test_single_factor(self):
+        """单因子情况: 验证正交性"""
+        N = 10
+        np.random.seed(111)
+        alpha = np.random.randn(N) * 0.01
+        exposure = pd.DataFrame(np.random.randn(N, 1), columns=['f1'])
+        specific_variance = pd.Series(np.full(N, 0.001), name='specific_var')
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        Δ_inv = 1.0 / specific_variance.values
+        orthogonality = exposure.values.T @ (Δ_inv * alpha_sp)
+        assert abs(orthogonality[0]) < 1e-8
+
+    def test_many_stocks_many_factors(self):
+        """大量股票(274)多个因子(~50)，验证性能与正交性"""
+        N, K = 274, 50
+        np.random.seed(42)
+        alpha = np.random.randn(N) * 0.01
+        exposure = pd.DataFrame(np.random.randn(N, K), columns=[f'f{i}' for i in range(K)])
+        specific_variance = pd.Series(np.abs(np.random.randn(N)) * 0.001 + 0.001, name='specific_var')
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        Δ_inv = 1.0 / specific_variance.values
+        orthogonality = exposure.values.T @ (Δ_inv * alpha_sp)
+        np.testing.assert_array_almost_equal(orthogonality, np.zeros(K), decimal=8)
+
+    def test_volatility_reduction(self):
+        """中性化后波动率应变化（因子部分被剔除）
+
+        构造alpha = 因子暴露 + 随机噪声，因子主导时std(alpha_sp) < std(alpha)
+        """
+        N, K = 50, 5
+        np.random.seed(1)
+        X = np.random.randn(N, K)
+        theta = np.array([0.1, -0.05, 0.08, -0.03, 0.06])
+        noise = np.random.randn(N) * 0.01  # 小噪声
+        alpha = X @ theta + noise
+        exposure = pd.DataFrame(X, columns=[f'f{i}' for i in range(K)])
+        specific_variance = pd.Series(np.full(N, 0.001), name='specific_var')  # 均匀权重
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        # 因子部分占主导，中性化后波动率应显著下降
+        assert np.std(alpha_sp) < np.std(alpha), \
+            f'volatility not reduced: {np.std(alpha_sp):.4f} vs {np.std(alpha):.4f}'
+
+    def test_rank_correlation_preserved(self):
+        """中性化后与原始alpha的Spearman排序相关性应保持较高水平
+
+        当alpha中因子部分占比不大时，排序信息应被保留
+        """
+        from scipy.stats import spearmanr
+
+        N, K = 100, 5
+        np.random.seed(2)
+        alpha = np.random.randn(N) * 0.01  # 随机alpha，无因子结构
+        exposure = pd.DataFrame(np.random.randn(N, K), columns=[f'f{i}' for i in range(K)])
+        specific_variance = pd.Series(np.abs(np.random.randn(N)) * 0.001 + 0.001, name='specific_var')
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        # 因子部分占比小，排序相关性应保持较高
+        corr, _ = spearmanr(alpha, alpha_sp)
+        assert corr > 0.5, f'rank correlation too low: {corr:.4f}'
+
+    def test_factor_correlation_drop(self):
+        """中性化后alpha_sp与各因子的相关性应趋近于0
+
+        构造alpha与某因子强相关，中性化后该相关性应消失
+        """
+        N, K = 50, 3
+        np.random.seed(3)
+        f1 = np.random.randn(N)
+        noise = np.random.randn(N) * 0.001
+        # alpha与f1强相关（由f1线性生成）
+        alpha = f1 * 0.1 + noise
+        exposure = pd.DataFrame({
+            'f1': f1,
+            'f2': np.random.randn(N),
+            'f3': np.random.randn(N),
+        })
+        specific_variance = pd.Series(np.full(N, 0.001), name='specific_var')
+
+        # 中性化前alpha与f1高度相关
+        corr_before = np.corrcoef(alpha, f1)[0, 1]
+        assert abs(corr_before) > 0.9, f'corr before should be high: {corr_before:.4f}'
+
+        alpha_sp = PortfolioEngine.factor_neutralize_alpha(alpha, exposure, specific_variance)
+
+        # 中性化后与任何因子都应接近零相关
+        for k in range(K):
+            corr_k = np.corrcoef(alpha_sp, exposure.values[:, k])[0, 1]
+            assert abs(corr_k) < 0.05, \
+                f'corr with f{k} too high after neutralization: {corr_k:.4f}'
+

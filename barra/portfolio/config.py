@@ -14,6 +14,7 @@ OPTIMIZATION_PARAMS = {
     'max_active_position': 0.10,     # U_n，个股主动头寸上限 5%
     'min_trade_threshold': 1e-5,     # 最小交易阈值
     'benchmark_neutralize_alpha': True,  # 是否对Alpha进行基准中性化
+    'factor_neutralize_alpha': True,    # 是否对Alpha进行行业及风险因子中性化
 }
 
 # 迭代参数

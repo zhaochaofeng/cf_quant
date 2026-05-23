@@ -23,7 +23,7 @@ logger = LoggerFactory.get_logger(__name__)
 
 class PortfolioEngine:
     """投资组合优化主引擎
-    
+
     编排完整的优化流程：
     1. 数据加载与对齐
     2. 构建资产协方差矩阵
@@ -31,12 +31,12 @@ class PortfolioEngine:
     4. 无交易区域迭代
     5. 生成交易指令
     6. 保存结果
-    
+
     使用示例：
         engine = PortfolioEngine(calc_date='2026-03-28')
         result = engine.run()
     """
-    
+
     def __init__(
         self,
         calc_date: str,
@@ -62,11 +62,11 @@ class PortfolioEngine:
         self.market = market
         self.portfolio_name = portfolio_name
         self.position = position
-        
+
         # 合并优化参数
         self.params = OPTIMIZATION_PARAMS.copy()
         self.params.update(optimization_params)
-        
+
         # 初始化组件
         self.data_loader = PortfolioDataLoader(
             market=market,
@@ -114,6 +114,58 @@ class PortfolioEngine:
 
         return alpha_neutral
 
+    @staticmethod
+    def factor_neutralize_alpha(
+        alpha: np.ndarray,
+        exposure: pd.DataFrame,
+        specific_variance: pd.Series,
+        regularization: float = 1e-6,
+    ) -> np.ndarray:
+        """对Alpha进行行业及风险因子中性化（GLS投影）
+
+        α_sp = α - X(X^T Δ⁻¹ X)⁻¹ X^T Δ⁻¹ α
+
+        将Alpha投影到因子暴露矩阵X的列空间补空间上，
+        剔除能被共同因子解释的部分，保留特异Alpha。
+
+        Args:
+            alpha: 原始Alpha向量 (N,)
+            exposure: 因子暴露矩阵 (N×K DataFrame)
+            specific_variance: 特异风险方差 (N, Series)
+            regularization: 正则化参数，防止X^T Δ⁻¹ X奇异
+
+        Returns:
+            特异Alpha向量 (N,)
+        """
+        X = exposure.values
+        Δ_inv = 1.0 / specific_variance.values  # (N,)
+
+        # X^T Δ⁻¹ X = X^T @ diag(Δ_inv) @ X = (X.T * Δ_inv) @ X
+        Xt_W = X.T * Δ_inv  # (K, N)
+        Xt_W_X = Xt_W @ X   # (K, K)
+
+        # 正则化
+        Xt_W_X += regularization * np.eye(Xt_W_X.shape[0])
+
+        # θ = solve(X^T Δ⁻¹ X, X^T Δ⁻¹ α), α_sp = α - X @ θ
+        Xt_W_alpha = X.T @ (Δ_inv * alpha)
+        theta = np.linalg.solve(Xt_W_X, Xt_W_alpha)
+        alpha_sp = alpha - X @ theta
+
+        # 检验指标
+        from scipy.stats import spearmanr
+        sp_corr, _ = spearmanr(alpha, alpha_sp)
+        vol_alpha = np.std(alpha)
+        vol_alpha_sp = np.std(alpha_sp)
+        logger.info(
+            f'Alpha因子中性化: '
+            f'alpha_vol={vol_alpha:.4e} → alpha_sp_vol={vol_alpha_sp:.4e}, '
+            f'vol_reduction={vol_alpha_sp / vol_alpha:.2%}, '
+            f'spearman_rank_corr={sp_corr:.4f}'
+        )
+
+        return alpha_sp
+
     def run(
         self,
         portfolio_value: float = DEFAULT_PORTFOLIO_VALUE,
@@ -131,14 +183,14 @@ class PortfolioEngine:
         logger.info('=' * 60)
         logger.info(f'投资组合优化开始: calc_date={self.calc_date}')
         logger.info('=' * 60)
-        
+
         # Step 1: 加载并对齐数据
         logger.info('Step 1: 加载数据...')
         self.data = self.data_loader.align_all_data(
             calc_date=self.calc_date, position=self.position
         )
         PickleIO.write(self.data, f'{self.debug_output_dir}/data.pkl')
-        
+
         # Step 2: 构建资产协方差矩阵
         logger.info('Step 2: 构建协方差矩阵...')
         self.V = build_asset_covariance(
@@ -148,7 +200,7 @@ class PortfolioEngine:
         )
         logger.info('V shape: {}'.format(self.V.shape))
         PickleIO.write(self.V, f'{self.debug_output_dir}/V.pkl')
-        
+
         # 准备numpy数组
         cash = self.data['cash']
         hold_value = self.data['current_position'] * self.data['prices']   # 持仓金额
@@ -167,6 +219,14 @@ class PortfolioEngine:
         if self.params.get('benchmark_neutralize_alpha', True):
             beta = self.data['beta'].values
             alpha = self.benchmark_neutralize_alpha(alpha, w_b, beta)
+
+        # Alpha行业及风险因子中性化: α_sp = α - X(X^T Δ⁻¹ X)⁻¹ X^T Δ⁻¹ α
+        if self.params.get('factor_neutralize_alpha', True):
+            alpha = self.factor_neutralize_alpha(
+                alpha,
+                self.data['exposure'],
+                self.data['specific_risk']
+            )
 
         h_cur = hold_weight.values - w_b
 
@@ -188,7 +248,7 @@ class PortfolioEngine:
         # h_final = pd.Series(self.iteration_result.h_final, index=self.data['instruments'])
         h_final = pd.Series(h_star, index=self.data['instruments'])
         h_cur_series = pd.Series(h_cur, index=self.data['instruments'])
-        
+
         trade_orders = self.trade_generator.generate(
             h_final=h_final,
             h_cur=h_cur_series,
@@ -209,4 +269,3 @@ class PortfolioEngine:
         logger.info('=' * 60)
         logger.info('投资组合优化完成')
         logger.info('=' * 60)
-
