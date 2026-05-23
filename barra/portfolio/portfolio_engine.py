@@ -138,18 +138,19 @@ class PortfolioEngine:
             (alpha_sp, alpha_F): 特异Alpha向量 (N,), 因子阿尔法向量 (K,)
         """
         X = exposure.values
-        Δ_inv = 1.0 / specific_variance.values  # (N,)
+        Δ_inv = np.diag(1.0 / specific_variance.values)  # (N, N)
 
-        # X^T Δ⁻¹ X = X^T @ diag(Δ_inv) @ X = (X.T * Δ_inv) @ X
-        Xt_W = X.T * Δ_inv  # (K, N)
-        Xt_W_X = Xt_W @ X   # (K, K)
+        # X^T Δ⁻¹ X
+        Xt_W_X = X.T @ Δ_inv @ X  # (K, K)
 
         # 正则化
         Xt_W_X += regularization * np.eye(Xt_W_X.shape[0])
 
-        # θ = solve(X^T Δ⁻¹ X, X^T Δ⁻¹ α), α_sp = α - X @ θ
-        Xt_W_alpha = X.T @ (Δ_inv * alpha)
+        # X^T Δ⁻¹ α
+        Xt_W_alpha = X.T @ Δ_inv @ alpha
+        # θ = solve(X^T Δ⁻¹ X, X^T Δ⁻¹ α)，相当于 (X^T Δ⁻¹ X)^-1 X^T Δ⁻¹ α，也就是 H @ α
         theta = np.linalg.solve(Xt_W_X, Xt_W_alpha)
+        # α_sp = α - X @ θ
         alpha_sp = alpha - X @ theta
 
         # 因子阿尔法 α_F = θ (因子组合矩阵 H × alpha)
