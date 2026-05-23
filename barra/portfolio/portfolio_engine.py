@@ -21,28 +21,6 @@ from utils import LoggerFactory, PickleIO
 logger = LoggerFactory.get_logger(__name__)
 
 
-@dataclass
-class PortfolioResult:
-    """组合优化结果数据类"""
-    trade_orders: pd.DataFrame
-    position: pd.DataFrame
-    active_risk: float
-    turnover: float
-    iterations: int
-    converged: bool
-    calc_date: str
-    
-    def to_dict(self) -> dict:
-        """转换为字典（不含DataFrame）"""
-        return {
-            'active_risk': self.active_risk,
-            'turnover': self.turnover,
-            'iterations': self.iterations,
-            'converged': self.converged,
-            'calc_date': self.calc_date
-        }
-
-
 class PortfolioEngine:
     """投资组合优化主引擎
     
