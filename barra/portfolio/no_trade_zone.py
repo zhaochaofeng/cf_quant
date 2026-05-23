@@ -36,6 +36,9 @@ class NoTradeZoneIterator:
     
     迭代调整直至收敛。
     Fix: 当前算法不收敛 ???
+        变量的量纲是否需要统一？
+	    total_weight 之和和 大于 1 ？
+	    优化问题中不应该考虑 成本 ？
     """
     
     def __init__(self):
