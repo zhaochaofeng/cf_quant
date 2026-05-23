@@ -7,7 +7,7 @@ from typing import Optional, Union, List, Dict
 import pandas as pd
 
 from barra.portfolio.config import DATA_PATHS
-from utils import LoggerFactory
+from utils import LoggerFactory, winsorize
 from .config import DEFAULT_PORTFOLIO_VALUE
 
 logger = LoggerFactory.get_logger(__name__)
@@ -66,6 +66,7 @@ class PortfolioDataLoader:
         df = df.set_index('instrument')
         alpha = df['alpha']
         alpha.name = 'alpha'
+        alpha = winsorize(alpha)['alpha']
 
         logger.info(f'加载Alpha(MySQL): {len(alpha)}只股票, 日期={calc_date}')
         return alpha
