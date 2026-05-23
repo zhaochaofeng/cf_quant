@@ -115,3 +115,42 @@ class PortfolioOutputManager:
             err_msg = f'MySQL保存失败: {e}'
             logger.error(err_msg)
             raise Exception(err_msg)
+
+    def save_factor_alpha_to_mysql(
+        self,
+        factor_alpha: pd.DataFrame,
+        calc_date: str,
+    ):
+        """保存因子阿尔法到MySQL
+
+        Args:
+            factor_alpha: DataFrame(index=因子名, columns=['alpha_F'])
+            calc_date: 计算日期 YYYY-MM-DD
+        """
+
+        sql = '''
+            INSERT INTO factor_alpha (day, name, alpha_F)
+            VALUES (%(day)s, %(name)s, %(alpha_F)s)
+            ON DUPLICATE KEY UPDATE alpha_F = VALUES(alpha_F)
+        '''
+
+        params = []
+        for name, row in factor_alpha.iterrows():
+            params.append({
+                'day': calc_date,
+                'name': name,
+                'alpha_F': row['alpha_F'],
+            })
+
+        try:
+            from utils import MySQLDB
+            with MySQLDB() as db:
+                db.executemany(sql, params)
+
+            logger.info(f'因子阿尔法已保存到MySQL: calc_date={calc_date}, '
+                       f'共{len(params)}个因子')
+
+        except Exception as e:
+            err_msg = f'因子阿尔法MySQL保存失败: {e}'
+            logger.error(err_msg)
+            raise Exception(err_msg)

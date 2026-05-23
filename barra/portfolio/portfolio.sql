@@ -21,3 +21,17 @@ CREATE TABLE IF NOT EXISTS portfolio (
     COMMENT='持仓信息表'
     AUTO_INCREMENT=1;
 
+-- 因子阿尔法
+CREATE TABLE IF NOT EXISTS factor_alpha (
+    id INT NOT NULL AUTO_INCREMENT,
+    day DATE NOT NULL COMMENT '计算日期，格式YYYY-MM-DD',
+    name VARCHAR(50) NOT NULL COMMENT '因子名称',
+    alpha_F Decimal(10, 6) NOT NULL COMMENT '因子阿尔法',
+    PRIMARY KEY (id),
+    UNIQUE KEY un_day_name (day, name)
+) ENGINE=InnoDB
+    DEFAULT CHARSET=utf8mb4
+    COLLATE=utf8mb4_unicode_ci
+    COMMENT='因子阿尔法'
+    AUTO_INCREMENT=1;
+

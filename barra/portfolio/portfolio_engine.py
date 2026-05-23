@@ -120,7 +120,7 @@ class PortfolioEngine:
         exposure: pd.DataFrame,
         specific_variance: pd.Series,
         regularization: float = 1e-6,
-    ) -> np.ndarray:
+    ) -> tuple:
         """对Alpha进行行业及风险因子中性化（GLS投影）
 
         α_sp = α - X(X^T Δ⁻¹ X)⁻¹ X^T Δ⁻¹ α
@@ -135,7 +135,7 @@ class PortfolioEngine:
             regularization: 正则化参数，防止X^T Δ⁻¹ X奇异
 
         Returns:
-            特异Alpha向量 (N,)
+            (alpha_sp, alpha_F): 特异Alpha向量 (N,), 因子阿尔法向量 (K,)
         """
         X = exposure.values
         Δ_inv = 1.0 / specific_variance.values  # (N,)
@@ -152,6 +152,9 @@ class PortfolioEngine:
         theta = np.linalg.solve(Xt_W_X, Xt_W_alpha)
         alpha_sp = alpha - X @ theta
 
+        # 因子阿尔法 α_F = θ (因子组合矩阵 H × alpha)
+        alpha_F = theta
+
         # 检验指标
         from scipy.stats import spearmanr
         sp_corr, _ = spearmanr(alpha, alpha_sp)
@@ -164,7 +167,7 @@ class PortfolioEngine:
             f'spearman_rank_corr={sp_corr:.4f}'
         )
 
-        return alpha_sp
+        return alpha_sp, alpha_F
 
     def run(
         self,
@@ -222,11 +225,14 @@ class PortfolioEngine:
 
         # Alpha行业及风险因子中性化: α_sp = α - X(X^T Δ⁻¹ X)⁻¹ X^T Δ⁻¹ α
         if self.params.get('factor_neutralize_alpha', True):
-            alpha = self.factor_neutralize_alpha(
+            alpha, alpha_F = self.factor_neutralize_alpha(
                 alpha,
                 self.data['exposure'],
                 self.data['specific_risk']
             )
+            factor_names = self.data['exposure'].columns
+            self.data['factor_alpha'] = pd.DataFrame({'alpha_F': alpha_F},
+                                                     index=factor_names)
 
         h_cur = hold_weight.values - w_b
 
@@ -265,6 +271,10 @@ class PortfolioEngine:
                 trade_orders, self.calc_date, self.portfolio_name,
                 total_value, self.data['current_position']
             )
+            if 'factor_alpha' in self.data:
+                self.output_manager.save_factor_alpha_to_mysql(
+                    self.data['factor_alpha'], self.calc_date
+                )
 
         logger.info('=' * 60)
         logger.info('投资组合优化完成')
