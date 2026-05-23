@@ -16,7 +16,7 @@ import pandas as pd
 import qlib
 
 from barra.risk_control.barra_engine import BarraRiskEngine
-from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROVIDER_URI, BENCHMARK_CONFIG
+from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROVIDER_URI, BENCHMARK_CONFIG, CATEGORIES_MAP
 from barra.risk_control.output import RiskOutputManager
 from barra.risk_control.portfolio import PortfolioManager
 from barra.risk_control.risk_attribution import RiskAttributionAnalyzer
@@ -37,15 +37,7 @@ def init_qlib():
 
 def get_factor_types() -> pd.Series:
     """获取因子类型映射（风格因子 + 行业因子）"""
-    category_map = {
-        'size': '规模', 'volatility': '波动率', 'liquidity': '流动性',
-        'momentum': '动量', 'quality_leverage': '质量-杠杆',
-        'quality_earn_vol': '质量-盈利波动',
-        'quality_earn_quality': '质量-盈利质量',
-        'quality_profit': '质量-盈利能力',
-        'quality_invest': '质量-投资质量',
-        'value': '价值', 'growth': '成长',
-    }
+    category_map = CATEGORIES_MAP
     factor_types = {}
     for category, factors in CNE6_STYLE_FACTORS.items():
         for f in factors:

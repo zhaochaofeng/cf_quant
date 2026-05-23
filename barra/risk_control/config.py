@@ -157,6 +157,16 @@ CNE6_STYLE_FACTORS = {
     'growth': ['EGRO', 'SGRO'],
 }
 
+# 分类名称
+CATEGORIES_MAP = {
+    'size': '规模', 'volatility': '波动率', 'liquidity': '流动性',
+    'momentum': '动量', 'quality_leverage': '质量-杠杆',
+    'quality_earn_vol': '质量-盈利波动',
+    'quality_earn_quality': '质量-盈利质量',
+    'quality_profit': '质量-盈利能力',
+    'quality_invest': '质量-投资质量',
+    'value': '价值', 'growth': '成长',
+}
 
 # 因子名称列表
 STYLE_FACTOR_LIST = []
