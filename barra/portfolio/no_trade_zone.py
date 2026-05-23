@@ -1,10 +1,10 @@
 """
 无交易区域迭代算法模块
 """
+from dataclasses import dataclass
+from copy import deepcopy
 import numpy as np
 import pandas as pd
-from typing import Dict, Optional
-from dataclasses import dataclass
 
 from barra.portfolio.config import OPTIMIZATION_PARAMS, ITERATION_PARAMS
 from barra.portfolio.optimizer import compute_mcva
@@ -35,6 +35,7 @@ class NoTradeZoneIterator:
     - 若 MCVA_n < -c_s，卖出
     
     迭代调整直至收敛。
+    Fix: 当前算法不收敛 ???
     """
     
     def __init__(self):
@@ -54,7 +55,7 @@ class NoTradeZoneIterator:
         V: np.ndarray,
         h_cur: np.ndarray,
         w_b: np.ndarray,
-        h_init: Optional[np.ndarray] = None
+        debug_output_dir: str
     ) -> IterationResult:
         """执行无交易区域迭代
         
@@ -71,8 +72,7 @@ class NoTradeZoneIterator:
             V: 资产协方差矩阵 (N, N)
             h_cur: 当前主动头寸 (N,)
             w_b: 基准权重 (N,)
-            h_init: 初始头寸（可选，默认用h_cur）
-            
+
         Returns:
             IterationResult: 迭代结果
         """
@@ -88,66 +88,66 @@ class NoTradeZoneIterator:
         # 避免除零
         V_diag = np.maximum(V_diag, 1e-12)
         
-        # 初始化头寸
-        h = h_init.copy() if h_init is not None else h_cur.copy()
+        # 当前持仓
+        h = deepcopy(h_cur)
         
-        # 阻尼因子（步长限制，防止数值爆炸）
-        damping = 0.5
-        
+        # 股票索引（用于逐只遍历）
+        stock_indices = np.arange(N)
+
         # 迭代
         converged = False
         iteration = 0
-        
+
         for iteration in range(1, self.max_iterations + 1):
-            # 计算附加值边际贡献
-            mcva = compute_mcva(alpha, V, h, self.risk_aversion)
-            
-            # 计算调整量
-            delta_h = np.zeros(N)
-            
-            # 买入情形: MCVA > c_b
-            buy_mask = mcva > c_b
-            delta_h[buy_mask] = (mcva[buy_mask] - c_b[buy_mask]) / (2 * self.risk_aversion * V_diag[buy_mask])
-            
-            # 卖出情形: MCVA < -c_s
-            sell_mask = mcva < -c_s
-            delta_h[sell_mask] = (mcva[sell_mask] + c_s[sell_mask]) / (2 * self.risk_aversion * V_diag[sell_mask])
-            
-            # 应用阻尼因子（限制步长）
-            delta_h = delta_h * damping
-            
-            # 更新头寸
-            h_new = h + delta_h
-            
+            # 每轮随机打乱遍历顺序，避免系统性偏差
+            np.random.shuffle(stock_indices)
+            max_abs_delta = 0.0
+
+            # 逐只调整
+            for n in stock_indices:
+                # 计算股票n的 MCVA（使用最新的h，含其他股票调整的交叉效应）
+                mcva_n = alpha[n] - 2 * self.risk_aversion * (V[n, :] @ h)
+
+                if mcva_n > c_b[n]:
+                    # delta = h^{target} - h^{curr}
+                    delta = (mcva_n - c_b[n]) / (2 * self.risk_aversion * V_diag[n])
+                    h[n] += delta
+                elif mcva_n < -c_s[n]:
+                    delta = (mcva_n + c_s[n]) / (2 * self.risk_aversion * V_diag[n])
+                    h[n] += delta
+                else:
+                    delta = 0.0
+
+                max_abs_delta = max(max_abs_delta, abs(delta))
+
+            from utils import PickleIO
+            PickleIO.write(h, f'{debug_output_dir}/h.pkl')
             # 施加现金中性约束: sum(h) = 0
-            h_new = h_new - np.mean(h_new)
-            
+            # h = h - np.mean(h)
+
             # 施加卖空约束: h >= -w_b
-            h_new = np.maximum(h_new, -w_b)
-            
+            h = np.maximum(h, -w_b)
+
             # 限制头寸范围（防止数值溢出）
-            h_new = np.clip(h_new, -1.0, 1.0)
-            
+            # h = np.clip(h, -1.0, 1.0)
+
             # 检查数值溢出
-            if not np.all(np.isfinite(h_new)):
+            if not np.all(np.isfinite(h)):
                 err_msg = '数值溢出 !!!'
                 logger.error(err_msg)
                 raise ValueError(err_msg)
-            
-            # 检查收敛. 新旧头寸向量之间的欧几里得距离
-            change = np.linalg.norm(delta_h)
+
+            # 收敛检查：最大单股票调整量小于阈值
             if iteration % 10 == 0:
-                logger.info(f'迭代: iter={iteration}, change={change:.2e}')
-            
-            if change < self.convergence_threshold:
+                logger.info(f'迭代: iter={iteration}, max_abs_delta={max_abs_delta:.2e}')
+
+            if max_abs_delta < self.convergence_threshold:
                 converged = True
-                logger.info(f'迭代收敛: iter={iteration}, change={change:.2e}')
+                logger.info(f'迭代收敛: iter={iteration}, max_abs_delta={max_abs_delta:.2e}')
                 break
-            
-            h = h_new
-        
+
         if not converged:
-            logger.warning(f'迭代未收敛: iter={iteration}, change={change:.2e}')
+            logger.warning(f'迭代未收敛: iter={iteration}, max_abs_delta={max_abs_delta:.2e}')
 
 
         # 最终计算
