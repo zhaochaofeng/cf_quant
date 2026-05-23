@@ -4,6 +4,7 @@
 from pathlib import Path
 from typing import Optional, Union, List, Dict
 
+import numpy as np
 import pandas as pd
 
 from barra.portfolio.config import DATA_PATHS
@@ -229,7 +230,66 @@ class PortfolioDataLoader:
         logger.info(f'加载股价: {len(prices)}只股票')
 
         return prices
-    
+
+    def load_beta(
+        self,
+        instruments: List[str],
+        calc_date: str,
+        window: int = 504,
+        half_life: int = 252,
+    ) -> pd.Series:
+        """调用data/factor/utils.py的capm_regress()计算每只股票的CAPM Beta。
+
+        使用WLS滚动窗口回归，半衰期指数加权，window=504, half_life=252。
+        从capm_regress的MultiIndex结果中提取calc_date对应的最新beta。
+
+        Args:
+            instruments: 股票代码列表
+            calc_date: 计算日期（基准日），用于决定回归窗口结束日
+            window: 滚动窗口大小（交易日数），默认504
+            half_life: 半衰期（交易日数），默认252
+
+        Returns:
+            Series(index=instrument, name='beta')，每只股票对CSI300的Beta
+        """
+        from config import BENCHMARK_CONFIG
+        from data.factor.utils import capm_regress
+        from qlib.data import D
+
+        # 1. 计算回归窗口的起始日期
+        calendar = D.calendar(start_time=None, end_time=calc_date, freq='day')
+        trade_dates = sorted(calendar)
+        calc_idx = trade_dates.index(pd.Timestamp(calc_date))
+        start_idx = max(0, calc_idx - window + 1)
+        start_date = str(trade_dates[start_idx]).split()[0]
+
+        # 2. 加载个股收益率（MultiIndex: instrument, datetime）
+        stock_returns = D.features(
+            instruments,
+            fields=['$change'],
+            start_time=start_date,
+            end_time=calc_date,
+        )['$change'].dropna()
+
+        # 3. 调用capm_regress
+        beta, _, _ = capm_regress(
+            stock_returns,
+            window=window,
+            half_life=half_life,
+            benchmark=BENCHMARK_CONFIG['BENCHMARK'],
+            num_worker=1,
+        )
+
+        # 4. 提取calc_date对应的beta（最新一期）
+        beta_today = beta.xs(calc_date, level='datetime')
+        beta_today.name = 'beta'
+
+        n_valid = beta_today.notna().sum()
+        logger.info(f'Beta计算完成: {n_valid}/{len(instruments)}只股票有效, '
+                    f'窗口={window}日, 半衰期={half_life}日, '
+                    f'start_date={start_date}, end_date={calc_date}')
+        return beta_today
+
     def align_all_data(
         self,
         calc_date: str,
@@ -249,21 +309,22 @@ class PortfolioDataLoader:
                 'specific_risk': Series,      特异风险矩阵 Delta N * N
                 'benchmark_weights': Series,  基准权重
                 'current_position': Series,   当前持仓
-                'prices': Series              股票价格
+                'prices': Series,             股票价格
+                'beta': Series                股票Beta
             }
         """
         logger.info('=' * 50)
         logger.info('开始数据加载与对齐...')
-        
+
         # 1. 加载Alpha
         alpha = self.load_alpha(calc_date)
-        
+
         # 2. 加载风险模型（使用相同的calc_date）
         risk_model = self.load_risk_model(calc_date)
         exposure = risk_model['exposure']
         factor_cov = risk_model['factor_cov']
         specific_risk = risk_model['specific_risk']  # Series
-        
+
         # 3. 加载基准权重（使用相同的calc_date）
         benchmark_weights = self.load_benchmark_weights(calc_date)
 
@@ -275,9 +336,9 @@ class PortfolioDataLoader:
             .intersection(benchmark_weights.index)
         )
         common_instruments = common_instruments.sort_values()
-        
+
         logger.info(f'数据对齐: 共{len(common_instruments)}只股票')
-        
+
         # 5. 对齐各数据
         aligned_alpha = alpha.reindex(common_instruments)
         aligned_exposure = exposure.reindex(common_instruments)
@@ -285,21 +346,30 @@ class PortfolioDataLoader:
         aligned_specific_risk = specific_risk.reindex(common_instruments)
         aligned_benchmark = benchmark_weights.reindex(common_instruments, fill_value=0.0)
         aligned_benchmark = aligned_benchmark / aligned_benchmark.sum()    # 权重归一化
-        
+
         # 6. 加载当前持仓并对齐
         current_position, cash = self.load_current_position(common_instruments, calc_date, position)
         aligned_position = current_position.reindex(common_instruments, fill_value=0.0)
-        
+
         # 7. 加载股价
         prices = self.load_stock_prices(common_instruments.tolist(), calc_date)
         aligned_prices = prices.reindex(common_instruments)
+
+        # 8. 加载Beta
+        beta = self.load_beta(common_instruments.tolist(), calc_date)
+        aligned_beta = beta.reindex(common_instruments)
+
+        # 基准加权平均Beta (用于中性化残差分析)
+        beta_wb_sum = np.sum(aligned_benchmark.values * aligned_beta.values)
+        logger.info(f'Beta基准权重: Σ(w_b * β)={beta_wb_sum:.4f}')
 
         # 检查缺失值
         nan_check = {
             'alpha': aligned_alpha.isna().sum(),
             'exposure': aligned_exposure.isna().sum().sum(),
             'specific_risk': aligned_specific_risk.isna().sum(),
-            'prices': aligned_prices.isna().sum()
+            'prices': aligned_prices.isna().sum(),
+            'beta': aligned_beta.isna().sum(),
         }
         logger.info(f'缺失值检查: {nan_check}')
         
@@ -316,6 +386,7 @@ class PortfolioDataLoader:
             'benchmark_weights': aligned_benchmark,
             'current_position': aligned_position,
             'prices': aligned_prices,
+            'beta': aligned_beta,
             'calc_date': calc_date,
             'cash': cash
         }

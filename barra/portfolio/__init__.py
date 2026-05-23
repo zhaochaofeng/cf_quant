@@ -34,7 +34,7 @@ from .optimizer import QPOptimizer, OptimizationResult, compute_mcva
 from .no_trade_zone import NoTradeZoneIterator, IterationResult, build_asset_covariance
 from .trade_generator import TradeGenerator
 from .output import PortfolioOutputManager
-from .portfolio_engine import PortfolioEngine, PortfolioResult
+from .portfolio_engine import PortfolioEngine
 
 __all__ = [
     # 配置
@@ -46,7 +46,6 @@ __all__ = [
     
     # 核心类
     'PortfolioEngine',
-    'PortfolioResult',
     'PortfolioDataLoader',
     'QPOptimizer',
     'OptimizationResult',

@@ -13,6 +13,7 @@ OPTIMIZATION_PARAMS = {
     'max_turnover': 1.0,            # T_max，换手率上限 10%。这个值小于1导致求解最优持仓不收敛
     'max_active_position': 0.10,     # U_n，个股主动头寸上限 5%
     'min_trade_threshold': 1e-5,     # 最小交易阈值
+    'benchmark_neutralize_alpha': True,  # 是否对Alpha进行基准中性化
 }
 
 # 迭代参数

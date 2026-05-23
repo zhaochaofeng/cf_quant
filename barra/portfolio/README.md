@@ -13,7 +13,7 @@ df = D.features(instruments, fields=['$circ_mv', '$close'], start_time='2025-01-
 ```
 - **当前持仓**：\(w_{\text{cur}}\)，默认 w_{\text{cur}} 是一个长度与w_b相同的零向量。作为输入参数，表示当前的股票持仓权重。
 - **初始金额**：\(\text{PortfolioValue}\)，默认为1亿元。作为输入参数，表示初始的组合资产净值。
-- **阿尔法**：\(\alpha \in \mathbb{R}^N\)，由预测模型提供. 使用前进行3倍标准差去极值. 获取方式：
+- **阿尔法**：\(\alpha \in \mathbb{R}^N\)，由预测模型提供. 使用前进行3倍标准差去极值，然后进行**基准中性化**（见第2.6节）。获取方式：
 ```python
 import pandas as pd
 from utils import sql_engine
@@ -38,6 +38,7 @@ df.set_index(['instrument'], inplace=True)
 - **交易成本**：
   - 买入成本率 \(c_b\)（如0.03%），卖出成本率 \(c_s\)（如0.13%），c_b和c_s 都是长度为N的常向量。作为输入参数
 - **当前主动头寸**：\(h_{\text{cur}} = w_{\text{cur}} - w_b\)，已知
+- **股票贝塔**：\(\beta \in \mathbb{R}^N\)，通过每只股票日收益率与沪深300指数日收益率做 WLS 回归得到（回归窗口 504 个交易日，半衰期 252 个交易日），调用 `data/factor/utils.capm_regress()` 获取。
 ---
 
 ## 2. 优化问题构建
@@ -87,6 +88,38 @@ df.set_index(['instrument'], inplace=True)
 \min \; \frac{1}{2} h^T (2\lambda V) h - \alpha^T h + c_b^T b + c_s^T s
 \]
 约束为线性，通过cvxpy 进行求解。
+
+### 2.6 Alpha基准中性化
+
+为避免优化结果对基准方向下注（主动贝塔不为零），在优化前对Alpha进行基准中性化处理。
+
+#### 2.6.1 基准Alpha
+
+基准Alpha是基准组合中所有股票的加权平均Alpha：
+
+\[
+\alpha_B = \sum_{n=1}^{N} w_{b,n} \cdot \alpha_n
+\]
+
+#### 2.6.2 中性化Alpha
+
+调整每只股票的Alpha，减去其对基准Alpha的暴露：
+
+\[
+\alpha_n^{\text{neutral}} = \alpha_n - \beta_n \cdot \alpha_B
+\]
+
+其中 \(\beta_n\) 为股票 \(n\) 相对于基准的贝塔。
+
+#### 2.6.3 数学性质
+
+中性化后，基准权重加权Alpha为零：
+
+\[
+\sum_{n=1}^{N} w_{b,n} \alpha_n^{\text{neutral}} = \alpha_B - \left(\sum_{n=1}^{N} w_{b,n} \beta_n\right) \alpha_B = 0
+\]
+
+从而在无约束优化中，主动组合的贝塔自动为零，不对基准方向主动下注。
 
 ---
 
@@ -341,7 +374,7 @@ h_n^{\text{target}} = h_{\text{cur},n} + \frac{MCVA_n^{\text{cur}} + SC_n}{2\lam
 ### 算法步骤
 
 1. **（可选）求解理论最优组合**  
-   构建二次规划问题，求解得到理论最优主动头寸 \(h^*\)（可作为迭代初始值的参考，非必需）
+   构建二次规划问题（Alpha已在前一步完成基准中性化），求解得到理论最优主动头寸 \(h^*\)（可作为迭代初始值的参考，非必需）
 
 2. **初始化**  
    设当前主动头寸 \(h = h_{\text{cur}}\)

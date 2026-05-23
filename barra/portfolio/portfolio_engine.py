@@ -82,7 +82,38 @@ class PortfolioEngine:
         self.data = None
         self.V = None
         self.iteration_result = None
-        
+
+    @staticmethod
+    def benchmark_neutralize_alpha(
+        alpha: np.ndarray,
+        benchmark_weights: np.ndarray,
+        beta: np.ndarray,
+    ) -> np.ndarray:
+        """对Alpha进行基准中性化: α_n^neutral = α_n - β_n * Σ(b_k * α_k)
+
+        Args:
+            alpha: 原始Alpha向量 (N,)
+            benchmark_weights: 基准权重向量 (N,)
+            beta: 股票Beta（对基准的敏感性）向量 (N,)
+
+        Returns:
+            中性化后的Alpha向量 (N,)
+        """
+        alpha_benchmark = np.sum(benchmark_weights * alpha)
+        alpha_neutral = alpha - beta * alpha_benchmark
+
+        # 验证中性化后基准加权平均 ≈ 0
+        weighted_sum = np.sum(benchmark_weights * alpha_neutral)
+        logger.info(
+            f'Alpha基准中性化: '
+            f'alpha_B={alpha_benchmark:.6f}, '
+            f'Σ(b_n * α_n^neutral)={weighted_sum:.4e}, '
+            f'range [{alpha.min():.4f}, {alpha.max():.4f}] → '
+            f'[{alpha_neutral.min():.4f}, {alpha_neutral.max():.4f}]'
+        )
+
+        return alpha_neutral
+
     def run(
         self,
         portfolio_value: float = DEFAULT_PORTFOLIO_VALUE,
@@ -131,6 +162,12 @@ class PortfolioEngine:
         PickleIO.write(hold_weight, f'{self.debug_output_dir}/hold_weight.pkl')
         alpha = self.data['alpha'].values
         w_b = self.data['benchmark_weights'].values
+
+        # Alpha基准中性化: α_n^neutral = α_n - β_n * Σ(b_k * α_k)
+        if self.params.get('benchmark_neutralize_alpha', True):
+            beta = self.data['beta'].values
+            alpha = self.benchmark_neutralize_alpha(alpha, w_b, beta)
+
         h_cur = hold_weight.values - w_b
 
         # Step 3: 最优持仓（可选）
