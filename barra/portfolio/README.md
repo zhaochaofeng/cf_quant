@@ -161,6 +161,35 @@ df.set_index(['instrument'], inplace=True)
 1. **波动率变化率**：\(\text{vol\_reduction} = \sqrt{\text{Var}(\alpha_{\text{sp}}) / \text{Var}(\alpha)}\)，反映因子部分被剔除后的波动变化
 2. **Spearman 排序相关性**：\(\rho(\alpha, \alpha_{\text{sp}})\)，验证中性化未过度破坏排序信息
 
+#### 2.7.3 因子阿尔法
+
+**因子组合矩阵**：GLS 投影中已计算：
+
+\[
+H = (X^T \Delta^{-1} X)^{-1} X^T \Delta^{-1} \in \mathbb{R}^{K \times N}
+\]
+
+H 的第 k 行是一个因子组合（factor-mimicking portfolio），即对因子 k 单位暴露、对其他因子零暴露、最小化特异风险的权重组合。
+
+**因子阿尔法**：
+
+\[
+\alpha_F = H \alpha \in \mathbb{R}^K
+\]
+
+\(\alpha_F[k]\) 是因子 k 的预期超额收益，即因子组合的预期收益率。
+
+#### 2.7.4 Alpha分解恒等式
+
+因子中性化与因子阿尔法满足以下分解：
+
+\[
+\alpha = X \alpha_F + \alpha_{sp}
+\]
+
+- \(X \alpha_F\)：被共同因子解释的部分（系统性预期收益）
+- \(\alpha_{sp}\)：特异Alpha（选股能力带来的预期收益）
+
 ---
 
 ## 3. 求解理论最优组合
