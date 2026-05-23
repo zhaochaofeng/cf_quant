@@ -13,7 +13,7 @@ df = D.features(instruments, fields=['$circ_mv', '$close'], start_time='2025-01-
 ```
 - **当前持仓**：\(w_{\text{cur}}\)，默认 w_{\text{cur}} 是一个长度与w_b相同的零向量。作为输入参数，表示当前的股票持仓权重。
 - **初始金额**：\(\text{PortfolioValue}\)，默认为1亿元。作为输入参数，表示初始的组合资产净值。
-- **阿尔法**：\(\alpha \in \mathbb{R}^N\)，由预测模型提供，获取方式：
+- **阿尔法**：\(\alpha \in \mathbb{R}^N\)，由预测模型提供. 使用前进行3倍标准差去极值. 获取方式：
 ```python
 import pandas as pd
 from utils import sql_engine
