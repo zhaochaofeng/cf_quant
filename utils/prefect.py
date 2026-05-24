@@ -2,8 +2,8 @@
     Prefect 相关代码
 '''
 
-from prefect_email import EmailServerCredentials
 from .utils import get_config
+from prefect_email import EmailServerCredentials
 from prefect import flow
 from prefect_email import email_send_message
 from typing import Union, List, Optional
@@ -33,13 +33,9 @@ def email_send_message_flow(email_addresses: Optional[Union[List[str], str]] = N
         email_addresses = [email_addresses]
     email_server_credentials = EmailServerCredentials.load("alert")
     for email_address in email_addresses:
-        subject = email_send_message(
+        subject = email_send_message.with_options(name=f"email {email_address}").submit(
             email_server_credentials=email_server_credentials,
             subject=subject,
             msg=msg,
             email_to=email_address,
         )
-
-
-
-
