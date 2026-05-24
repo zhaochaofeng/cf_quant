@@ -46,3 +46,6 @@ from .tsa import TimeSeriesAnalysis
 # 凸优化方法
 from .convex import constrained_wls
 
+# prefect
+from .prefect import email_send_message_flow, register_smtp
+
