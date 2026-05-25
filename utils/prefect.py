@@ -10,7 +10,10 @@ from typing import Union, List, Optional
 
 
 def register_smtp(name):
-    """ 注册SMTP """
+    """ 注册SMTP
+        name: 注册发送邮件的SMTP名称
+        如: register_smtp('alert')
+    """
     config = get_config()
     credentials = EmailServerCredentials(
         username=config['email']['sender'],
