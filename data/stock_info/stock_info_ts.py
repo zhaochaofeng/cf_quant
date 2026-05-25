@@ -1,14 +1,21 @@
 '''
     股票基本上信息表：stock_info_ts
 '''
+
+import sys
+from pathlib import Path
+
+project_dir = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_dir))
+
 import time
 import traceback
 from datetime import datetime
-
-import fire
+from prefect import flow
 import pandas as pd
 from data.process_data import Base, ts_api
 from utils import tushare_pro, send_email, is_trade_day
+from utils import email_send_message_flow
 
 feas = {
     'ts_code': 'ts_code',
@@ -53,9 +60,6 @@ class TSStockInfoProcessor(Base):
                  ):
         super().__init__(feas=feas, table_name=table_name, **kwargs)
         self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
-        if not is_trade_day(self.now_date):
-            self.logger.info('非交易日，不处理')
-            exit(0)
 
     def fetch_data_from_api(self):
         ''' 股票基本信息 + 行业数据 '''
@@ -150,8 +154,40 @@ class TSStockInfoProcessor(Base):
             raise Exception(error_msg)
 
 
+@flow(name='stock_info_ts', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
+def flow(now_date: str = ''):
+    '''Prefect flow: 每日定时拉取股票信息'''
+    now_date = now_date or datetime.now().strftime('%Y-%m-%d')
+    if not is_trade_day(now_date):
+        print(f'{now_date} 非交易日，跳过')
+        return
+    processor = TSStockInfoProcessor(now_date=now_date)
+    try:
+        processor.main()
+    except Exception as e:
+        err_msg = f'stock_info_ts_flow({now_date}) 执行失败:\n{traceback.format_exc()}'
+        print(err_msg)
+        email_send_message_flow(subject='Data: stock_info_ts', msg=err_msg)
+        raise
+
+
 if __name__ == '__main__':
-    fire.Fire(TSStockInfoProcessor)
-    '''
-        python stock_info_ts.py --now_date 2025-11-02 main
-    '''
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--now-date', type=str, default='',
+                        help='日期 (YYYY-MM-DD)，为空时默认当天')
+    parser.add_argument('--deploy', action='store_true',
+                        help='注册 Prefect 部署')
+    args = parser.parse_args()
+
+    if args.deploy:
+        flow.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="stock_info_ts.py:flow",
+        ).deploy(
+            name="stock_info_ts",
+            work_pool_name="cf_quant",
+        )
+    else:
+        flow(now_date=args.now_date)
