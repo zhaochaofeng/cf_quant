@@ -59,9 +59,6 @@ class TSStockInfoProcessor(Base):
                  ):
         super().__init__(feas=feas, table_name=table_name, **kwargs)
         self.now_date = now_date if now_date else datetime.now().strftime('%Y-%m-%d')
-        if not is_trade_day(self.now_date):
-            self.logger.info('非交易日，不处理')
-            exit(0)
 
     def fetch_data_from_api(self):
         ''' 股票基本信息 + 行业数据 '''
@@ -163,20 +160,30 @@ from prefect import flow
 def stock_info_ts_flow(now_date: str = ''):
     '''Prefect flow: 每日定时拉取股票信息'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
+    if not is_trade_day(now_date):
+        print(f'{now_date} 非交易日，跳过')
+        return
     processor = TSStockInfoProcessor(now_date=now_date)
     processor.main()
 
 
 if __name__ == '__main__':
-    import sys
+    import argparse
 
-    if '--deploy' in sys.argv:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--now-date', type=str, default='',
+                        help='日期 (YYYY-MM-DD)，为空时默认当天')
+    parser.add_argument('--deploy', action='store_true',
+                        help='注册 Prefect 部署')
+    args = parser.parse_args()
+
+    if args.deploy:
         # Prefect 部署注册
         from prefect.schedules import Schedule
         from pathlib import Path
 
         schedule = Schedule(
-            cron="30 18 * * *",       # 每天 8:30 开盘前更新
+            cron="1 18 * * *",       # 每天 8:30 开盘前更新
             timezone="Asia/Shanghai",
         )
         stock_info_ts_flow.from_source(
@@ -188,8 +195,4 @@ if __name__ == '__main__':
             schedule=schedule,
         )
     else:
-        # 保持原有 fire CLI 入口
-        fire.Fire(TSStockInfoProcessor)
-        '''
-            python stock_info_ts.py --now_date 2025-11-02 main
-        '''
+        stock_info_ts_flow(now_date=args.now_date)
