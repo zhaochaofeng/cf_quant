@@ -192,7 +192,7 @@ if __name__ == '__main__':
         )
         stock_info_ts_flow.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="stock_info_ts_prefect.py:stock_info_ts_flow",
+            entrypoint="stock_info_ts_p.py:stock_info_ts_flow",
         ).deploy(
             name="stock-info-ts-daily",
             work_pool_name="cf_quant",
