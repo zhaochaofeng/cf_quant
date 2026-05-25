@@ -38,7 +38,7 @@ feas = {
 }
 
 
-@flow(name='valuation_ts_flow', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
+@flow(name='valuation_ts', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
 def flow(start_date: str = None, end_date: str = None, now_date: str = ''):
     '''Prefect flow: 每日定时拉取市值数据'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
