@@ -17,7 +17,7 @@ from utils import is_trade_day
 
 
 @flow(name='data_pipeline', log_prints=True, timeout_seconds=60 * 60 * 20)
-def flow(now_date: str = ''):
+def flow(start_date: str = None, end_date: str = None, now_date: str = ''):
     '''编排 flow: 依次执行各子 flow，UI 中显示完整血缘关系'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
     if not is_trade_day(now_date):
@@ -32,13 +32,15 @@ def flow(now_date: str = ''):
         as_subflow=True,
     )
 
-    # # 2. valuation_ts
-    # print(f'--- 步骤 2: valuation_ts ({now_date}) ---')
-    # run_deployment(
-    #     "valuation-ts-flow/valuation-ts-daily",
-    #     parameters={"start_date": now_date, "end_date": now_date, "now_date": now_date},
-    #     as_subflow=True,
-    # )
+    # 2. valuation_ts
+    print(f'--- 步骤 2: valuation_ts ({now_date}) ---')
+    if start_date is None or end_date is None:
+        start_date = end_date = now_date
+    run_deployment(
+        "valuation_ts/valuation_ts",
+        parameters={"start_date": start_date, "end_date": end_date, "now_date": now_date},
+        as_subflow=True,
+    )
 
 
 if __name__ == '__main__':
