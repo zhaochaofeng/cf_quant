@@ -42,6 +42,14 @@ def flow(start_date: str = None, end_date: str = None, now_date: str = ''):
         as_subflow=True,
     )
 
+    # 3. check_valuation_ts
+    print(f'--- 步骤 3: check_valuation_ts ({now_date}) ---')
+    run_deployment(
+        "check_valuation_ts/check_valuation_ts",
+        parameters={"now_date": now_date},
+        as_subflow=True,
+    )
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
