@@ -2,19 +2,20 @@
     股票基本上信息表：stock_info_ts
 '''
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 project_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_dir))
 
 import time
 import traceback
 from datetime import datetime
-
-import fire
+from prefect import flow
 import pandas as pd
 from data.process_data import Base, ts_api
 from utils import tushare_pro, send_email, is_trade_day
+from utils import email_send_message_flow
 
 feas = {
     'ts_code': 'ts_code',
@@ -153,10 +154,7 @@ class TSStockInfoProcessor(Base):
             raise Exception(error_msg)
 
 
-from prefect import flow
-
-
-@flow(log_prints=True)
+@flow(log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
 def stock_info_ts_flow(now_date: str = ''):
     '''Prefect flow: 每日定时拉取股票信息'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
@@ -164,7 +162,13 @@ def stock_info_ts_flow(now_date: str = ''):
         print(f'{now_date} 非交易日，跳过')
         return
     processor = TSStockInfoProcessor(now_date=now_date)
-    processor.main()
+    try:
+        processor.main()
+    except Exception as e:
+        err_msg = f'stock_info_ts_flow({now_date}) 执行失败:\n{traceback.format_exc()}'
+        print(err_msg)
+        email_send_message_flow(subject='Data: stock_info_ts', msg=err_msg)
+        raise
 
 
 if __name__ == '__main__':
@@ -183,7 +187,7 @@ if __name__ == '__main__':
         from pathlib import Path
 
         schedule = Schedule(
-            cron="1 18 * * *",       # 每天 8:30 开盘前更新
+            cron="1 18 * * *",
             timezone="Asia/Shanghai",
         )
         stock_info_ts_flow.from_source(
