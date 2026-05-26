@@ -4,6 +4,7 @@
 import sys
 import argparse
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 # 添加项目根目录到路径
@@ -14,7 +15,9 @@ import qlib
 
 from config import PROVIDER_URI
 from barra.alpha.alpha_engine import AlphaEngine
-from utils import LoggerFactory, send_email
+from prefect import flow
+from utils import LoggerFactory, is_trade_day
+from utils.prefect import email_send_message_flow
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -48,36 +51,63 @@ def run(calc_date: str,
     engine.run(calc_date, history_months, portfolio=portfolio, use_cache=use_cache)
 
 
-def main():
+@flow(name='barra_alpha', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
+def flow(now_date: str = '',
+         history_months: int = 24,
+         market: str = 'csi300',
+         portfolio: str = 'default',
+         use_cache: bool = False):
+    '''Prefect flow: 多信号Alpha每日预测'''
+    now_date = now_date or datetime.now().strftime('%Y-%m-%d')
+    if not is_trade_day(now_date):
+        print(f'{now_date} 非交易日，跳过')
+        return
     try:
-        parser = argparse.ArgumentParser(description='多信号Alpha每日预测')
-        parser.add_argument('--calc_date', type=str, required=True,
-                            help='计算日期，如 2026-04-24')
-        parser.add_argument('--history-months', type=int, default=24,
-                            help='历史数据月数')
-        parser.add_argument('--market', type=str, default='csi300',
-                            help='市场代码，默认 csi300')
-        parser.add_argument('--output_dir', type=str, default='output',
-                            help='输出目录，默认 output')
-        parser.add_argument('--portfolio', type=str, default='default',
-                            help='持仓组合名称，默认 default')
-        parser.add_argument('--use-cache', action='store_true',
-                            help='使用缓存数据（从output/debug/加载parquet）')
-        args = parser.parse_args()
-
         init_qlib()
-        run(args.calc_date,
-            args.history_months,
-            args.market,
-            args.output_dir + f'/{args.calc_date}',
-            args.portfolio,
-            use_cache=args.use_cache)
-
-    except Exception as e:
-        logger.error(f'运行出错: {e}')
-        send_email(f'Alpha预测每日计算出错: {e}', traceback.format_exc())
+        run(
+            calc_date=now_date,
+            history_months=history_months,
+            market=market,
+            output_dir=f'output/{now_date}',
+            portfolio=portfolio,
+            use_cache=use_cache,
+        )
+    except:
+        err_msg = 'barra_alpha_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
+        print(err_msg)
+        email_send_message_flow(subject='Data: barra_alpha', msg=err_msg)
         raise
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='多信号Alpha每日预测 — Prefect flow')
+    parser.add_argument('--now-date', type=str, default='',
+                        help='计算日期 (YYYY-MM-DD)，为空时默认当天')
+    parser.add_argument('--history-months', type=int, default=24,
+                        help='历史数据月数')
+    parser.add_argument('--market', type=str, default='csi300',
+                        help='市场代码，默认 csi300')
+    parser.add_argument('--portfolio', type=str, default='default',
+                        help='持仓组合名称，默认 default')
+    parser.add_argument('--use-cache', action='store_true',
+                        help='使用缓存数据')
+    parser.add_argument('--deploy', action='store_true',
+                        help='注册 Prefect 部署')
+    args = parser.parse_args()
+
+    if args.deploy:
+        flow.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="run.py:flow",
+        ).deploy(
+            name="barra_alpha",
+            work_pool_name="cf_quant",
+        )
+    else:
+        flow(
+            now_date=args.now_date,
+            history_months=args.history_months,
+            market=args.market,
+            portfolio=args.portfolio,
+            use_cache=args.use_cache,
+        )

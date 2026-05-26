@@ -6,6 +6,7 @@ import os
 import sys
 import argparse
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 project_root = Path(__file__).parent.parent.parent
@@ -20,7 +21,9 @@ from barra.risk_control.config import CNE6_STYLE_FACTORS, INDUSTRY_MAPPING, PROV
 from barra.risk_control.output import RiskOutputManager
 from barra.risk_control.portfolio import PortfolioManager
 from barra.risk_control.risk_attribution import RiskAttributionAnalyzer
-from utils import LoggerFactory, dt, send_email
+from prefect import flow
+from utils import LoggerFactory, dt, is_trade_day
+from utils.prefect import email_send_message_flow
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -150,42 +153,63 @@ def run(calc_date: str, history_months: int = 24,
     return results
 
 
-def main():
+@flow(name='barra_risk', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
+def flow(now_date: str = '',
+         history_months: int = 24,
+         n_jobs: int = 4,
+         portfolio_input: str = 'random',
+         use_cache: bool = False):
+    '''Prefect flow: Barra CNE6 日频风险计算'''
+    now_date = now_date or datetime.now().strftime('%Y-%m-%d')
+    if not is_trade_day(now_date):
+        print(f'{now_date} 非交易日，跳过')
+        return
     try:
-        parser = argparse.ArgumentParser(
-            description='Barra CNE6 日频风险计算')
-        parser.add_argument(
-            '--date', type=str, required=True,
-            help='计算日期，格式YYYY-MM-DD')
-        parser.add_argument(
-            '--history-months', type=int, default=24,
-            help='历史数据月数')
-        parser.add_argument(
-            '--output_dir', type=str, default='output',
-            help='输出路径')
-        parser.add_argument(
-            '--n-jobs', type=int, default=os.cpu_count()-2,
-            help='并行计算核心数')
-        parser.add_argument(
-            '--portfolio', type=str, default='random',
-            help='投资组合: random(随机) 或 CSV文件路径')
-        parser.add_argument(
-            '--use-cache', action='store_true',
-            help='是否使用缓存')
-        args = parser.parse_args()
-
         init_qlib()
-        run(calc_date=args.date,
-            history_months=args.history_months,
-            output_dir=args.output_dir + f'/{args.date}',
-            n_jobs=args.n_jobs,
-            portfolio_input=args.portfolio,
-            use_cache=args.use_cache)
-    except Exception as e:
-        logger.error(f'运行出错: {e}')
-        send_email(f'Barra CNE6 风险计算出错: {e}', traceback.format_exc())
+        run(
+            calc_date=now_date,
+            history_months=history_months,
+            output_dir=f'output/{now_date}',
+            n_jobs=n_jobs,
+            portfolio_input=portfolio_input,
+            use_cache=use_cache,
+        )
+    except:
+        err_msg = 'barra_risk_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
+        print(err_msg)
+        email_send_message_flow(subject='Data: barra_risk', msg=err_msg)
         raise
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Barra CNE6 日频风险计算 — Prefect flow')
+    parser.add_argument('--now-date', type=str, default='',
+                        help='计算日期 (YYYY-MM-DD)，为空时默认当天')
+    parser.add_argument('--history-months', type=int, default=24,
+                        help='历史数据月数')
+    parser.add_argument('--n-jobs', type=int, default=os.cpu_count() - 2,
+                        help='并行计算核心数')
+    parser.add_argument('--portfolio', type=str, default='random',
+                        help='投资组合: random(随机) 或 CSV文件路径')
+    parser.add_argument('--use-cache', action='store_true',
+                        help='是否使用缓存')
+    parser.add_argument('--deploy', action='store_true',
+                        help='注册 Prefect 部署')
+    args = parser.parse_args()
+
+    if args.deploy:
+        flow.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="run.py:flow",
+        ).deploy(
+            name="barra_risk",
+            work_pool_name="cf_quant",
+        )
+    else:
+        flow(
+            now_date=args.now_date,
+            history_months=args.history_months,
+            n_jobs=args.n_jobs,
+            portfolio_input=args.portfolio,
+            use_cache=args.use_cache,
+        )

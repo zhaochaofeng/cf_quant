@@ -103,11 +103,26 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True
     )
 
+    print(f'--- 步骤 13: barra_risk ({now_date}) ---')
+    run_deployment(
+        "barra_risk/barra_risk",
+        parameters={"now_date": now_date},
+        as_subflow=True,
+    )
 
+    print(f'--- 步骤 14: barra_alpha ({now_date}) ---')
+    run_deployment(
+        "barra_alpha/barra_alpha",
+        parameters={"now_date": now_date},
+        as_subflow=True,
+    )
 
-
-
-
+    print(f'--- 步骤 15: barra_portfolio ({now_date}) ---')
+    run_deployment(
+        "barra_portfolio/barra_portfolio",
+        parameters={"now_date": now_date},
+        as_subflow=True,
+    )
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

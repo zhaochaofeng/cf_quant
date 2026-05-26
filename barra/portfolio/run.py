@@ -7,14 +7,16 @@ project_root = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, project_root)
 
 import argparse
-import sys
+import traceback
+from datetime import datetime
 
 import qlib
 
-import traceback
 from config import PROVIDER_URI
 from portfolio_engine import PortfolioEngine
-from utils import LoggerFactory, send_email
+from prefect import flow
+from utils import LoggerFactory, is_trade_day
+from utils.prefect import email_send_message_flow
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -28,64 +30,87 @@ def init_qlib():
     logger.info('Qlib初始化完成 !')
 
 
-def parse_args():
-    """解析命令行参数"""
-    parser = argparse.ArgumentParser(description='主动投资组合优化')
-    parser.add_argument('--date', type=str, default=None, help='计算日期 (YYYY-MM-DD)，默认为最新交易日')
-    parser.add_argument('--value', type=float, default=1e8, help='组合净值（元），默认1亿')
-    parser.add_argument('--position', type=str, default='zero', help='当前持仓读取方式。zero: 空仓; mysql: 从MySQL 读取')
-    parser.add_argument('--risk_aversion', type=float, default=0.05, help='风险厌恶系数，默认0.05')
-    parser.add_argument('--max_turnover', type=float, default=0.10, help='换手率上限，默认0.10')
-    parser.add_argument('--use_qp', action='store_true', help='是否使用QP优化作为初始解')
-    parser.add_argument('--save_mysql', action='store_true', help='是否保存到MySQL')
-    parser.add_argument('--portfolio', type=str, default='default', help='组合名称')
-    parser.add_argument('--output_dir', type=str, default='output', help='输出目录')
-    return parser.parse_args()
+@flow(name='barra_portfolio', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
+def flow(now_date: str = '',
+         value: float = 1e8,
+         position: str = 'mysql',
+         risk_aversion: float = 0.05,
+         max_turnover: float = 1.0,
+         use_qp: bool = False,
+         save_mysql: bool = True,
+         portfolio: str = 'default'):
+    '''Prefect flow: 主动投资组合优化'''
+    now_date = now_date or datetime.now().strftime('%Y-%m-%d')
+    if not is_trade_day(now_date):
+        print(f'{now_date} 非交易日，跳过')
+        return
 
+    print(f'计算日期: {now_date}')
+    print(f'组合净值: {value:,.0f}元')
+    print(f'风险厌恶系数: {risk_aversion}')
+    print(f'换手率上限: {max_turnover}')
 
-def main():
-    """主函数"""
-    args = parse_args()
-    
-    # 确定计算日期
-    calc_date = args.date
-    
-    logger.info(f'计算日期: {calc_date}')
-    logger.info(f'组合净值: {args.value:,.0f}元')
-    logger.info(f'风险厌恶系数: {args.risk_aversion}')
-    logger.info(f'换手率上限: {args.max_turnover}')
-    
     try:
-        # 初始化Qlib
         init_qlib()
-        
-        # 导入并创建引擎
         engine = PortfolioEngine(
-            calc_date=calc_date,
-            risk_output_dir=f'{project_root}/barra/risk_control/output/{calc_date}',
-            output_dir=args.output_dir + f'/{calc_date}',
-            portfolio_name=args.portfolio,
-            risk_aversion=args.risk_aversion,
-            max_turnover=args.max_turnover,
-            position=args.position,
+            calc_date=now_date,
+            risk_output_dir=f'{project_root}/barra/risk_control/output/{now_date}',
+            output_dir=f'{project_root}/barra/portfolio/output/{now_date}',
+            portfolio_name=portfolio,
+            risk_aversion=risk_aversion,
+            max_turnover=max_turnover,
+            position=position,
         )
-
-        # 执行优化
         engine.run(
-            portfolio_value=args.value,
-            use_qp_init=args.use_qp,
-            save_to_mysql=args.save_mysql,
+            portfolio_value=value,
+            use_qp_init=use_qp,
+            save_to_mysql=save_mysql,
         )
-        
-        logger.info('投资组合优化完成')
-        return 0
-
-    except Exception as e:
-        err_msg = traceback.format_exc()
-        logger.error(err_msg)
-        send_email('主动投资组合优化运行失败', err_msg)
-        return 1
+    except:
+        err_msg = 'barra_portfolio_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
+        print(err_msg)
+        email_send_message_flow(subject='Data: barra_portfolio', msg=err_msg)
+        raise
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    parser = argparse.ArgumentParser(description='主动投资组合优化 — Prefect flow')
+    parser.add_argument('--now-date', type=str, default='',
+                        help='计算日期 (YYYY-MM-DD)，为空时默认当天')
+    parser.add_argument('--value', type=float, default=1e8,
+                        help='组合净值（元），默认1亿')
+    parser.add_argument('--position', type=str, default='zero',
+                        help='当前持仓读取方式。zero: 空仓; mysql: 从MySQL读取')
+    parser.add_argument('--risk-aversion', type=float, default=0.05,
+                        help='风险厌恶系数，默认0.05')
+    parser.add_argument('--max-turnover', type=float, default=0.10,
+                        help='换手率上限，默认0.10')
+    parser.add_argument('--use-qp', action='store_true',
+                        help='是否使用QP优化作为初始解')
+    parser.add_argument('--save-mysql', action='store_true',
+                        help='是否保存到MySQL')
+    parser.add_argument('--portfolio', type=str, default='default',
+                        help='组合名称')
+    parser.add_argument('--deploy', action='store_true',
+                        help='注册 Prefect 部署')
+    args = parser.parse_args()
+
+    if args.deploy:
+        flow.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="run.py:flow",
+        ).deploy(
+            name="barra_portfolio",
+            work_pool_name="cf_quant",
+        )
+    else:
+        flow(
+            now_date=args.now_date,
+            value=args.value,
+            position=args.position,
+            risk_aversion=args.risk_aversion,
+            max_turnover=args.max_turnover,
+            use_qp=args.use_qp,
+            save_mysql=args.save_mysql,
+            portfolio=args.portfolio,
+        )
