@@ -32,9 +32,7 @@ def flow():
         )
         print(result.stdout)
         if result.returncode != 0:
-            err_msg = f'index_shell({now_date}) 执行失败:\n{result.stderr}'
-            print(err_msg)
-            raise RuntimeError(err_msg)
+            raise RuntimeError(result.stderr)
         if result.stderr:
             print(result.stderr)
     except Exception as e:
