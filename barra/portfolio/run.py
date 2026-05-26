@@ -30,7 +30,7 @@ def init_qlib():
     logger.info('Qlib初始化完成 !')
 
 
-@flow(name='barra_portfolio', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
+@flow(name='barra_portfolio', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
 def flow(now_date: str = '',
          value: float = 1e8,
          position: str = 'mysql',

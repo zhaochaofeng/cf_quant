@@ -51,7 +51,7 @@ def run(calc_date: str,
     engine.run(calc_date, history_months, portfolio=portfolio, use_cache=use_cache)
 
 
-@flow(name='barra_alpha', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
+@flow(name='barra_alpha', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
 def flow(now_date: str = '',
          history_months: int = 24,
          market: str = 'csi300',

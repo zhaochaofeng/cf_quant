@@ -153,7 +153,7 @@ def run(calc_date: str, history_months: int = 24,
     return results
 
 
-@flow(name='barra_risk', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
+@flow(name='barra_risk', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
 def flow(now_date: str = '',
          history_months: int = 24,
          n_jobs: int = 4,
