@@ -15,3 +15,6 @@ export PROVIDER_URI="${QLIB_DATA_PATH}/custom_data_hfq"
 # MLflow路径
 export MLFLOW_URI="/home/data/cf_quant/mlruns"
 
+# MySQL客户端命令（通过 docker 访问）
+export MYSQL_CMD="docker exec -i mysql81 mysql"
+
