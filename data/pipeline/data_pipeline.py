@@ -73,6 +73,13 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True
     )
 
+    # 7. qlib_online_check
+    print(f'--- 步骤 7: qlib_online_check ({now_date}) ---')
+    run_deployment(
+        "qlib_online_check_shell/qlib_online_check_shell",
+        as_subflow=True
+    )
+
 
 
 
