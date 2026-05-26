@@ -58,6 +58,17 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     )
 
+    # 5. update_factor
+    print(f'--- 步骤 5: update_factor ({now_date}) ---')
+    run_deployment(
+        "update_factor/update_factor",
+        parameters={"now_date": now_date},
+        as_subflow=True,
+    )
+
+
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
