@@ -16,7 +16,7 @@ from prefect.schedules import Schedule
 from utils import is_trade_day
 
 
-@flow(name='index_shell', log_prints=True)
+@flow(name='index_shell', log_prints=True, retries=3, retry_delay_seconds=60, timeout_seconds=60 * 60 * 1)
 def flow(now_date: str = ''):
     '''Prefect flow: 通过 shell 执行指数成分股更新'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
