@@ -26,7 +26,6 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         print(f'{end_date} 非交易日，跳过')
         return
 
-    # 1. stock_info_ts
     print(f'--- 步骤 1: stock_info_ts ({now_date}) ---')
     run_deployment(
         "stock_info_ts/stock_info_ts",
@@ -34,7 +33,6 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     )
 
-    # 2. valuation_ts
     print(f'--- 步骤 2: valuation_ts ({now_date}) ---')
     run_deployment(
         "valuation_ts/valuation_ts",
@@ -42,7 +40,6 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     )
 
-    # 3. check_valuation_ts
     print(f'--- 步骤 3: check_valuation_ts ({now_date}) ---')
     run_deployment(
         "check_valuation_ts/check_valuation_ts",
@@ -50,7 +47,6 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     )
 
-    # 4. trade_daily_ts
     print(f'--- 步骤 4: trade_daily_ts ({now_date}) ---')
     run_deployment(
         "trade_daily_ts/trade_daily_ts",
@@ -58,7 +54,6 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     )
 
-    # 5. update_factor
     print(f'--- 步骤 5: update_factor ({now_date}) ---')
     run_deployment(
         "update_factor/update_factor",
@@ -66,15 +61,31 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     )
 
-    # 6. qlib_online
-    print(f'--- 步骤 6: qlib_online ({now_date}) ---')
+    print(f'--- 步骤 6: income_ts ({now_date}) ---')
+    run_deployment(
+        "income_ts_shell/income_ts_shell",
+        as_subflow=True
+    )
+
+    print(f'--- 步骤 7: balance_ts ({now_date}) ---')
+    run_deployment(
+        "balance_ts_shell/balance_ts_shell",
+        as_subflow=True
+    )
+
+    print(f'--- 步骤 8: cashflow_ts ({now_date}) ---')
+    run_deployment(
+        "cashflow_ts_shell/cashflow_ts_shell",
+        as_subflow=True
+    )
+
+    print(f'--- 步骤 9: qlib_online ({now_date}) ---')
     run_deployment(
         "qlib_online_shell/qlib_online_shell",
         as_subflow=True
     )
 
-    # 7. qlib_online_check
-    print(f'--- 步骤 7: qlib_online_check ({now_date}) ---')
+    print(f'--- 步骤 10: qlib_online_check ({now_date}) ---')
     run_deployment(
         "qlib_online_check_shell/qlib_online_check_shell",
         as_subflow=True
