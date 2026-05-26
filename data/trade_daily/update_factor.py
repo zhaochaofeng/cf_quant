@@ -1,10 +1,15 @@
 '''
     功能：由于复权因子在除权除息日附近可能变动，每天检查历史复权因子，如果发生变动，则更新历史数据
 '''
+import sys
+from pathlib import Path
+
+project_dir = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(project_dir))
+
 from datetime import datetime
 
 import time
-import fire
 import traceback
 from utils import email_send_message_flow, get_n_pretrade_day, is_trade_day
 from data.check_data import CheckMySQLData
