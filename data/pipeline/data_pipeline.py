@@ -20,8 +20,10 @@ from utils import is_trade_day
 def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
     '''编排 flow: 依次执行各子 flow，UI 中显示完整血缘关系'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
-    if not is_trade_day(now_date):
-        print(f'{now_date} 非交易日，跳过')
+    if start_date == '' or end_date == '':
+        start_date = end_date = now_date
+    if not is_trade_day(end_date):
+        print(f'{end_date} 非交易日，跳过')
         return
 
     # 1. stock_info_ts
@@ -34,8 +36,6 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
 
     # 2. valuation_ts
     print(f'--- 步骤 2: valuation_ts ({now_date}) ---')
-    if start_date == '' or end_date == '':
-        start_date = end_date = now_date
     run_deployment(
         "valuation_ts/valuation_ts",
         parameters={"start_date": start_date, "end_date": end_date, "now_date": now_date},
@@ -47,6 +47,14 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
     run_deployment(
         "check_valuation_ts/check_valuation_ts",
         parameters={"now_date": now_date},
+        as_subflow=True,
+    )
+
+    # 4. trade_daily_ts
+    print(f'--- 步骤 4: trade_daily_ts ({now_date}) ---')
+    run_deployment(
+        "trade_daily_ts/trade_daily_ts",
+        parameters={"start_date": start_date, "end_date": end_date, "now_date": now_date},
         as_subflow=True,
     )
 
