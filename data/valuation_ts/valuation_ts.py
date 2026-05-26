@@ -39,11 +39,13 @@ feas = {
 
 
 @flow(name='valuation_ts', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
-def flow(start_date: str = None, end_date: str = None, now_date: str = ''):
+def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
     '''Prefect flow: 每日定时拉取市值数据'''
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
-    if not is_trade_day(now_date):
-        print(f'{now_date} 非交易日，跳过')
+    if start_date == '' or end_date == '':
+        start_date = end_date = now_date
+    if not is_trade_day(end_date):
+        print(f'{end_date} 非交易日，跳过')
         return
 
     try:
