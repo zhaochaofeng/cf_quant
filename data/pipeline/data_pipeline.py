@@ -91,6 +91,18 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True
     )
 
+    print(f'--- 步骤 11: lightGBM_train ({now_date}) ---')
+    run_deployment(
+        "lightGBM_train_shell/lightGBM_train_shell",
+        as_subflow=True
+    )
+
+    print(f'--- 步骤 12: lightGBM_predict ({now_date}) ---')
+    run_deployment(
+        "lightGBM_predict_shell/lightGBM_predict_shell",
+        as_subflow=True
+    )
+
 
 
 
