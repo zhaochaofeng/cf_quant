@@ -8,12 +8,14 @@ project_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_dir))
 
 import subprocess
+import traceback
 from datetime import datetime
 
 from prefect import flow
 from prefect.schedules import Schedule
 
 from utils import is_trade_day
+from utils.prefect import email_send_message_flow
 
 
 @flow(name='index_shell', log_prints=True, retries=3, retry_delay_seconds=60, timeout_seconds=60 * 60 * 1)
@@ -24,18 +26,22 @@ def flow(now_date: str = ''):
         print(f'{now_date} 非交易日，跳过')
         return
 
-    script = Path(__file__).parent / 'run.sh'
-    result = subprocess.run(
-        ['bash', str(script), now_date],
-        capture_output=True, text=True,
-    )
-    print(result.stdout)
-    if result.returncode != 0:
-        err_msg = f'index_shell({now_date}) 执行失败:\n{result.stderr}'
+    try:
+        script = Path(__file__).parent / 'run.sh'
+        result = subprocess.run(
+            ['bash', str(script), now_date],
+            capture_output=True, text=True,
+        )
+        print(result.stdout)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr)
+        if result.stderr:
+            print(result.stderr)
+    except:
+        err_msg = 'index_shell_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
         print(err_msg)
-        raise RuntimeError(err_msg)
-    if result.stderr:
-        print(result.stderr)
+        email_send_message_flow(subject='Data: index_shell', msg=err_msg)
+        raise
 
 
 if __name__ == '__main__':
