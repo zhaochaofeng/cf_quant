@@ -216,15 +216,16 @@ class PortfolioDataLoader:
         
         df = D.features(
             instruments,
-            fields=['$close'],
+            fields=['$close', '$price'],
             start_time=calc_date,
             end_time=calc_date
         )
+        df['close'] = df['$close'] / df['$factor']  # 还原真实价格
 
         if df.empty:
             raise ValueError(f'无法获取股票价格数据: {calc_date}')
         df = df.droplevel(level='datetime')
-        prices = df['$close'].dropna()
+        prices = df['close'].dropna()
         prices.name = 'price'
         
         logger.info(f'加载股价: {len(prices)}只股票')
