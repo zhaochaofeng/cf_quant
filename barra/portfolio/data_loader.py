@@ -216,7 +216,7 @@ class PortfolioDataLoader:
         
         df = D.features(
             instruments,
-            fields=['$close', '$price'],
+            fields=['$close', '$factor'],
             start_time=calc_date,
             end_time=calc_date
         )
