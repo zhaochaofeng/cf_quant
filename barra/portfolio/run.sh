@@ -46,7 +46,7 @@ function check() {
 is_trade_day ${dt}
 
 echo "run_daily..."
-${python_path} ${cur_path}/run.py --date ${dt} --save_mysql --position mysql
+${python_path} ${cur_path}/run.py --now-date ${dt} --save-mysql --position mysql
 check
 
 
