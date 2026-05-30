@@ -140,7 +140,7 @@ if __name__ == '__main__':
 
     if args.deploy:
         schedule = Schedule(
-            cron="1 18 * * *",
+            cron="1 20 * * *",
             timezone="Asia/Shanghai",
         )
         flow.from_source(
