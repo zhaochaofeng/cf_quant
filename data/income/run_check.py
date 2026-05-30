@@ -22,9 +22,6 @@ PYTHON_SCRIPT = 'run_check.py'
 def flow():
     '''Prefect flow: 通过 shell 执行指数成分股更新'''
     now_date = datetime.now().strftime('%Y-%m-%d')
-    if not is_trade_day(now_date):
-        print(f'{now_date} 非交易日，跳过')
-        return
 
     try:
         script = Path(__file__).parent / f'{SHELL}'
