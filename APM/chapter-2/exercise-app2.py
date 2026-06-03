@@ -151,6 +151,7 @@ else:
 # 解析验证：CAPM假设下 V^{-1}f = (f_Q/σ²_Q) h_Q
 # 由于 f = β_Q × f_Q(日度) = (V h_Q/var_Q) × f_Q(日度)
 # V^{-1}f = V^{-1}(V h_Q/var_Q) × f_Q(日度) = (f_Q/var_Q) h_Q
+# execise-app2.md 中 6b. 解析证明 的式（1）
 v_inv_f_pred = (FQ_DAILY / var_Q) * h_Q
 diff_pred = np.max(np.abs(v_inv_f - v_inv_f_pred))
 print(f"  max|V⁻¹f - (f_Q/σ²_Q)h_Q| = {diff_pred:.2e}  (CAPM解析验证)")
