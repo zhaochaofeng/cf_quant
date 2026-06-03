@@ -25,10 +25,11 @@ from prefect import flow
 from utils import LoggerFactory, dt, is_trade_day
 from utils.prefect import email_send_message_flow
 
-logger = LoggerFactory.get_logger(__name__)
+# logger = LoggerFactory.get_logger(__name__)
+from prefect import get_run_logger
 
 
-def init_qlib():
+def init_qlib(logger):
     """初始化qlib，注册PTTM自定义操作符"""
     from utils.qlib_ops import PTTM
     qlib.init(
@@ -53,7 +54,9 @@ def get_factor_types() -> pd.Series:
 def run(calc_date: str, history_months: int = 24,
         output_dir: str = 'output', n_jobs: int = 4,
         portfolio_input: str = 'random',
-        use_cache: bool = False) -> dict:
+        use_cache: bool = False,
+        logger: object = None
+        ) -> dict:
     """
     日频统一流程
 
@@ -160,12 +163,14 @@ def flow(now_date: str = '',
          portfolio_input: str = 'random',
          use_cache: bool = False):
     '''Prefect flow: Barra CNE6 日频风险计算'''
+    logger = get_run_logger()
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
     if not is_trade_day(now_date):
-        print(f'{now_date} 非交易日，跳过')
+        logger.warning(f'{now_date} 非交易日，跳过')
         return
     try:
-        init_qlib()
+
+        init_qlib(logger)
         run(
             calc_date=now_date,
             history_months=history_months,
@@ -173,10 +178,11 @@ def flow(now_date: str = '',
             n_jobs=n_jobs,
             portfolio_input=portfolio_input,
             use_cache=use_cache,
+            logger=logger
         )
     except:
         err_msg = 'barra_risk_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
-        print(err_msg)
+        logger.error(err_msg)
         email_send_message_flow(subject='Data: barra_risk', msg=err_msg)
         raise
 
