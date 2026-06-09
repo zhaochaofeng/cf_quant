@@ -160,8 +160,8 @@ class FactorEvalEngine:
     # ------------------------------------------------------------------
 
     def _prepare_forward_returns(self, max_lag: int) -> pd.DataFrame:
-        """Compute forward returns for lags 1..max_lag from close prices.
-
+        """ 计算 第 i 期收益率 (i=1,2,..., max_lag)
+           columes: [forward_ret_1, forward_ret_2, ..., forward_ret_n]
         Args:
             max_lag: Maximum forward-return horizon.
 
