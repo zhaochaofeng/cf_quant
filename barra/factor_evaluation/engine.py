@@ -123,7 +123,7 @@ class FactorEvalEngine:
             for col in self.risk_factors.columns:
                 df = self._build_eval_df(ret_df, self.risk_factors[col], col)
                 result['risk_factors'][col] = self._evaluate_factor(
-                    df, col, ic_periods, n_groups, max_decay_lag, stratify
+                    df, col, ic_periods, max_decay_lag, stratify
                 )
 
         if self.alpha_factors is not None and not self.alpha_factors.empty:
@@ -140,7 +140,7 @@ class FactorEvalEngine:
                 # Raw alpha evaluation
                 df_raw = self._build_eval_df(ret_df, alpha_series, col)
                 alpha_result['raw'] = self._evaluate_factor(
-                    df_raw, col, ic_periods, n_groups, max_decay_lag, stratify
+                    df_raw, col, ic_periods, max_decay_lag, stratify
                 )
 
                 # Neutralized alpha evaluation
@@ -148,7 +148,7 @@ class FactorEvalEngine:
                     alpha_neut = self._neutralize_alpha(alpha_series)
                     df_neut = self._build_eval_df(ret_df, alpha_neut, col)
                     alpha_result['neutralized'] = self._evaluate_factor(
-                        df_neut, col, ic_periods, n_groups, max_decay_lag, stratify
+                        df_neut, col, ic_periods, max_decay_lag, stratify
                     )
 
                 result['alpha_factors'][col] = alpha_result
@@ -160,8 +160,13 @@ class FactorEvalEngine:
     # ------------------------------------------------------------------
 
     def _prepare_forward_returns(self, max_lag: int) -> pd.DataFrame:
-        """ 计算 第 i 期收益率 (i=1,2,..., max_lag)
-           columes: [forward_ret_1, forward_ret_2, ..., forward_ret_n]
+        """计算 T+1 买入后第 k 期持有收益率 (k=1,2,..., max_lag)
+
+           forward_ret_k = close(t+k+1) / close(t+1) - 1
+
+        隐含执行假设：t 时刻观察到信号，t+1 买入，t+k+1 卖出，
+        符合 A 股 T+1 制度（与项目惯例 Ref($close,-2)/Ref($close,-1)-1 一致）。
+
         Args:
             max_lag: Maximum forward-return horizon.
 
@@ -172,7 +177,7 @@ class FactorEvalEngine:
         ret_df = pd.DataFrame(index=self.close.index)
         close_gb = self.close.groupby(level='instrument')
         for k in range(1, max_lag + 1):
-            ret_df[f'forward_ret_{k}'] = close_gb.shift(-k) / self.close - 1
+            ret_df[f'forward_ret_{k}'] = close_gb.shift(-k-1) / close_gb.shift(-1) - 1
         return ret_df
 
     @staticmethod
@@ -199,7 +204,6 @@ class FactorEvalEngine:
         df: pd.DataFrame,
         factor_col: str,
         ic_periods: tuple,
-        n_groups: int,
         max_decay_lag: int,
         stratify: StratifiedReturn,
     ) -> dict:
@@ -209,7 +213,6 @@ class FactorEvalEngine:
             df: DataFrame with factor_col and forward_ret_* columns.
             factor_col: Column name for the factor.
             ic_periods: Forward-return horizons for IC.
-            n_groups: Number of quantile groups for stratified returns.
             max_decay_lag: Maximum lag for signal decay.
             stratify: Pre-instantiated StratifiedReturn object.
 
