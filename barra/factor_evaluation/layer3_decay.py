@@ -90,6 +90,7 @@ class SignalDecay:
             # Already below threshold at lag 1 — unusual but possible
             half_life = 1.0
         else:
+            # 线形插值，计算小数部分
             # Linear interpolation between k_cross-1 and k_cross
             ic_prev = abs(ic_decay[k_cross - 1])
             ic_curr = abs(ic_decay[k_cross])
