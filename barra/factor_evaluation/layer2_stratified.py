@@ -59,6 +59,7 @@ class StratifiedReturn:
         dates = df.index.get_level_values('datetime').unique()
 
         records = []
+        # 计算每天分组收益率均值
         for dt in dates:
             g = df.xs(dt, level='datetime')
             try:
@@ -87,7 +88,7 @@ class StratifiedReturn:
 
         # Cross-validation with qlib's calc_long_short_return
         quantile = 1.0 / n
-        ls_qlib, _ = qlib_ls(
+        ls_qlib, avg_qlib = qlib_ls(
             df[factor_col], df[ret_col], date_col='datetime', quantile=quantile
         )
         ls_qlib.name = 'long_short_qlib'
@@ -96,4 +97,5 @@ class StratifiedReturn:
             'group_returns': group_returns,
             'long_short': long_short,
             'long_short_qlib': ls_qlib,
+            'avg_qlib': avg_qlib,
         }
