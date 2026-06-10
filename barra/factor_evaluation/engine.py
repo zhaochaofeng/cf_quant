@@ -239,11 +239,7 @@ class FactorEvalEngine:
 
         # Layer 2: Stratified return
         ret_col = f'forward_ret_{ic_periods[0]}'
-        layer2_raw = stratify.compute(df, factor_col, ret_col)
-        layer2 = {
-            'group_returns': layer2_raw['group_returns'],
-            'long_short': layer2_raw['long_short'],
-        }
+        layer2 = stratify.compute(df, factor_col, ret_col)
 
         # Layer 3: Signal decay (alpha only)
         if decay_lags is not None:
