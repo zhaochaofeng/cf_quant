@@ -97,5 +97,5 @@ class StratifiedReturn:
             'group_returns': group_returns,
             'long_short': long_short,
             'long_short_qlib': ls_qlib,
-            'avg_qlib': avg_qlib,
+            'avg_return': avg_qlib,
         }
