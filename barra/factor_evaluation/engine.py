@@ -9,7 +9,7 @@ Orchestrates three-layer factor evaluation (APM Ch12-13):
 
 import numpy as np
 import pandas as pd
-from typing import Optional
+from typing import Optional, Literal
 
 from .layer1_ic import CrossSectionalIC
 from .layer2_stratified import StratifiedReturn
@@ -19,7 +19,6 @@ from utils.preprocess import neutralize
 from utils.logger import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
-
 
 class FactorEvalEngine:
     """Orchestrate three-layer factor evaluation for risk and alpha factors.
@@ -76,6 +75,7 @@ class FactorEvalEngine:
         ic_periods: tuple = (1,),
         n_groups: int = DEFAULT_N_GROUPS,
         max_decay_lag: int = DEFAULT_MAX_DECAY_LAG,
+        decay_method: Literal['exp', 'threshold'] = 'exp',
     ) -> dict:
         """Run the full three-layer evaluation on all factors.
 
@@ -88,6 +88,8 @@ class FactorEvalEngine:
                 analysis (Layer 2).
             max_decay_lag: Maximum lag for signal decay half-life
                 estimation (Layer 3).
+            decay_method: 'exp' for exponential decay fit (default, robust),
+                'threshold' for threshold-crossing (legacy).
 
         Returns:
             Nested dict with structure::
@@ -123,7 +125,7 @@ class FactorEvalEngine:
             for col in self.risk_factors.columns:
                 df = self._build_eval_df(ret_df, self.risk_factors[col], col)
                 result['risk_factors'][col] = self._evaluate_factor(
-                    df, col, ic_periods, max_decay_lag, stratify
+                    df, col, ic_periods, max_decay_lag, stratify, decay_method,
                 )
 
         if self.alpha_factors is not None and not self.alpha_factors.empty:
@@ -140,7 +142,7 @@ class FactorEvalEngine:
                 # Raw alpha evaluation
                 df_raw = self._build_eval_df(ret_df, alpha_series, col)
                 alpha_result['raw'] = self._evaluate_factor(
-                    df_raw, col, ic_periods, max_decay_lag, stratify
+                    df_raw, col, ic_periods, max_decay_lag, stratify, decay_method,
                 )
 
                 # Neutralized alpha evaluation
@@ -148,7 +150,7 @@ class FactorEvalEngine:
                     alpha_neut = self._neutralize_alpha(alpha_series)
                     df_neut = self._build_eval_df(ret_df, alpha_neut, col)
                     alpha_result['neutralized'] = self._evaluate_factor(
-                        df_neut, col, ic_periods, max_decay_lag, stratify
+                        df_neut, col, ic_periods, max_decay_lag, stratify, decay_method,
                     )
 
                 result['alpha_factors'][col] = alpha_result
@@ -160,12 +162,13 @@ class FactorEvalEngine:
     # ------------------------------------------------------------------
 
     def _prepare_forward_returns(self, max_lag: int) -> pd.DataFrame:
-        """计算 T+1 买入后第 k 期持有收益率 (k=1,2,..., max_lag)
+        """计算 T+1 买入后第 k 期单日边际收益率 (k=1,2,..., max_lag)
 
-           forward_ret_k = close(t+k+1) / close(t+1) - 1
+           forward_ret_k = close(t+k+1) / close(t+k) - 1
 
-        隐含执行假设：t 时刻观察到信号，t+1 买入，t+k+1 卖出，
-        符合 A 股 T+1 制度（与项目惯例 Ref($close,-2)/Ref($close,-1)-1 一致）。
+        逐期单日收益而非累计收益，保证 IC(k) 随 k 的衰减可观察。
+        隐含执行假设：t 时刻观察信号，t+k 买入，t+k+1 卖出。
+        k=1 时退化为 close(t+2)/close(t+1)-1，与 Layer1/2 一致。
 
         Args:
             max_lag: Maximum forward-return horizon.
@@ -177,7 +180,7 @@ class FactorEvalEngine:
         ret_df = pd.DataFrame(index=self.close.index)
         close_gb = self.close.groupby(level='instrument')
         for k in range(1, max_lag + 1):
-            ret_df[f'forward_ret_{k}'] = close_gb.shift(-k-1) / close_gb.shift(-1) - 1
+            ret_df[f'forward_ret_{k}'] = close_gb.shift(-k-1) / close_gb.shift(-k) - 1
         return ret_df
 
     @staticmethod
@@ -206,6 +209,7 @@ class FactorEvalEngine:
         ic_periods: tuple,
         max_decay_lag: int,
         stratify: StratifiedReturn,
+        decay_method: str = 'exp',
     ) -> dict:
         """Run all three evaluation layers on a single factor.
 
@@ -215,6 +219,7 @@ class FactorEvalEngine:
             ic_periods: Forward-return horizons for IC.
             max_decay_lag: Maximum lag for signal decay.
             stratify: Pre-instantiated StratifiedReturn object.
+            decay_method: 'exp' (default) or 'threshold'.
 
         Returns:
             dict with keys 'layer1', 'layer2', 'layer3'.
@@ -247,9 +252,14 @@ class FactorEvalEngine:
         }
 
         # Layer 3: Signal decay
-        layer3 = SignalDecay.calc_half_life(
-            df, factor_col, 'forward_ret_', max_decay_lag,
-        )
+        if decay_method == 'exp':
+            layer3 = SignalDecay.calc_half_life_exp(
+                df, factor_col, 'forward_ret_', max_decay_lag,
+            )
+        else:
+            layer3 = SignalDecay.calc_half_life(
+                df, factor_col, 'forward_ret_', max_decay_lag,
+            )
 
         return {
             'layer1': layer1,
@@ -271,7 +281,7 @@ class FactorEvalEngine:
         """
         alpha_clean = pd.Series(index=alpha_series.index, dtype=float)
         risk = self.risk_factors
-
+        # 按天中性化
         for date in alpha_series.index.get_level_values('datetime').unique():
             mask = alpha_series.index.get_level_values('datetime') == date
             idx = alpha_series[mask].index

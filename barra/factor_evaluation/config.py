@@ -13,4 +13,3 @@ DEFAULT_WEIGHTING: Literal['equal', 'market_cap'] = 'equal'
 
 # --- 信号衰减 ---
 DEFAULT_MAX_DECAY_LAG = 21  # 默认最大滞后期（约1个月交易日）
-HALF_LIFE_THRESHOLD = 0.5   # 半衰期衰减阈值
