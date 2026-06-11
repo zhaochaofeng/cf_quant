@@ -54,10 +54,10 @@ def flow(now_date: str=''):
         init_qlib()
         run(
             calc_date=now_date,
-            history_months=args.history_months,
+            history_months=36,
             output=f'data/{now_date}',
-            n_jobs=args.n_jobs,
-            extend_start=args.extend_start
+            n_jobs=os.cpu_count() - 2,
+            extend_start=6
         )
     except Exception as e:
         err_msg = 'factors_exposure_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
