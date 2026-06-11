@@ -111,7 +111,7 @@ for category, factors in CNE6_STYLE_FACTORS.items():
 exclude_factors = [
     'VFLO', 'ROA', 'AGRO', 'VSAL', 'VERN', 'CXGRO',
     'EGRO', 'SGRO', 'DTOA', 'BTOP', 'GPM', 'MLEV',
-    'BLEV', 'GP', 'ACF', 'ABS', 'EM'
+    'BLEV', 'GP', 'ACF', 'ABS', 'EM', 'LTHALPHA'
 ]
 # 多重共线性排除的因子
 exclude_vif = ['LTRSTR', 'STOQ']
