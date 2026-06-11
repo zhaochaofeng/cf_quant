@@ -21,6 +21,9 @@ from .qlib_ops import (
 # 自定义 qlib processor
 from .qlib_processor import Winsorize
 
+# qlib 初始化
+from .qlib import init_qlib
+
 # 数据预处理
 from .preprocess import winsorize, standardize, neutralize, fillna
 
