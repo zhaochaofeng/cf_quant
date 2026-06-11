@@ -34,7 +34,7 @@ from .trans import calculate_excess_returns
 from .backtest import RollingPortAnaRecord
 
 # 并行计算
-from .multiprocess import multiprocessing_wrapper
+from .multiprocess import multiprocessing_wrapper, multiprocessing_wrapper_same
 
 # 时间日期
 from .dt import DateTimeUtils as dt

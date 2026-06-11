@@ -6,7 +6,12 @@ from typing import Callable, Iterable
 import multiprocessing as mp
 
 
-def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]], n: int = 1) -> list:
+def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]],
+                            n: int = 1,
+                            initializer = None,
+                            initargs = (),
+                            maxtasksperchild: int = 10
+                            ) -> list:
     """ 独立函数/参数并行计算
 
     Parameters
@@ -16,6 +21,11 @@ def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]], n: int = 1
         如：[(np.sum, (2,3,))]
     n : int
         the number of subprocesses
+    initializer: callable
+        初始化函数
+    initargs : tuple
+        传递出是函数的参数
+    maxtasksperchild: int。当个子进程最多可完成的任务数
 
     Returns
     -------
@@ -25,7 +35,10 @@ def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]], n: int = 1
     if n == 1 or max(1, min(n, len(func_calls))) == 1:
         return [f(*args) for f, args in func_calls]
 
-    with mp.Pool(processes=max(1, min(n, len(func_calls)))) as pool:
+    with mp.Pool(processes=max(1, min(n, len(func_calls))),
+                 initializer=initializer,
+                 initargs=initargs,
+                 maxtasksperchild=maxtasksperchild) as pool:
         results = [
             pool.apply_async(f, args) for f, args in func_calls
         ]
@@ -33,7 +46,12 @@ def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]], n: int = 1
         return [result.get() for result in results]
 
 
-def multiprocessing_wrapper_same(func: Callable, args: Iterable, n: int = 1) -> list:
+def multiprocessing_wrapper_same(func: Callable, args: Iterable,
+                                 n: int = 1,
+                                 initializer = None,
+                                 initargs = (),
+                                 maxtasksperchild: int = 10
+                                 ) -> list:
     """ 相同函数，不同参数并行计算
     
     Parameters
@@ -64,7 +82,11 @@ def multiprocessing_wrapper_same(func: Callable, args: Iterable, n: int = 1) -> 
     if n == 1:
         return [func(arg) for arg in args]
     
-    with mp.Pool(processes=n) as pool:
+    with mp.Pool(processes=max(1, n),
+                 initializer=initializer,
+                 initargs=initargs,
+                 maxtasksperchild=maxtasksperchild
+                 ) as pool:
         results = []
         for res in pool.imap_unordered(func, args):
             results.append(res)
