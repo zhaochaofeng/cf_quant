@@ -79,7 +79,7 @@ def run(
     DataFrameIO.write(close.to_frame(), output / 'close.parquet')
     DataFrameIO.write(risk_factors, output / 'risk_factors.parquet')
     DataFrameIO.write(alpha_factors, output / 'alpha_factors.parquet')
-    DataFrameIO.write(bench_close_df.to_frame(), output / 'bench_close.parquet')
+    DataFrameIO.write(bench_close_df, output / 'bench_close.parquet')
     logger.info('close shape: {}, risk_factors shape: {}, alpha_factors shape: {}, '
                 'bench_close shape: {}'.format(
         close.shape, risk_factors.shape, alpha_factors.shape, benchmark_close.shape))
