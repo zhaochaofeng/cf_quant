@@ -20,6 +20,7 @@ from utils.io_utils import DataFrameIO
 from barra.base import BaseDataLoader
 from barra.factor_evaluation import FactorEvalEngine
 from config import BENCHMARK_CONFIG
+from barra.factor_evaluation.conf import DEFAULT_MAX_DECAY_LAG
 
 
 logger = LoggerFactory.get_logger(__name__)
@@ -83,7 +84,7 @@ def run(
     result = engine.run(
         neutralize=True,
         n_groups=5,
-        max_decay_lag=252,
+        max_decay_lag=DEFAULT_MAX_DECAY_LAG,
         output=str(output),
     )
 

@@ -7,6 +7,7 @@ Orchestrates three-layer factor evaluation (APM Ch12-13):
   3. Signal decay (half-life estimation) — alpha factors only
 """
 
+import math
 import numpy as np
 import pandas as pd
 from typing import Optional
@@ -14,11 +15,10 @@ from typing import Optional
 from .layer1_ic import CrossSectionalIC
 from .layer2_stratified import StratifiedReturn
 from .layer3_decay import SignalDecay
-from .config import DEFAULT_N_GROUPS, DEFAULT_MAX_DECAY_LAG
+from .conf import DEFAULT_N_GROUPS, DEFAULT_MAX_DECAY_LAG
 from utils.preprocess import neutralize
 from utils.logger import LoggerFactory
-from utils import PickleIO
-from utils.db_mysql import MySQLDB
+from utils import PickleIO, DataFrameIO
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -118,9 +118,10 @@ class FactorEvalEngine:
         if not self.ic_periods:
             raise ValueError("ic_periods must not be empty")
 
-        decay_lags = self._build_decay_lags(max_decay_lag)
+        decay_lags = self._build_decay_lags(max_decay_lag, gamma=1.1)
         all_lags = set(self.ic_periods) | set(decay_lags)
         ret_df = self._prepare_forward_returns(all_lags)
+        DataFrameIO.write(ret_df, f"{output}/ret_df.parquet")
 
         result: dict = {}
 
@@ -236,14 +237,16 @@ class FactorEvalEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _build_decay_lags(max_lag: int) -> tuple:
+    def _build_decay_lags(max_lag: int, gamma: float = 1.1) -> tuple:
         """Generate geometrically spaced lag points up to max_lag.
-
+        gamma : 衰减系数（>1）
         Example: max_lag=21 → (1, 2, 4, 8, 16, 21)
         """
+        if gamma <= 1:
+            raise ValueError(f"gamma must be greater than 1, got {gamma}")
         lags = [1]
-        while lags[-1] * 2 <= max_lag:
-            lags.append(lags[-1] * 2)
+        while lags[-1] * gamma <= max_lag:
+            lags.append(math.ceil(lags[-1] * gamma))
         if lags[-1] < max_lag:
             lags.append(max_lag)
         return tuple(lags)
