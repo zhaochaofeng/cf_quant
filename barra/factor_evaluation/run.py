@@ -21,6 +21,7 @@ from barra.base import BaseDataLoader
 from barra.factor_evaluation import FactorEvalEngine
 from config import BENCHMARK_CONFIG
 
+
 logger = LoggerFactory.get_logger(__name__)
 
 def run(
@@ -37,6 +38,8 @@ def run(
         output: Directory path for intermediate PickleIO results.
     """
 
+    output = Path(output)
+
     init_qlib()
     data_loader = BaseDataLoader(market=BENCHMARK_CONFIG['market'])
 
@@ -47,7 +50,7 @@ def run(
     # 加载 close 数据
     instruments = data_loader.load_instruments(start_date, calc_date)
     close_df = D.features(instruments, ["$close"], start_date, calc_date)
-    close = close_df["$close"]
+    close = close_df["$close"]  # Series
     close.name = 'close'
     close.sort_index(inplace=True)
     logger.info('{}\n {}'.format('-'*50, close))
@@ -66,6 +69,9 @@ def run(
     close = close.loc[com_index]
     risk_factors = risk_factors.loc[com_index]
     alpha_factors = alpha_factors.loc[com_index]
+    DataFrameIO.write(close.to_frame(), output / 'close.parquet')
+    DataFrameIO.write(risk_factors, output / 'risk_factors.parquet')
+    DataFrameIO.write(alpha_factors, output / 'alpha_factors.parquet')
     logger.info('close shape: {}, risk_factors shape: {}, alpha_factors shape: {}'.format(
         close.shape, risk_factors.shape, alpha_factors.shape))
 
@@ -78,7 +84,7 @@ def run(
         neutralize=True,
         n_groups=5,
         max_decay_lag=252,
-        output=output,
+        output=str(output),
     )
 
     # ---- Persist to MySQL ----
@@ -96,7 +102,9 @@ def flow(now_date: str = ""):
         return
 
     try:
-        run(calc_date=now_date, logger=logger)
+        run(calc_date=now_date,
+            output=f"./data/{now_date}",
+            logger=logger)
     except Exception:
         err_msg = f"factor_evaluation flow({now_date}) 执行失败:\n{traceback.format_exc()}"
         logger.error(err_msg)
@@ -125,6 +133,6 @@ if __name__ == "__main__":
         run(
             calc_date=args.now_date,
             history_months=args.history_months,
-            output=args.output,
+            output=f'{args.output}/{args.now_date}',
             logger=logger
         )
