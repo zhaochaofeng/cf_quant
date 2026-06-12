@@ -83,5 +83,37 @@ class BaseDataLoader:
         return df
 
 
+    def load_signal(self, start_time: str, end_time: str) -> pd.DataFrame:
+        """从MySQL加载原始预测信号
+
+        Args:
+            start_time: 开始日期，如 '2023-01-01'
+            end_time: 结束日期，如 '2026-03-06'
+
+        Returns:
+            MultiIndex(instrument, datetime), column='g'
+        """
+        from utils import sql_engine
+        engine = sql_engine()
+        sql = (
+            f"SELECT qlib_code AS instrument, day AS datetime, score AS g "
+            f"FROM monitor_return_rate "
+            f"WHERE day >= '{start_time}' AND day <= '{end_time}' AND model='lightgbm_alpha_csi300'"
+        )
+        df = pd.read_sql(sql, engine)
+        if df.empty:
+            raise ValueError(f'信号数据在 [{start_time}, {end_time}] 无数据')
+
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df = df.set_index(['instrument', 'datetime'])
+        # 去除重复条目（取最后一条）
+        dup_count = df.index.duplicated().sum()
+        if dup_count > 0:
+            logger.warning(f'信号数据存在 {dup_count} 条重复，已去重')
+            df = df[~df.index.duplicated(keep='last')]
+        df = df.sort_index()
+        logger.info(f'信号数据加载完成: {df.shape}')
+        return df
+
 
 
