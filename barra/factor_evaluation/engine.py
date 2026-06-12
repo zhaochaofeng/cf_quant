@@ -18,8 +18,16 @@ from .config import DEFAULT_N_GROUPS, DEFAULT_MAX_DECAY_LAG
 from utils.preprocess import neutralize
 from utils.logger import LoggerFactory
 from utils import PickleIO
+from utils.db_mysql import MySQLDB
 
 logger = LoggerFactory.get_logger(__name__)
+
+
+def _safe_round(value, precision: int = 6) -> Optional[float]:
+    """Round to *precision* decimals, returning None for NaN/inf."""
+    if value is None or (isinstance(value, float) and not np.isfinite(value)):
+        return None
+    return round(float(value), precision)
 
 
 class FactorEvalEngine:
@@ -37,6 +45,7 @@ class FactorEvalEngine:
         close: pd.Series,
         risk_factors: Optional[pd.DataFrame] = None,
         alpha_factors: Optional[pd.DataFrame] = None,
+        ic_periods: tuple = (1,)
     ):
         """Initialize the factor evaluation engine.
 
@@ -46,6 +55,7 @@ class FactorEvalEngine:
                 column is a risk factor (e.g. LNCAP, BETA). May be None.
             alpha_factors: MultiIndex (instrument, datetime) DataFrame. Each
                 column is an alpha factor. May be None.
+            ic_periods: Forward-return horizons for IC (Layer 1).
 
         Raises:
             ValueError: If both risk_factors and alpha_factors are None, or if
@@ -66,6 +76,7 @@ class FactorEvalEngine:
         self.close = close
         self.risk_factors = risk_factors
         self.alpha_factors = alpha_factors
+        self.ic_periods = ic_periods
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -74,7 +85,6 @@ class FactorEvalEngine:
     def run(
         self,
         neutralize: bool = False,
-        ic_periods: tuple = (1,),
         n_groups: int = DEFAULT_N_GROUPS,
         max_decay_lag: int = DEFAULT_MAX_DECAY_LAG,
         output: str = './output',
@@ -84,7 +94,6 @@ class FactorEvalEngine:
         Args:
             neutralize: If True, orthogonalize alpha factors against risk
                 factors before evaluation.
-            ic_periods: Forward-return horizons for IC (Layer 1).
             n_groups: Number of quantile groups for stratified return (Layer 2).
             max_decay_lag: Maximum lag for half-life estimation (Layer 3).
             output: Directory path for intermediate PickleIO results.
@@ -106,11 +115,11 @@ class FactorEvalEngine:
                     },
                 }
         """
-        if not ic_periods:
+        if not self.ic_periods:
             raise ValueError("ic_periods must not be empty")
 
         decay_lags = self._build_decay_lags(max_decay_lag)
-        all_lags = set(ic_periods) | set(decay_lags)
+        all_lags = set(self.ic_periods) | set(decay_lags)
         ret_df = self._prepare_forward_returns(all_lags)
 
         result: dict = {}
@@ -122,7 +131,7 @@ class FactorEvalEngine:
             for col in self.risk_factors.columns:
                 df = self._build_eval_df(ret_df, self.risk_factors[col], col)
                 eval_result = self._evaluate_factor(
-                    df, col, ic_periods, stratify, decay_lags=None,
+                    df, col, self.ic_periods, stratify, decay_lags=None,
                 )
                 result['risk_factors'][col] = eval_result
 
@@ -141,7 +150,7 @@ class FactorEvalEngine:
                 # Raw
                 df_raw = self._build_eval_df(ret_df, alpha_series, col)
                 alpha_result['raw'] = self._evaluate_factor(
-                    df_raw, col, ic_periods, stratify, decay_lags,
+                    df_raw, col, self.ic_periods, stratify, decay_lags,
                 )
 
                 # Neutralized
@@ -149,13 +158,85 @@ class FactorEvalEngine:
                     alpha_neut = self._neutralize_alpha(alpha_series)
                     df_neut = self._build_eval_df(ret_df, alpha_neut, col)
                     alpha_result['neutralized'] = self._evaluate_factor(
-                        df_neut, col, ic_periods, stratify, decay_lags,
+                        df_neut, col, self.ic_periods, stratify, decay_lags,
                     )
 
                 result['alpha_factors'][col] = alpha_result
 
         PickleIO.write(result, f"{output}/result.pkl")
         return result
+
+    # ------------------------------------------------------------------
+    # MySQL persistence
+    # ------------------------------------------------------------------
+
+    def save_to_mysql(self, result: dict, calc_date: str) -> None:
+        """Save evaluation metrics to MySQL ``factor_evaluation`` table.
+
+        Extracts IC/ICIR/RIC/RICIR from Layer 1, long_short/avg_return from
+        Layer 2, and half_life from Layer 3 (alpha only).  Uses ``ON
+        DUPLICATE KEY UPDATE`` for idempotent upserts based on the
+        ``(day, name, type)`` unique key.
+
+        Args:
+            result: The dict returned by ``run()``.
+            calc_date: Calculation date string (YYYY-MM-DD).
+        """
+        from utils.db_mysql import MySQLDB
+
+        rows = []
+        for name, res in result.get('risk_factors', {}).items():
+            row = self._extract_metrics(res, calc_date, name, 'risk')
+            rows.append(row)
+
+        for name, res in result.get('alpha_factors', {}).items():
+            row = self._extract_metrics(res['neutralized'], calc_date, name, 'alpha')
+            rows.append(row)
+
+        if not rows:
+            err_msg = f"{calc_date} No rows to save"
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+
+        sql = (
+            "INSERT INTO factor_evaluation "
+            "(day, name, type, IC, ICIR, RIC, RICIR, long_short, avg_return, half_life) "
+            "VALUES (%(day)s, %(name)s, %(type)s, %(IC)s, %(ICIR)s, "
+            "%(RIC)s, %(RICIR)s, %(long_short)s, %(avg_return)s, %(half_life)s) "
+            "ON DUPLICATE KEY UPDATE "
+            "IC=VALUES(IC), ICIR=VALUES(ICIR), RIC=VALUES(RIC), RICIR=VALUES(RICIR), "
+            "long_short=VALUES(long_short), avg_return=VALUES(avg_return), "
+            "half_life=VALUES(half_life)"
+        )
+        with MySQLDB() as db:
+            db.executemany(sql, rows)
+        logger.info("Saved %d rows to factor_evaluation (date=%s)", len(rows), calc_date)
+
+
+    def _extract_metrics(self,
+        layer_dict: dict, calc_date: str, name: str, ftype: str,
+    ) -> dict:
+        """Pull scalar metrics from a single factor's layer results."""
+        l1 = layer_dict['layer1'][self.ic_periods[0]]  # 当前仅保存第一个计算周期
+        l2 = layer_dict['layer2']
+        l3 = layer_dict.get('layer3', {})
+
+        """
+            IC / RIC： 用最近日期值作为估计。 
+            因为 Ref($close, -k-1) / Ref($close, -k) -1  计算逻辑，calc_date 日期的指标数据不可计算
+        """
+        return {
+            'day': calc_date,
+            'name': name,
+            'type': ftype,
+            'IC': _safe_round(l1.get('ic').dropna().iloc[-1]),
+            'ICIR': _safe_round(l1.get('icir')),
+            'RIC': _safe_round(l1.get('ric').dropna().iloc[-1]),
+            'RICIR': _safe_round(l1.get('ricir')),
+            'long_short': _safe_round(l2['long_short'].mean()),
+            'avg_return': _safe_round(l2['avg_return'].mean()),
+            'half_life': _safe_round(l3.get('half_life')),
+        }
 
     # ------------------------------------------------------------------
     # Static utilities
@@ -237,6 +318,7 @@ class FactorEvalEngine:
                 'ricir': ric_summary['icir'],
             }
 
+        # 仅使用第一个 计算周期 ic_periods[0]
         # Layer 2: Stratified return
         ret_col = f'forward_ret_{ic_periods[0]}'
         layer2 = stratify.compute(df, factor_col, ret_col)

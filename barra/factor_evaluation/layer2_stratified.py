@@ -1,7 +1,7 @@
 """Stratified (grouped) return analysis — Layer 2 of factor evaluation.
 
-Computes equal-weighted returns for factor-sorted quantile groups,
-with qlib cross-validation of long-short returns.
+Computes daily group returns for factor-sorted quantile bins via manual
+pd.qcut, and long-short returns via qlib's calc_long_short_return.
 """
 
 import pandas as pd
@@ -41,11 +41,10 @@ class StratifiedReturn:
             dict with keys:
                 - 'group_returns': DataFrame(index=datetime, columns=[0..n_groups-1]),
                   equal-weighted mean return per factor quantile group per date.
-                - 'long_short': Series(index=datetime), equal-weighted return of the
-                  top quantile group (n_groups-1) minus the bottom group (0).
-                  NaN on dates where either group could not be formed.
-                - 'long_short_qlib': Series(index=datetime), qlib cross-validation
-                  long-short return using quantile=1/n_groups.
+                - 'long_short': Series(index=datetime), qlib long-short return
+                  (top quantile minus bottom quantile).
+                - 'avg_return': Series(index=datetime), qlib long-average return
+                  (top quantile minus average).
 
         Raises:
             ValueError: If factor_col or ret_col are not in df.columns.
@@ -80,22 +79,15 @@ class StratifiedReturn:
 
         group_returns = pd.DataFrame(records).reindex(columns=range(n))
 
-        # Long-short: top group minus bottom group among existing groups
-        max_grp = group_returns.columns.max()
-        min_grp = group_returns.columns.min()
-        long_short = group_returns[max_grp] - group_returns[min_grp]
-        long_short.name = 'long_short'
-
-        # Cross-validation with qlib's calc_long_short_return
+        # Long-short via qlib
         quantile = 1.0 / n
-        ls_qlib, avg_qlib = qlib_ls(
-            df[factor_col], df[ret_col], date_col='datetime', quantile=quantile
+        long_short, avg_return = qlib_ls(
+            df[factor_col], df[ret_col], date_col='datetime', quantile=quantile,
         )
-        ls_qlib.name = 'long_short_qlib'
+        long_short.name = 'long_short'
 
         return {
             'group_returns': group_returns,
             'long_short': long_short,
-            'long_short_qlib': ls_qlib,
-            'avg_return': avg_qlib,
+            'avg_return': avg_return,
         }
