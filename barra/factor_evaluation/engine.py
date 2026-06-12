@@ -45,7 +45,8 @@ class FactorEvalEngine:
         close: pd.Series,
         risk_factors: Optional[pd.DataFrame] = None,
         alpha_factors: Optional[pd.DataFrame] = None,
-        ic_periods: tuple = (1,)
+        ic_periods: tuple = (1,),
+        benchmark_close: Optional[pd.Series] = None,
     ):
         """Initialize the factor evaluation engine.
 
@@ -56,6 +57,9 @@ class FactorEvalEngine:
             alpha_factors: MultiIndex (instrument, datetime) DataFrame. Each
                 column is an alpha factor. May be None.
             ic_periods: Forward-return horizons for IC (Layer 1).
+            benchmark_close: MultiIndex (instrument, datetime) Series of
+                benchmark (SH000300) close prices. If provided, excess returns
+                (stock - benchmark) are computed. Defaults to None (raw returns).
 
         Raises:
             ValueError: If both risk_factors and alpha_factors are None, or if
@@ -77,6 +81,7 @@ class FactorEvalEngine:
         self.risk_factors = risk_factors
         self.alpha_factors = alpha_factors
         self.ic_periods = ic_periods
+        self.benchmark_close = benchmark_close
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -266,20 +271,33 @@ class FactorEvalEngine:
     # ------------------------------------------------------------------
 
     def _prepare_forward_returns(self, lags: set) -> pd.DataFrame:
-        """Compute single-day marginal forward returns for requested lags.
+        """Compute excess forward returns (stock return - benchmark return).
 
-           forward_ret_k = close(t+k+1) / close(t+k) - 1
+           forward_ret_k = stock_ret(k) - benchmark_ret(k)
+
+        where stock_ret(k) = close(t+k+1) / close(t+k) - 1.
 
         Args:
             lags: Set of lag values for which to generate return columns.
 
         Returns:
             DataFrame with columns ``forward_ret_{k}`` for each k in lags.
+            If benchmark_close was provided, returns are excess returns;
+            otherwise raw returns.
         """
         ret_df = pd.DataFrame(index=self.close.index)
         close_gb = self.close.groupby(level='instrument')
         for k in sorted(lags):
             ret_df[f'forward_ret_{k}'] = close_gb.shift(-k-1) / close_gb.shift(-k) - 1
+
+        if self.benchmark_close is not None:
+            bench_gb = self.benchmark_close.groupby(level='instrument')
+            dates = ret_df.index.get_level_values('datetime')
+            for k in sorted(lags):
+                bench_ret = bench_gb.shift(-k-1) / bench_gb.shift(-k) - 1
+                bench_aligned = bench_ret.droplevel('instrument')
+                ret_df[f'forward_ret_{k}'] -= bench_aligned.reindex(dates).values
+
         return ret_df
 
     def _evaluate_factor(

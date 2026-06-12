@@ -56,6 +56,12 @@ def run(
     close.sort_index(inplace=True)
     logger.info('{}\n {}'.format('-'*50, close))
 
+    # 加载基准（沪深300）close 数据
+    bench_close_df = D.features(
+        [BENCHMARK_CONFIG['BENCHMARK']], ["$close"], start_date, calc_date,
+    )
+    benchmark_close = bench_close_df["$close"]
+
     # 加载风险因子数据
     exposure_path = project_root / "barra/factors/data" / calc_date / "exposure_matrix.parquet"
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
@@ -73,13 +79,16 @@ def run(
     DataFrameIO.write(close.to_frame(), output / 'close.parquet')
     DataFrameIO.write(risk_factors, output / 'risk_factors.parquet')
     DataFrameIO.write(alpha_factors, output / 'alpha_factors.parquet')
-    logger.info('close shape: {}, risk_factors shape: {}, alpha_factors shape: {}'.format(
-        close.shape, risk_factors.shape, alpha_factors.shape))
+    DataFrameIO.write(bench_close_df.to_frame(), output / 'bench_close.parquet')
+    logger.info('close shape: {}, risk_factors shape: {}, alpha_factors shape: {}, '
+                'bench_close shape: {}'.format(
+        close.shape, risk_factors.shape, alpha_factors.shape, benchmark_close.shape))
 
     # ---- Evaluate ----
     engine = FactorEvalEngine(
         close=close, risk_factors=risk_factors, alpha_factors=alpha_factors,
-        ic_periods=(1, )
+        ic_periods=(1, ),
+        benchmark_close=benchmark_close,
     )
     result = engine.run(
         neutralize=True,
