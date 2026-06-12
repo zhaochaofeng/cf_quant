@@ -115,21 +115,27 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True
     ), "factors_exposure/factors_exposure")
 
-    print(f'--- 步骤 14: barra_risk ({now_date}) ---')
+    print(f'--- 步骤 14: factor_evaluation ({now_date}) ---')
+    _check_step(run_deployment(
+        "factor_evaluation/factor_evaluation",
+        as_subflow=True
+    ), "factor_evaluation/factor_evaluation")
+
+    print(f'--- 步骤 15: barra_risk ({now_date}) ---')
     _check_step(run_deployment(
         "barra_risk/barra_risk",
         parameters={"now_date": now_date},
         as_subflow=True,
     ), "barra_risk/barra_risk")
 
-    print(f'--- 步骤 15: barra_alpha ({now_date}) ---')
+    print(f'--- 步骤 16: barra_alpha ({now_date}) ---')
     _check_step(run_deployment(
         "barra_alpha/barra_alpha",
         parameters={"now_date": now_date},
         as_subflow=True,
     ), "barra_alpha/barra_alpha")
 
-    print(f'--- 步骤 16: barra_portfolio ({now_date}) ---')
+    print(f'--- 步骤 17: barra_portfolio ({now_date}) ---')
     _check_step(run_deployment(
         "barra_portfolio/barra_portfolio",
         parameters={"now_date": now_date},
