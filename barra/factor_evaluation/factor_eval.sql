@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS factor_evaluation(
     RIC Decimal(10, 6) COMMENT 'Rank IC',
     RICIR Decimal(10, 6) COMMENT 'Rank IC 的信息比率',
     long_short Decimal(10, 6) COMMENT '多空组合超额收益率',
-    avg_return Decimal(10, 6) COMMENT '市场平均超额收益率',
+    avg_return Decimal(10, 6) COMMENT '市场平均超额收益率(接近0)',
     half_life DECIMAL(10, 2) COMMENT '半衰期（天）',
     PRIMARY KEY (id),
     UNIQUE KEY un_day (day, name, type)
