@@ -182,7 +182,6 @@ class FactorEvalEngine:
             result: The dict returned by ``run()``.
             calc_date: Calculation date string (YYYY-MM-DD).
         """
-        from utils.db_mysql import MySQLDB
 
         rows = []
         for name, res in result.get('risk_factors', {}).items():
@@ -198,19 +197,13 @@ class FactorEvalEngine:
             logger.error(err_msg)
             raise ValueError(err_msg)
 
-        sql = (
-            "INSERT INTO factor_evaluation "
-            "(day, name, type, IC, ICIR, RIC, RICIR, long_short, avg_return, half_life) "
-            "VALUES (%(day)s, %(name)s, %(type)s, %(IC)s, %(ICIR)s, "
-            "%(RIC)s, %(RICIR)s, %(long_short)s, %(avg_return)s, %(half_life)s) "
-            "ON DUPLICATE KEY UPDATE "
-            "IC=VALUES(IC), ICIR=VALUES(ICIR), RIC=VALUES(RIC), RICIR=VALUES(RICIR), "
-            "long_short=VALUES(long_short), avg_return=VALUES(avg_return), "
-            "half_life=VALUES(half_life)"
-        )
-        with MySQLDB() as db:
-            db.executemany(sql, rows)
-        logger.info("Saved %d rows to factor_evaluation (date=%s)", len(rows), calc_date)
+        from utils import write_to_mysql
+        fields = [
+            'day', 'name', 'type', 'IC', 'ICIR', 'RIC', 'RICIR', 'long_short',
+            'avg_return', 'half_life'
+        ]
+        unique_key = ['day', 'name', 'type']
+        write_to_mysql('factor_evaluation', rows, fields, unique_key, overwrite=True)
 
 
     def _extract_metrics(self,
