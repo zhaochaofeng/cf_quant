@@ -10,7 +10,7 @@ from .utils import (
     retry_on_failure,
 )
 
-from .db_mysql import MySQLDB
+from .db_mysql import MySQLDB, write_to_mysql
 from .logger import LoggerFactory
 
 # 自定义 qlib 操作
