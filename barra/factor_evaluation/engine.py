@@ -352,39 +352,19 @@ class FactorEvalEngine:
         For each date, regress alpha on risk factors via WLS (no intercept)
         and return the residuals.
         """
-        alpha_clean = pd.Series(index=alpha_series.index, dtype=float)
+        result = pd.Series(np.nan, index=alpha_series.index, dtype=float)
         risk = self.risk_factors
 
-        for date in alpha_series.index.get_level_values('datetime').unique():
-            mask = alpha_series.index.get_level_values('datetime') == date
-            idx = alpha_series[mask].index
+        # 过滤 NaN（statsmodels WLS 不自动丢弃）
+        valid = alpha_series.notna() & risk.notna().all(axis=1)
+        if valid.sum() < 2:
+            return result
 
-            try:
-                y_vals = alpha_series.loc[idx].values
-                x_vals = risk.loc[idx].values
-
-                valid = ~np.isnan(y_vals) & ~np.isnan(x_vals).any(axis=1)
-                if valid.sum() < 2:
-                    logger.debug(
-                        "Skipping date %s: insufficient valid observations (%d)",
-                        date, valid.sum(),
-                    )
-                    alpha_clean.loc[idx] = np.nan
-                    continue
-
-                residuals = neutralize(
-                    y=y_vals[valid],
-                    x=x_vals[valid],
-                    weight=1,
-                    intercept=False,
-                )
-                alpha_clean.loc[idx[valid]] = residuals
-
-            except Exception:
-                logger.warning(
-                    "Neutralization failed for date %s, factor %s",
-                    date, alpha_series.name,
-                )
-                alpha_clean.loc[idx] = np.nan
-
-        return alpha_clean
+        result.loc[valid] = neutralize(
+            y=alpha_series[valid],
+            x=risk.loc[valid],
+            weight=1,
+            intercept=False,
+            level='datetime',
+        )
+        return result
