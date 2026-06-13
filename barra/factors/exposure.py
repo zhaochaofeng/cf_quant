@@ -104,6 +104,7 @@ class CNE6IndExposure:
         行业/市值中性化
         对每个因子，用行业和对数市值做回归，取残差
         去掉一个行业，添加截距项
+        LNCAP/MIDCAP 为市值规模因子，仅做行业中性化，不做市值中性化
 
         Args:
             factor_df: 因子数据，index=(instrument, datetime), columns=因子名
@@ -126,16 +127,25 @@ class CNE6IndExposure:
         # 基础自变量：行业哑变量 + 对数市值
         base_x = industry_dummies.join(log_mv, how='inner')
 
+        # LNCAP/MIDCAP 是市值规模因子，不做市值中性化
+        SIZE_FACTORS = {'LNCAP', 'MIDCAP'}
+
         # 对每个因子分别进行中性化
         result_df = pd.DataFrame(index=factor_df.index)
 
         for factor_name in factor_df.columns:
             y = factor_df[factor_name]
 
+            # 市值因子：只做行业中性化；其他因子：行业+市值中性化
+            if factor_name in SIZE_FACTORS:
+                x = industry_dummies
+            else:
+                x = base_x
+
             # 对齐索引，去除 NaN
-            common_idx = y.index.intersection(base_x.index)
+            common_idx = y.index.intersection(x.index)
             y_aligned = y.loc[common_idx]
-            x_aligned = base_x.loc[common_idx]
+            x_aligned = x.loc[common_idx]
             valid_mask = y_aligned.notna() & x_aligned.notna().all(axis=1)
 
             if valid_mask.sum() / factor_df.shape[1] < 0.5:
