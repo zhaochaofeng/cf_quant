@@ -154,7 +154,8 @@ class CNE6IndExposure:
                 raise Exception(err_msg)
 
             resid = neutralize(
-                y_aligned[valid_mask], x_aligned.loc[valid_mask], intercept=True
+                y_aligned[valid_mask], x_aligned.loc[valid_mask], intercept=True,
+                level='datetime'
             )
 
             # 残差写回，NaN 位置保留

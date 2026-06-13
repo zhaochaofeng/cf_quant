@@ -305,7 +305,8 @@ def neutralize(
     y: Union[np.ndarray, pd.Series, pd.DataFrame],
     x: Union[np.ndarray, pd.Series, pd.DataFrame],
     weight: Union[np.ndarray, float] = 1,
-    intercept: bool = True
+    intercept: bool = True,
+    level: Optional[Union[int, str]] = None
 ) -> Union[np.ndarray, pd.Series, pd.DataFrame]:
     """中性化处理：用x对y进行线性回归，取残差
 
@@ -316,6 +317,8 @@ def neutralize(
         x: 自变量，支持 array/Series/DataFrame，可以是1列或多列
         weight: 权重，默认等权
         intercept: 是否包含截距项，默认True
+        level: 分组索引层级（int 或 str），按该层级 groupby 后分组回归。
+               None 表示不分组，对全量数据回归。
 
     Returns:
         中性化后的残差，维度和类型与y一致
@@ -327,8 +330,24 @@ def neutralize(
     y_df = _to_dataframe(y)
     x_df = _to_dataframe(x)
 
-    # 调用WLS获取残差
-    _, _, resid = WLS(y_df, x_df, intercept=intercept, weight=weight, verbose=True)
+    # 无分组：单次回归
+    if level is None:
+        _, _, resid = WLS(y_df, x_df, intercept=intercept, weight=weight, verbose=True)
+    else:
+        # 有分组：按 level 分组回归
+        _validate_groupby_index(y_df, level)
+        _validate_groupby_index(x_df, level)
+
+        def _group_neutralize(group_y: pd.DataFrame) -> pd.DataFrame:
+            # groupby 时 y 和 x 分别被分组，需要根据 group_y 的索引取出对应的 x
+            idx = group_y.index
+            group_x = x_df.loc[idx]
+            _, _, group_resid = WLS(
+                group_y, group_x, intercept=intercept, weight=weight, verbose=True
+            )
+            return group_resid
+
+        resid = y_df.groupby(level=level, group_keys=False).apply(_group_neutralize)
 
     # 恢复原始类型
     if is_series:
