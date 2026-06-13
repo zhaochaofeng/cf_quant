@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="因子评价 — 每日运行脚本")
     parser.add_argument("--now-date", type=str, help="计算日期 (YYYY-MM-DD)，为空时默认当天")
     parser.add_argument("--history-months", type=int, default=12, help="历史数据月数")
-    parser.add_argument("--output", type=str, default="./data", help="中间结果输出目录")
+    parser.add_argument("--output", type=str, default="./data", help="输出目录")
     parser.add_argument("--deploy", action="store_true", help="注册 Prefect 部署")
     args = parser.parse_args()
 
