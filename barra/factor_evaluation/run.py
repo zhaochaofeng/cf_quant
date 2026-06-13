@@ -62,7 +62,7 @@ def run(
     )
     benchmark_close = bench_close_df["$close"]
 
-    # 加载风险因子数据
+    # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
     exposure_path = project_root / "barra/factors/data" / calc_date / "exposure_matrix.parquet"
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
     logger.info('{}\n {}'.format('-' * 50, risk_factors))
