@@ -37,9 +37,11 @@ class SignalDecay:
             dict with keys 'half_life' (float) and 'ic_decay' (Series).
         """
         if len(lags) < 3:
-            logger.warning("Need at least 3 lags for exponential fit, got %d", len(lags))
-            return {"half_life": float("nan"), "ic_decay": pd.Series(dtype=float)}
+            err_msg = "Need at least 3 lags for exponential fit, got {}".format(len(lags))
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
+        # 回归样本。lags 对应的 ric 均值
         ric_means = {}
         for k in lags:
             ret_col = f"{ret_prefix}{k}"
@@ -56,14 +58,17 @@ class SignalDecay:
             logger.warning("Baseline IC(1) is zero or NaN")
             return {"half_life": float("nan"), "ic_decay": ic_decay}
 
+        # |IC(k)|
         abs_ic = np.abs(ic_decay.values)
         lags_arr = np.array(lags, dtype=float)
 
         valid = abs_ic > 0
         if valid.sum() < 3:
-            logger.warning("Fewer than 3 valid points (|IC| > 0), cannot fit")
-            return {"half_life": float("nan"), "ic_decay": ic_decay}
+            err_msg = "Fewer than 3 valid points (|IC| > 0), cannot fit"
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
+        # log(|IC(k)|), k
         log_ic = np.log(abs_ic[valid])
         k_vals = lags_arr[valid]
 
@@ -72,13 +77,14 @@ class SignalDecay:
                           intercept=True, weight=1)
             slope = b[0]
         except Exception:
-            logger.warning("WLS fit failed for half-life estimation")
-            return {"half_life": float("nan"), "ic_decay": ic_decay}
+            err_msg = "WLS fit failed for half-life estimation"
+            logger.error(err_msg)
+            raise ValueError(err_msg)
 
         if slope >= 0:
             logger.warning("Slope b=%.4f >= 0, IC not decaying", slope)
             return {"half_life": float("nan"), "ic_decay": ic_decay}
-
+        # slope = (- lambda)
         half_life = -np.log(2) / slope
 
         return {"half_life": float(half_life), "ic_decay": ic_decay}
