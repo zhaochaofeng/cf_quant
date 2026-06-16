@@ -3,6 +3,7 @@
 """
 from typing import Literal
 
+
 # --- 截面IC ---
 DEFAULT_IC_PERIOD = 1  # 默认IC周期（1日）
 DEFAULT_IC_METHOD: Literal['spearman', 'pearson'] = 'spearman'
