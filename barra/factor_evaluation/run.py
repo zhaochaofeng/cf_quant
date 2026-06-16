@@ -23,11 +23,11 @@ from config import BENCHMARK_CONFIG
 from barra.factor_evaluation.conf import DEFAULT_MAX_DECAY_LAG
 
 
-logger = LoggerFactory.get_logger(__name__)
-
 def run(
     calc_date: str,
     history_months: int = 24,
+    ic_periods=(1, ),
+    n_groups=5,
     output: str = "./data",
     logger: object = None,
 ):
@@ -38,6 +38,8 @@ def run(
         history_months: Months of historical data to load.
         output: Directory path for intermediate PickleIO results.
     """
+    if logger is None:
+        logger = LoggerFactory.get_logger(__name__)
 
     output = Path(output)
 
@@ -45,8 +47,7 @@ def run(
     data_loader = BaseDataLoader(market=BENCHMARK_CONFIG['market'])
 
     start_date = dt.subtract_months(calc_date, history_months)
-    end_date = calc_date
-    logger.info('{} \nstart_date: {}, calc_date: {}'.format( '-'*50, start_date, end_date))
+    logger.info('{} \nstart_date: {}, calc_date: {}'.format( '-'*50, start_date, calc_date))
 
     # 加载 close 数据
     instruments = data_loader.load_instruments(start_date, calc_date)
@@ -57,9 +58,8 @@ def run(
     logger.info('{}\n {}'.format('-'*50, close))
 
     # 加载基准（沪深300）close 数据
-    bench_close_df = D.features(
-        [BENCHMARK_CONFIG['BENCHMARK']], ["$close"], start_date, calc_date,
-    )
+    bench_close_df = D.features([BENCHMARK_CONFIG['BENCHMARK']],
+                                ["$close"], start_date, calc_date)
     benchmark_close = bench_close_df["$close"]
 
     # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
@@ -67,7 +67,8 @@ def run(
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
     logger.info('{}\n {}'.format('-' * 50, risk_factors))
 
-    # 加载 alpha 因子数据
+    # 加载 alpha 因子数据。
+    # Fix: instrument, datetime 与 close 中存在差异
     alpha_factors = data_loader.load_signal(start_date, calc_date)
     alpha_factors.columns = ['alpha1']
     logger.info('{}\n {}'.format('-' * 50, alpha_factors))
@@ -80,19 +81,19 @@ def run(
     DataFrameIO.write(risk_factors, output / 'risk_factors.parquet')
     DataFrameIO.write(alpha_factors, output / 'alpha_factors.parquet')
     DataFrameIO.write(bench_close_df, output / 'bench_close.parquet')
-    logger.info('close shape: {}, risk_factors shape: {}, alpha_factors shape: {}, '
+    logger.info('After align. close shape: {}, risk_factors shape: {}, alpha_factors shape: {}, '
                 'bench_close shape: {}'.format(
         close.shape, risk_factors.shape, alpha_factors.shape, benchmark_close.shape))
 
     # ---- Evaluate ----
     engine = FactorEvalEngine(
         close=close, risk_factors=risk_factors, alpha_factors=alpha_factors,
-        ic_periods=(1, ),
+        ic_periods=ic_periods,
         benchmark_close=benchmark_close,
     )
     result = engine.run(
         neutralize=True,
-        n_groups=5,
+        n_groups=n_groups,
         max_decay_lag=DEFAULT_MAX_DECAY_LAG,
         output=str(output),
     )
@@ -143,6 +144,5 @@ if __name__ == "__main__":
         run(
             calc_date=args.now_date,
             history_months=args.history_months,
-            output=f'{args.output}/{args.now_date}',
-            logger=logger
+            output=f'{args.output}/{args.now_date}'
         )
