@@ -356,8 +356,8 @@ class FactorEvalEngine:
 
         # 过滤 NaN（statsmodels WLS 不自动丢弃）
         valid = alpha_series.notna() & risk.notna().all(axis=1)
-        if valid.sum() < 2:
-            return result
+        if valid.sum() / len(valid) < 0.5:
+            raise ValueError("Not enough valid data: {} / {} < 50%".format(valid.sum(), len(valid)))
 
         result.loc[valid] = neutralize(
             y=alpha_series[valid],
