@@ -69,7 +69,7 @@ def flow(now_date: str=''):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Barra 因子暴露度计算')
     parser.add_argument('--now-date', type=str, help='计算日期 (YYYY-MM-DD)，为空时默认当天')
-    parser.add_argument('--history-months', type=int, help='历史数据月数')
+    parser.add_argument('--history-months', type=int, default=36, help='历史数据月数')
     parser.add_argument('--n-jobs', type=int, default=os.cpu_count() - 2, help='并行计算核心数')
     parser.add_argument('--extend_start', type=int, default=6, help='扩展数据起始年数')
     parser.add_argument("--output", type=str, default="./data", help="输出目录")
