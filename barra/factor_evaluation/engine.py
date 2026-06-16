@@ -65,6 +65,9 @@ class FactorEvalEngine:
             ValueError: If both risk_factors and alpha_factors are None, or if
                 their column names overlap.
         """
+        if benchmark_close is None:
+            raise ValueError("benchmark_close must not be None")
+        
         if risk_factors is None and alpha_factors is None:
             raise ValueError(
                 "At least one of risk_factors or alpha_factors must be provided."
@@ -282,21 +285,17 @@ class FactorEvalEngine:
 
         Returns:
             DataFrame with columns ``forward_ret_{k}`` for each k in lags.
-            If benchmark_close was provided, returns are excess returns;
-            otherwise raw returns.
         """
         ret_df = pd.DataFrame(index=self.close.index)
         close_gb = self.close.groupby(level='instrument')
         for k in sorted(lags):
             ret_df[f'forward_ret_{k}'] = close_gb.shift(-k-1) / close_gb.shift(-k) - 1
 
-        if self.benchmark_close is not None:
-            bench_gb = self.benchmark_close.groupby(level='instrument')
-            dates = ret_df.index.get_level_values('datetime')
-            for k in sorted(lags):
-                bench_ret = bench_gb.shift(-k-1) / bench_gb.shift(-k) - 1
-                bench_aligned = bench_ret.droplevel('instrument')
-                ret_df[f'forward_ret_{k}'] -= bench_aligned.reindex(dates).values
+        # 计算超额收益率
+        dates = ret_df.index.get_level_values('datetime')
+        for k in sorted(lags):
+            bench_ret = self.benchmark_close.shift(-k-1) / self.benchmark_close.shift(-k) -1
+            ret_df[f'forward_ret_{k}'] -= bench_ret.reindex(dates).values
 
         return ret_df
 

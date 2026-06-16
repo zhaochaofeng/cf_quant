@@ -61,16 +61,20 @@ def run(
     bench_close_df = D.features([BENCHMARK_CONFIG['BENCHMARK']],
                                 ["$close"], start_date, calc_date)
     benchmark_close = bench_close_df["$close"]
+    benchmark_close.droplevel('instrument', inplace=True)
+    benchmark_close.sort_index(inplace=True)
 
     # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
     exposure_path = project_root / "barra/factors/data" / calc_date / "exposure_matrix.parquet"
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
+    risk_factors.sort_index(inplace=True)
     logger.info('{}\n {}'.format('-' * 50, risk_factors))
 
     # 加载 alpha 因子数据。
     # Fix: instrument, datetime 与 close 中存在差异
     alpha_factors = data_loader.load_signal(start_date, calc_date)
     alpha_factors.columns = ['alpha1']
+    alpha_factors.sort_index(inplace=True)
     logger.info('{}\n {}'.format('-' * 50, alpha_factors))
 
     com_index = close.index.intersection(alpha_factors.index).intersection(risk_factors.index)
