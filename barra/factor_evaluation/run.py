@@ -61,7 +61,7 @@ def run(
     bench_close_df = D.features([BENCHMARK_CONFIG['BENCHMARK']],
                                 ["$close"], start_date, calc_date)
     benchmark_close = bench_close_df["$close"]
-    benchmark_close.droplevel('instrument', inplace=True)
+    benchmark_close = benchmark_close.droplevel('instrument')
     benchmark_close.sort_index(inplace=True)
 
     # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
