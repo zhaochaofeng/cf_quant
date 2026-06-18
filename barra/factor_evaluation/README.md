@@ -1,262 +1,291 @@
 # 因子评价体系
 
-基于《主动投资组合管理》第12、13章理论，构建因子和Alpha预测信号的量化评估体系。
+基于《主动投资组合管理》(APM) 第 12、13 章理论，构建因子和 Alpha 预测信号的量化评估体系。
 
-## 首期指标范围
+## 一、模型设定
+
+- **理论依据**：APM 第 12 章（信息分析）定义 IC/ICIR 和信息时间尺度，第 13 章（信息时间尺度）定义信号衰减与半衰期
+- **评价维度**：三层递进——截面预测能力（IC）→ 实际分组收益（分层）→ 衰减速度（半衰期）
+- **因子类型**：风险因子（Barra CNE6 结构性暴露）和 Alpha 因子（预测信号），风险因子不评价半衰期（结构因子不衰减）
+- **收益口径**：超额收益率（个股收益 - 基准收益），基准为沪深 300
+- **Alpha 中性化**：可选的将 Alpha 对风险因子正交化，分离纯 Alpha 信息
+
+## 二、符号定义
+
+| 符号 | 含义 |
+|------|------|
+| N | 每期股票数量（横截面） |
+| T | 交易日数（时间序列） |
+| K | 因子数量（风险因子列数 + Alpha 因子列数） |
+| r_{t} | t 时刻个股收益率向量 (N×1) |
+| r_{t}^{b} | t 时刻基准（沪深 300）收益率 |
+| r_{t}^{e} | t 时刻超额收益率 = r_{t} - r_{t}^{b} |
+| f_{t}^{(k)} | 因子 f 在 t 时刻的横截面暴露向量 (N×1) |
+| IC_{t} | t 时刻截面信息系数（Pearson 相关系数） |
+| RIC_{t} | t 时刻截面秩信息系数（Spearman 相关系数） |
+| IR | 信息比率 = mean(IC) / std(IC) |
+
+## 三、核心流程
 
 ```
-第一层：IC / ICIR / RIC / RICIR
-第二层：分层收益率 / 多空对冲组合收益
-第三层：信号半衰期
+输入（close + 因子数据）
+  → 前向超额收益率计算                     ← Step 1: 预处理
+  → 对每个因子逐列评价：
+    → Layer 1: IC / ICIR / RIC / RICIR     ← Step 2: 截面预测能力
+    → Layer 2: 分组等权收益 + 多空对冲     ← Step 3: 分层收益
+    → Layer 3: IC 衰减 → 半衰期            ← Step 4: 衰减速度（仅 Alpha 因子）
+  → [可选] Alpha 对风险因子正交化后复评    ← Step 5: 中性化
+  → 输出结果 → MySQL + parquet
 ```
 
-## 目录结构
+## 四、前向超额收益率计算
 
-```
-barra/factor_evaluation/
-├── __init__.py
-├── config.py                 # 配置常量（IC周期、分组数、半衰期阈值等）
-├── engine.py                 # FactorEvalEngine - 总入口
-├── layer1_ic.py              # 第一层：IC/ICIR/RIC/RICIR
-├── layer2_stratified.py      # 第二层：分层收益 + 多空对冲
-├── layer3_decay.py           # 第三层：信号半衰期
-└── test_engine.py            # 手动验证脚本（不提交 git）
-```
+对每个滞后周期 k，计算超额前向收益：
 
-## 核心设计
+$$
+r^{e}_{t \to t+k} = \left( \frac{P_{t+k+1}}{P_{t+k}} - 1 \right) - \left( \frac{P^{b}_{t+k+1}}{P^{b}_{t+k}} - 1 \right)
+$$
 
-### FactorEvalEngine 构造函数
+其中 $P_t$ 为个股收盘价，$P^b_t$ 为基准收盘价。使用 `close(t+k+1) / close(t+k) - 1` 而非 `close(t+k) / close(t) - 1`，原因是 A 股 T+1 制度——t 时刻的信号最早可以在 t+1 时刻执行。
+
+实现方式（引擎内部，纯 pandas）：
 
 ```python
-class FactorEvalEngine:
-    def __init__(
-        self,
-        close: pd.Series,
-        risk_factors: Optional[pd.DataFrame] = None,
-        alpha_factors: Optional[pd.DataFrame] = None,
-    ):
+ret_df = pd.DataFrame(index=close.index)
+close_gb = close.groupby(level='instrument')
+for k in sorted(lags):
+    ret_df[f'forward_ret_{k}'] = close_gb.shift(-k-1) / close_gb.shift(-k) - 1
+
+# 扣除基准收益
+for k in sorted(lags):
+    bench_ret = benchmark_close.shift(-k-1) / benchmark_close.shift(-k) - 1
+    ret_df[f'forward_ret_{k}'] -= bench_ret.reindex(dates).values
 ```
 
-**输入约定**:
-- 统一使用 `MultiIndex(instrument, datetime)` —— 与 Barra 体系、qlib 原生格式一致
-- `close`: MultiIndex(instrument, datetime) 的 Series，股票收盘价
-- `risk_factors`: MultiIndex(instrument, datetime) 的 DataFrame，每一列是一个风险因子（如 LNCAP、BETA、MOMENTUM...）。可以为 None
-- `alpha_factors`: MultiIndex(instrument, datetime) 的 DataFrame，每一列是一个 alpha 因子。可以为 None
-- `risk_factors` 和 `alpha_factors` **不能同时为 None**
-- 两者都有时，两套因子的列名**不能有交集**
+`groupby('instrument').shift(-k)` 确保不跨股票移位。计算在引擎初始化时一次性完成，所有因子共享同一份收益数据。
 
-### 前向收益率计算（引擎内部，纯 pandas）
+## 五、第一层：截面 IC
 
+### 5.1 定义
+
+截面 IC 衡量因子暴露与同期超额收益的横截面相关性：
+
+$$
+IC_t = corr(f_t, r^{e}_{t \to t+k}), \quad
+RIC_t = rankcorr(f_t, r^{e}_{t \to t+k})
+$$
+
+- **IC**：Pearson 相关系数，度量线性相关
+- **RIC**：Spearman 秩相关系数，度量单调性（对极端值不敏感）
+
+### 5.2 汇总统计
+
+- **IC 均值**：$\bar{IC} = \frac{1}{T}\sum_{t=1}^{T} IC_t$
+- **IC 标准差**：$\sigma_{IC} = std(\{IC_t\})$
+- **ICIR（信息比率）**：$ICIR = \bar{IC} / \sigma_{IC}$，衡量因子预测的稳定性
+
+IC 和 RIC 各自计算其均值、标准差和 IR，得到 ICIR 和 RICIR 两组指标。
+
+### 5.3 实现
+
+委托给 `qlib.contrib.eva.alpha.calc_ic()`，不自行实现 groupby+corr：
+
+```python
+from qlib.contrib.eva.alpha import calc_ic as qlib_calc_ic
+ic, ric = qlib_calc_ic(df[factor_col], df[ret_col])
 ```
-forward_ret_k = close.groupby('instrument').shift(-k) / close - 1   (k = 1, 5, 10, 21)
+
+返回两个 Series，索引为 datetime。上层计算汇总统计。
+
+**设计决策**：使用 qlib 而非手动实现，原因是 qlib 内部处理了 MultiIndex 对齐和截面分组逻辑，经过生产验证。
+
+## 六、第二层：分层收益率
+
+### 6.1 分组收益
+
+每日按因子值排序将股票分为 $G$ 等权分位数组（$G$ 默认为 5），组内等权平均收益率：
+
+```python
+for dt in dates:
+    g = df.xs(dt, level='datetime')
+    labels = pd.qcut(g[factor_col], n_groups, labels=False, duplicates='drop')
+    row = g.groupby(labels)[ret_col].mean()
 ```
 
-`groupby('instrument').shift(-k)` 确保不跨股票移位。
+- 使用 `pd.qcut` 保证每组股票数量均衡
+- `duplicates='drop'` 处理因子值大量重复导致分位数边界模糊的情况
+- 返回 DataFrame(index=datetime, columns=[0..G-1])
 
-### 评价流程
+### 6.2 多空对冲收益
 
-```
-风险因子评价:
-  for each column in risk_factors:
-      → Layer1: IC / ICIR / RIC / RICIR
-      → Layer2: 分5组等权收益 + 多空(G5-G1)收益
-      → Layer3: IC衰减 → 半衰期
+顶部组（G5）买入 - 底部组（G1）卖出的零成本组合收益：
 
-Alpha 因子评价:
-  for each column in alpha_factors:
-      [if risk_factors is not None and neutralize=True]:
-          对 alpha 做风险因子正交化（逐截面回归取残差）
-      → Layer1: IC / ICIR / RIC / RICIR
-      → Layer2: 分5组等权收益 + 多空(G5-G1)收益
-      → Layer3: IC衰减 → 半衰期
+```python
+from qlib.contrib.eva.alpha import calc_long_short_return as qlib_ls
+long_short, avg_return = qlib_ls(df[factor_col], df[ret_col], quantile=1.0/G)
 ```
 
-### 风险因子中性化（neutralize）
+`long_short` 为每日多空收益序列，`avg_return` 为顶部组减全市场平均的序列。两者均由 qlib 实现，该模块仅做包装。
 
-**理论依据（Eq 12A-7 ~ 12A-11）**：
+## 七、第三层：信号半衰期
 
-APM 技术附录"与回归的关系"将信息评价与回归统一：`r = Y·b + ε`，`Y = [X, a]`（风险因子矩阵 + alpha信号）。因子组合矩阵 H 满足 `Hᵀ·Y = I`（Eq 12A-11），即 alpha 对应的组合对 a 有单位暴露，对 X **零暴露**。
+### 7.1 理论
 
-将 alpha 对风险因子做截面回归取残差，等价于 Eq(12A-11) 中的零暴露条件。
+假设 IC 衰减服从指数模型（APM 第 13 章）：
 
-**实现**（直接调 `utils.preprocess.neutralize()`）：
+$$
+|IC(k)| \approx |IC(1)| \cdot e^{-\lambda k}, \quad k = 1, 2, ...
+$$
+
+其中 $\lambda$ 为衰减率。半衰期为 IC 降至初始值一半所需的滞后周期数：
+
+$$
+t_{1/2} = \frac{\ln 2}{\lambda}
+$$
+
+### 7.2 实现
+
+仅对 Alpha 因子计算（风险因子为结构性暴露，不衰减）。
+
+对几何间隔的滞后期 $k \in L$（由引擎预计算，如 1, 2, 4, 8, 16, 21, ..., 100），分别计算 RIC 均值，然后做对数线性 WLS 回归：
+
+```python
+# |IC(k)| = |IC(1)| * exp(-lambda * k)
+# log|IC(k)| = log|IC(1)| - lambda * k
+
+log_ic = log(|RIC_mean(k)|)
+k_vals = lags[valid]
+b, _, _ = WLS(y=log_ic, X=k_vals.reshape(-1, 1), intercept=True, weight=1)
+slope = b[0]  # slope = -lambda
+half_life = -ln(2) / slope
+```
+
+**决策理由**：
+- 使用 WLS 而非简单 OLS：WLS 已在 `utils.stats` 中实现，与项目中其他回归一致
+- 使用几何间隔滞后期而非连续滞后期：减少计算量（每期需调一次 qlib `calc_ic`），且在短端有更多采样点符合指数衰减的早期特征
+- 使用 RIC 而非 IC：秩相关系数对极端值不敏感，衰减曲线更平滑
+- 斜率大于等于 0 时认为不衰减（返回 NaN），因模型假设衰减为负
+
+滞后期由引擎的 `_build_decay_lags()` 生成：
+
+```python
+# gamma=1.1, max_lag=100 → (1, 2, 4, 8, 16, 21, 28, 31, ..., 100)
+def _build_decay_lags(max_lag, gamma=1.1):
+    lags = [1]
+    while lags[-1] * gamma <= max_lag:
+        lags.append(ceil(lags[-1] * gamma))
+    if lags[-1] < max_lag:
+        lags.append(max_lag)
+    return tuple(lags)
+```
+
+## 八、风险因子中性化
+
+### 8.1 理论依据
+
+APM 附录 Eq(12A-7)~(12A-11) 将信息评价与回归统一：设 $Y = [X, a]$ 为风险因子矩阵 $X$ 与 Alpha 信号 $a$ 拼接成的设计矩阵，因子组合矩阵 $H$ 满足 $H^\top Y = I$（Eq 12A-11），即 Alpha 对应的组合对 $a$ 有单位暴露、对风险因子零暴露。
+
+将 Alpha 对风险因子做截面回归取残差，等价于施加上述零暴露条件。
+
+### 8.2 实现
+
+对每个交易日做横截面 WLS 回归，取残差作为中性化后的 Alpha 值：
 
 ```python
 from utils.preprocess import neutralize
 
 alpha_neutralized = neutralize(
-    y=alpha_col.values,
-    x=risk_factors.values,
+    y=alpha_series[valid],
+    x=risk_factors.loc[valid],
     weight=1,
-    intercept=False,          # 不加截距，保留 alpha 截面均值中的信息
+    intercept=False,          # 不影响残差，仅影响系数可解释性
+    level='datetime',         # 逐日期截面回归
 )
 ```
 
-`neutralize()` 内部调用 `utils.stats.WLS()` 做加权最小二乘，返回残差。不加截距项是因为截距会吸收 alpha 的截面均值（如全市场看多/看空倾向也是信息）。
+- `intercept`：不影响回归残差（中性化结果）。风险因子包含完备的行业哑变量，其列空间已包含常数向量，加/不加截距的投影矩阵相同，残差（中性化后的 Alpha）完全一致。`intercept` 仅影响回归系数的可解释性：
+  - `intercept=False`：行业因子系数解释为该行业的绝对超额收益
+  - `intercept=True`：行业因子系数解释为相对参考行业的偏离
+- `level='datetime'`：对每个 date 独立做横截面 WLS 回归
 
-输出中区分 `raw` 和 `neutralized` 两组结果。
+输出中区分 `raw`（未中性化）和 `neutralized`（中性化后）两组结果，便于对比。
 
-### run() 方法签名
+## 九、算法流程总结
 
-```python
-def run(
-    self,
-    neutralize: bool = False,
-    ic_periods: tuple = (1,),
-    n_groups: int = 5,
-    max_decay_lag: int = 21,
-) -> dict:
-```
+**输入**：
+- `close`：个股收盘价 Series，MultiIndex(instrument, datetime)
+- `risk_factors`：风险因子暴露 DataFrame，MultiIndex，每列一个风险因子（可选）
+- `alpha_factors`：Alpha 因子 DataFrame，MultiIndex，每列一个 Alpha 因子（可选）
+- `benchmark_close`：基准（沪深 300）收盘价 Series，MultiIndex
+- `ic_periods`：IC 计算周期，如 (1,)
+- `n_groups`：分层组数，默认 5
+- `max_decay_lag`：半衰期最大滞后期，默认 100
+- `neutralize`：是否对 Alpha 做风险因子中性化，默认 False
 
-**返回结构**:
+**输出**：
+- 嵌套字典结构，每个因子包含 Layer 1 + Layer 2 + （Alpha 可选）Layer 3 结果
+- 同时持久化到 MySQL `factor_evaluation` 表和本地 parquet 文件
 
-```
-{
-    'risk_factors': {
-        '<factor_name>': {
-            'layer1': {'ic': Series, 'ric': Series, 'icir': float, 'ricir': float},
-            'layer2': {'group_returns': DataFrame, 'long_short': Series},
-            'layer3': {'half_life': float, 'ic_decay': Series},
-        },
-        ...
-    },
-    'alpha_factors': {
-        '<factor_name>': {
-            'raw': {
-                'layer1': {...},
-                'layer2': {...},
-                'layer3': {...},
-            },
-            'neutralized': {               # neutralize=True 时有
-                'layer1': {...},
-                'layer2': {...},
-                'layer3': {...},
-            },
-        },
-        ...
-    },
-}
-```
+### 算法步骤
 
-## 各层模块接口（委托给 qlib + utils/）
+1. 初始化：校验输入、检查因子列名重叠
+2. 计算全部滞后期的前向超额收益率（一次性，所有因子共享）
+3. 对每个风险因子：
+   - Layer 1：IC/RIC 时间序列 + ICIR/RICIR
+   - Layer 2：分 G 组等权收益 + 多空对冲收益
+4. 对每个 Alpha 因子：
+   - 若 neutralize=True 且有风险因子：对 Alpha 做截面正交化，得到 raw 和 neutralized 两套结果
+   - Layer 1：IC/RIC 时间序列 + ICIR/RICIR
+   - Layer 2：分 G 组等权收益 + 多空对冲收益
+   - Layer 3：IC 衰减序列 → 指数拟合 → 半衰期
+5. 持久化：写入 MySQL 表 + 输出 parquet/result.pkl
 
-### layer1_ic.py
+## 十、输出
 
-```python
-from qlib.contrib.eva.alpha import calc_ic as qlib_calc_ic
+### MySQL 表
 
-class CrossSectionalIC:
-    """委托给 qlib.contrib.eva.alpha.calc_ic()"""
+表名 `factor_evaluation`，字段信息见 `factor_eval.sql`：
 
-    @staticmethod
-    def calc_ic(df, factor_col, ret_col) -> dict:
-        """调用 qlib_calc_ic(pred, label)，返回 {'ic': Series, 'ric': Series}"""
-
-    @staticmethod
-    def calc_summary(ic_series: pd.Series) -> dict:
-        """返回 {'ic_mean': float, 'ic_std': float, 'icir': float}
-           ICIR = ic_mean / ic_std"""
-```
-
-不自己实现 groupby+corr，直接调 qlib 的 `calc_ic()`。
-
-### layer2_stratified.py
-
-```python
-from qlib.contrib.eva.alpha import calc_long_short_return as qlib_ls
-
-class StratifiedReturn:
-    def __init__(self, n_groups: int = 5):
-        ...
-
-    def compute(self, df, factor_col, ret_col) -> dict:
-        """每日按 factor 排序分 n_groups 组，组内等权平均收益。
-           分组逻辑手动实现（groupby date + pd.qcut），不依赖 qlib plotly 代码。
-           多空收益可用 qlib_ls() 交叉验证。
-           返回 {'group_returns': DataFrame, 'long_short': Series}"""
-```
-
-分组计算核心：`df.groupby(level='datetime').apply(lambda g: g.groupby(pd.qcut(g[factor], n_groups, labels=False))[ret_col].mean())`
-
-### layer3_decay.py
-
-```python
-from utils.stats import get_exp_weight
-from qlib.contrib.eva.alpha import calc_ic as qlib_calc_ic
-
-class SignalDecay:
-    @staticmethod
-    def calc_half_life(df, factor_col, ret_prefix, max_lag) -> dict:
-        """对 lag=1..max_lag 分别调 qlib_calc_ic() 得到 IC(k) 序列。
-           半衰期 = IC(k) 首次降至 IC(1) * 0.5 时的 k（线性插值）。
-           get_exp_weight() 用于验证指数衰减假设。
-           返回 {'half_life': float, 'ic_decay': Series}"""
-```
-
-- 本身不重新实现 IC 计算，循环调 layer1 的 `calc_ic()`
-- `get_exp_weight(window, half_life)` 用于辅助验证衰减模式是否服从指数衰减
-
-## 工具复用（仅用 qlib + utils/）
-
-### qlib 提供
-
-| 功能 | 来源 | 用法 |
+| 字段 | 类型 | 说明 |
 |------|------|------|
-| 每日 IC/RIC | `qlib.contrib.eva.alpha.calc_ic()` | `ic, ric = calc_ic(pred, label)` → 两个 Series |
-| 多空收益 | `qlib.contrib.eva.alpha.calc_long_short_return()` | `ls, avg = calc_long_short_return(pred, label, quantile=0.2)` |
-| 风险评估 | `qlib.contrib.evaluate.risk_analysis()` | `risk_analysis(r, freq='day')` → 年化收益/波动/IR/最大回撤 |
-| 数据获取 | `qlib.data.D.features()` / `D.instruments()` / `D.calendar()` | 因子值、收盘价、交易日历 |
+| day | DATE | 计算日期 |
+| name | VARCHAR(50) | 因子名称 |
+| type | VARCHAR(50) | 因子类型：risk / alpha |
+| IC | DECIMAL(10,6) | Normal IC |
+| ICIR | DECIMAL(10,6) | IC 信息比率 |
+| RIC | DECIMAL(10,6) | Rank IC |
+| RICIR | DECIMAL(10,6) | Rank IC 信息比率 |
+| long_short | DECIMAL(10,6) | 多空组合超额收益率均值 |
+| avg_return | DECIMAL(10,6) | 市场平均超额收益率均值 |
+| half_life | DECIMAL(10,2) | 半衰期（天），仅 Alpha 因子 |
+| id | INT (PK) | 自增主键 |
 
-### cf_quant/utils/ 提供
+唯一键 `(day, name, type)`，使用 `ON DUPLICATE KEY UPDATE` 实现幂等的每日更新。
 
-| 功能 | 来源 | 用法 |
-|------|------|------|
-| alpha 中性化 | `utils.preprocess.neutralize()` | `neutralize(y, x, weight=1, intercept=False)` |
-| 因子去极值 | `utils.preprocess.winsorize()` | `winsorize(data, method='std', k=3)` |
-| 因子标准化 | `utils.preprocess.standardize()` | `standardize(data, method='zscore')` |
-| WLS 回归 | `utils.stats.WLS()` | `WLS(y, X, intercept=True)` → (params, intercept, resid) |
-| 半衰期权重 | `utils.stats.get_exp_weight()` | `get_exp_weight(window, half_life)` → 指数衰减权重数组 |
-| 日志 | `utils.LoggerFactory` | `LoggerFactory.get_logger(__name__)` |
-| 超额收益 | `utils.trans.calculate_excess_returns()` | 个股收益减基准收益 |
-| 交易日 | `utils.utils.is_trade_day()` / `get_trade_cal_inter()` | 交易日判断与获取 |
+### Parquet 文件
 
-## 实现顺序
+`run()` 执行过程中将中间数据和最终结果写入指定输出目录：
 
-1. `config.py`
-2. `layer1_ic.py`
-3. `layer2_stratified.py`
-4. `layer3_decay.py`
-5. `engine.py` — 整合三层 + neutralize 逻辑
-6. `test_engine.py` — 用真实因子数据跑通验证
-
-## 测试数据
-
-### 风险因子数据
-
-`barra/risk_control/output/2026-04-24/debug/raw_factors.parquet`：
-- 19 个 Barra CNE6 因子列: LNCAP, MIDCAP, BETA, HSIGMA, DASTD, CMRA, STOM, STOA, ATVR, STREV, SEASON, INDMOM, RSTR, HALPHA, ATO, IGRO, ETOP, CETOP, LTHALPHA
-- MultiIndex(instrument, datetime), ~300 只沪深300成分股, 2018-05-08 ~ 2026-05-08
-
-### 收盘价获取
-
-两种方式，引擎不绑定具体来源：
-
-```python
-# 方式1: 从 Barra debug 输出文件直接读取
-raw_data = pd.read_parquet('barra/risk_control/output/<date>/debug/raw_data.parquet')
-close = raw_data['$close']
-
-# 方式2: 从 qlib 获取
-import qlib
-from qlib.data import D
-qlib.init(provider_uri='~/.qlib/qlib_data/cn_data')
-close = D.features(D.instruments('csi300'), ['$close'], start_time='...', end_time='...')['$close']
+```
+{output}/
+├── ret_df.parquet          # 前向超额收益率（所有滞后期）
+├── close.parquet           # 对齐后的收盘价
+├── risk_factors.parquet    # 对齐后的风险因子
+├── alpha_factors.parquet   # 对齐后的 Alpha 因子
+├── bench_close.parquet     # 基准收盘价
+└── result.pkl              # 完整的嵌套结果字典（PickleIO）
 ```
 
-## 验证
+## 注意事项
 
-1. 用 raw_factors.parquet + raw_data.parquet('$close') 调 `engine.run()`，检查各层输出维度
-2. Layer1 ICIR 交叉验证
-3. Layer2 多空收益符号与因子经济学含义一致
-4. Layer3 半衰期在合理范围（通常 5~60 个交易日）
-5. neutralize=True 时 alpha 因子与风险因子的截面相关性应接近 0
+1. **数据对齐**：`run.py` 中通过 index 三路取交集保证 close、risk_factors、alpha_factors 的 instrument 和 datetime 一致。但对齐不代表数据完整，缺失率过高的因子（有效数据 < 50%）在中性化步骤会抛异常
+
+2. **前向收益的时间边界**：计算 `forward_ret_k` 时需要 `shift(-k-1)` 的数据，即接近数据末尾的日期缺失 k+1 天的前向收益。这些日期在 IC 计算中自动产生 NaN，不构成偏差
+
+3. **半衰期拟合的稳健性**：要求至少有 3 个有效滞后期 |RIC| > 0。当 IC 不衰减（斜率 ≥ 0）或数据不足时返回 NaN。项目日志中记录了这些情况，属于期望行为
+
+4. **多空收益的经济学含义**：5 组等权分组的 G5-G1 多空收益反映因子的单调区分能力，但不等同于实际可交易策略（未考虑交易成本、冲击成本、T+1 限制）
+
+5. **中性化与截距无关**：`intercept` 参数不影响中性化结果（残差），仅影响回归系数的可解释性。风险因子中的行业哑变量列空间已包含常数向量，加/不加截距的投影矩阵相同
+
+6. **计算周期匹配**：`max_decay_lag` 不应超过数据的时间窗口，否则对应该滞后期 k 的 `forward_ret_k` 全为 NaN，Layer 3 半衰期拟合会因有效滞后期不足 3 个而跳过。当前 `max_decay_lag=100` 配合 24 个月历史窗口（约 500 个交易日）收益充足
