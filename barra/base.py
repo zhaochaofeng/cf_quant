@@ -115,5 +115,38 @@ class BaseDataLoader:
         logger.info(f'信号数据加载完成: {df.shape}')
         return df
 
+    def load_rate(self, start_time: str, end_time: str):
+        """从MySQL加载 无风险利率
+
+                Args:
+                    start_time: 开始日期，如 '2023-01-01'
+                    end_time: 结束日期，如 '2026-03-06'
+
+                Returns:
+                    Index(datetime), column='rate'
+                """
+        from utils import sql_engine
+        engine = sql_engine()
+        sql = (
+            f"SELECT date AS datetime, on_rate as rate "
+            f"FROM shibor "
+            f"WHERE date >= '{start_time}' AND date <= '{end_time}'"
+        )
+        df = pd.read_sql(sql, engine)
+        if df.empty:
+            raise ValueError(f'无风险利率数据在 [{start_time}, {end_time}] 为空')
+
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df = df.set_index(['datetime'])
+        # 去除重复条目（取最后一条）
+        dup_count = df.index.duplicated().sum()
+        if dup_count > 0:
+            logger.warning(f'无风险利率数据存在 {dup_count} 条重复，已去重')
+            df = df[~df.index.duplicated(keep='last')]
+        df = df.sort_index()
+        logger.info(f'数据加载完成: {df.shape}')
+        df.sort_index(inplace=True)
+        return df
+
 
 
