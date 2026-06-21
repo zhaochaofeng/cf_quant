@@ -1,6 +1,7 @@
 '''
     统计学相关功能
 '''
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -248,17 +249,17 @@ def get_exp_weight(window, half_life):
     return exp_wt[::-1] / np.sum(exp_wt)
 
 
-def coef_tstat(x: pd.Series, y: pd.Series) -> dict:
+def coef_tstat(x: Union[pd.Series, np.ndarray], y: Union[pd.Series, np.ndarray]) -> dict:
     """用 statsmodels 计算一元线形回归 β₀, β₁ 的 t 统计量"""
+    if isinstance(x, np.ndarray):
+        x = pd.Series(x)
+    if isinstance(y, np.ndarray):
+        y = pd.Series(y)
     X = sm.add_constant(x)
     model = sm.OLS(y, X).fit()
     return {
-        "alpha": model.params.iloc[0],
-        "beta": model.params.iloc[1],
-        "t_alpha": model.tvalues.iloc[0],
-        "t_beta": model.tvalues.iloc[1],
+        "alpha": model.params.iloc[0].item(),
+        "beta": model.params.iloc[1].item(),
+        "t_alpha": model.tvalues.iloc[0].item(),
+        "t_beta": model.tvalues.iloc[1].item(),
     }
-
-
-
-
