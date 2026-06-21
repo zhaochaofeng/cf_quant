@@ -66,6 +66,9 @@ def run(
 
     # 加载无风险利率
     risk_free_rate = data_loader.load_rate(start_date, calc_date)
+    inter_ratio = risk_free_rate.index.intersection(benchmark_close.index).shape[0] / benchmark_close.shape[0]
+    if inter_ratio < 0.9:
+        raise ValueError("risk_free_rate 与 benchmark_close 的日期交集比例小于90%： {}".format(inter_ratio))
 
     # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
     exposure_path = project_root / "barra/factors/data" / calc_date / "exposure_matrix.parquet"
@@ -87,8 +90,8 @@ def run(
     DataFrameIO.write(close.to_frame(), output / 'close.parquet')
     DataFrameIO.write(risk_factors, output / 'risk_factors.parquet')
     DataFrameIO.write(alpha_factors, output / 'alpha_factors.parquet')
-    DataFrameIO.write(benchmark_close.to_, output / 'bench_close.parquet')
-    DataFrameIO.write(risk_free_rate, output / 'risk_free_rate.parquet')
+    DataFrameIO.write(benchmark_close.to_frame(), output / 'bench_close.parquet')
+    DataFrameIO.write(risk_free_rate.to_frame(), output / 'risk_free_rate.parquet')
     logger.info('After align. close shape: {}, risk_factors shape: {}, alpha_factors shape: {}, '
                 'bench_close shape: {}, risk_free_rate shape: {}'.format(
         close.shape, risk_factors.shape, alpha_factors.shape,

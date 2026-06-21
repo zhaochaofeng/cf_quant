@@ -18,7 +18,7 @@ from .layer3_decay import SignalDecay
 from .conf import DEFAULT_N_GROUPS, DEFAULT_MAX_DECAY_LAG
 from utils.preprocess import neutralize
 from utils.logger import LoggerFactory
-from utils.stats import coef_tstat  # noqa: F401
+from utils.stats import coef_tstat
 from utils import PickleIO, DataFrameIO
 
 logger = LoggerFactory.get_logger(__name__)
@@ -48,7 +48,7 @@ class FactorEvalEngine:
         alpha_factors: Optional[pd.DataFrame] = None,
         ic_periods: tuple = (1,),
         benchmark_close: pd.Series = None,
-        risk_free_rate:
+        risk_free_rate: pd.Series = None,
     ):
         """Initialize the factor evaluation engine.
 
@@ -67,8 +67,8 @@ class FactorEvalEngine:
             ValueError: If both risk_factors and alpha_factors are None, or if
                 their column names overlap.
         """
-        if benchmark_close is None:
-            raise ValueError("benchmark_close must not be None")
+        if benchmark_close is None or risk_free_rate is None:
+            raise ValueError("benchmark_close and risk_free_rate must not be None")
         
         if risk_factors is None and alpha_factors is None:
             raise ValueError(
@@ -87,6 +87,7 @@ class FactorEvalEngine:
         self.alpha_factors = alpha_factors
         self.ic_periods = ic_periods
         self.benchmark_close = benchmark_close
+        self.risk_free_rate = risk_free_rate
 
     # ------------------------------------------------------------------
     # Public entry point
@@ -275,32 +276,20 @@ class FactorEvalEngine:
         return (1 + s).prod() - 1
 
     def _compute_jensen_alpha(self, ls: pd.Series, bench_close: pd.Series) -> dict:
-        """Jensen's alpha: ls_t = α + β * bench_ret_t + ε_t
-
-        使用加权最小二乘（WLS）计算 alpha/beta 及其 t 统计量。
-        手动计算标准误：SE = sqrt(σ² * diag((X'X)⁻¹))，其中 σ² = Σε_t² / (n-2)。
         """
-        from utils.stats import WLS
+            Jensen's alpha: ls_t = α + β * bench_ret_t + ε_t
+        """
         s = ls.dropna()
-        s.index = pd.to_datetime(s.index)
+        # s.index = pd.to_datetime(s.index)
         bench_ret = bench_close.shift(-self.ic_periods[0] - 1) / bench_close.shift(-self.ic_periods[0]) - 1
         bench_ret.dropna(inplace=True)
         common = s.index.intersection(bench_ret.index)
         if len(common) < 10:
             return {'alpha': 0.0, 'alpha_tstat': 0.0, 'beta': 0.0}
         y = s.loc[common]
-        X_mkt = bench_ret.loc[common].values.reshape(-1, 1)
-        beta, alpha, resid = WLS(y=y.values, X=X_mkt, intercept=True, weight=1, verbose=True)
-        n = len(resid)
-        X_mat = np.column_stack([np.ones(n), X_mkt])
-        sigma2 = np.sum(resid.values ** 2) / (n - 2)
-        XtX_inv = np.linalg.inv(X_mat.T @ X_mat)
-        se = np.sqrt(sigma2 * np.diag(XtX_inv))
-        return {
-            'alpha': alpha,
-            'alpha_tstat': alpha / se[0] if se[0] > 0 else 0.0,
-            'beta': beta.iloc[0] if len(beta) > 0 else 0.0,
-        }
+        X = bench_ret.loc[common].values.reshape(-1, 1)
+
+        return coef_tstat(X, y)
 
     @staticmethod
     def _build_decay_lags(max_lag: int, gamma: float = 1.1) -> tuple:
@@ -332,9 +321,9 @@ class FactorEvalEngine:
     # ------------------------------------------------------------------
 
     def _prepare_forward_returns(self, lags: set) -> pd.DataFrame:
-        """Compute excess forward returns (stock return - benchmark return).
+        """Compute excess forward returns (stock return - risk_free_rate).
 
-           forward_ret_k = stock_ret(k) - benchmark_ret(k)
+           forward_ret_k = stock_ret(k) - risk_free_rate
 
         where stock_ret(k) = close(t+k+1) / close(t+k) - 1.
 
@@ -352,8 +341,7 @@ class FactorEvalEngine:
         # 计算超额收益率
         dates = ret_df.index.get_level_values('datetime')
         for k in sorted(lags):
-            bench_ret = self.benchmark_close.shift(-k-1) / self.benchmark_close.shift(-k) -1
-            ret_df[f'forward_ret_{k}'] -= bench_ret.reindex(dates).values
+            ret_df[f'forward_ret_{k}'] -= self.risk_free_rate.reindex(dates).values
 
         return ret_df
 
