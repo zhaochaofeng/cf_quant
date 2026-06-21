@@ -146,6 +146,7 @@ class BaseDataLoader:
         df = df.sort_index()
         logger.info(f'数据加载完成: {df.shape}')
         df.sort_index(inplace=True)
+        df = df * 0.01   # 百分数转化为小数形式
         return df
 
 
