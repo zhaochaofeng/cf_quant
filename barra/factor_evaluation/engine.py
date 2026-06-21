@@ -249,7 +249,7 @@ class FactorEvalEngine:
             'half_life': _safe_round(l3.get('half_life')),
             'monotonic_tstat': _safe_round(l2.get('monotonic_tstat')),
             'ls_alpha': _safe_round(ja['alpha']),
-            'ls_alpha_tstat': _safe_round(ja['alpha_tstat']),
+            'ls_alpha_tstat': _safe_round(ja['t_alpha']),
             'ls_beta': _safe_round(ja['beta']),
             'ls_ir': _safe_round(self._compute_ir(ls)),
             'ls_cum_return_1y': _safe_round(self._compute_cum_return(ls)),
@@ -287,7 +287,7 @@ class FactorEvalEngine:
         if len(common) < 10:
             return {'alpha': 0.0, 'alpha_tstat': 0.0, 'beta': 0.0}
         y = s.loc[common]
-        X = bench_ret.loc[common].values.reshape(-1, 1)
+        X = bench_ret.loc[common]
 
         return coef_tstat(X, y)
 
