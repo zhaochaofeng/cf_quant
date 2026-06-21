@@ -59,7 +59,7 @@ if __name__ == '__main__':
     if args.deploy:
         flow.from_source(
             source=str(Path(__file__).parent),
-            entrypoints='shibor.py:flow'
+            entrypoint='shibor.py:flow'
         ).deploy(
             name='shibor_rate',
             work_pool_name='cf_quant'
