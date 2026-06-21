@@ -611,3 +611,57 @@ class BaoTradeDailyData(BaoCommonData):
             error_msg = f"获取{code}的复权因子失败: {str(e)}"
             self.logger.error(error_msg)
             raise Exception(f"发生异常: {str(e)}")
+
+
+class ShiborRate(Base):
+
+    def __init__(self, start_date: str, end_date: str, **kwargs):
+        super().__init__(**kwargs)
+        self.start_date = start_date
+        self.end_date = end_date
+
+    def fetch_data_from_api(self) -> pd.DataFrame:
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api ...'))
+        try:
+            date_inter = get_trade_cal_inter(self.start_date, self.end_date)
+            df = pd.DataFrame()
+            pro = tushare_pro()
+            # 一次最多请求2000条数据
+            for k in range(0, len(date_inter), 2000):
+                start_date = date_inter[k].replace('-', '')
+                end_date = date_inter[min(k+1999, len(date_inter)-1)].replace('-', '')
+                # end_date = min(self.end_date, date_inter[k+1999]).
+                print(start_date, end_date)
+                tmp = ts_api(pro, 'shibor', start_date=start_date, end_date=end_date)
+                df = pd.concat([df, tmp], axis=0)
+            if df.empty:
+                err_msg = 'df is empty'
+                self.logger.error(err_msg)
+                raise Exception(err_msg)
+
+            self.logger.info('df shape: {}'.format(df.shape))
+            return df
+        except Exception as e:
+            error_msg = 'fetch_data_from_api error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+
+    def parse_line(self, row) -> dict:
+        ''' 解析单条数据 '''
+        try:
+            tmp = {}
+            for f in self.feas.keys():
+                v = row[self.feas[f]]
+                if pd.isna(v):
+                    v = None
+                elif f in ['date']:
+                    # 日期格式转换
+                    v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
+                tmp[f] = v
+            return tmp
+        except Exception as e:
+            error_msg = 'parse_line error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+

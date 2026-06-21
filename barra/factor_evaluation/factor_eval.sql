@@ -12,6 +12,12 @@ CREATE TABLE IF NOT EXISTS factor_evaluation(
     long_short Decimal(10, 6) COMMENT '多空组合超额收益率',
     avg_return Decimal(10, 6) COMMENT '市场平均超额收益率(接近0)',
     half_life DECIMAL(10, 2) COMMENT '半衰期（天）',
+    monotonic_tstat DECIMAL(10, 6) COMMENT '分组单调性t统计量',
+    ls_alpha DECIMAL(10, 8) COMMENT '多空Jensen alpha',
+    ls_alpha_tstat DECIMAL(10, 6) COMMENT '多空alpha t统计量',
+    ls_beta DECIMAL(10, 6) COMMENT '多空市场beta',
+    ls_ir DECIMAL(10, 6) COMMENT '多空收益率信息比率',
+    ls_cum_return_1y DECIMAL(10, 6) COMMENT '多空1年累计超额收益率',
     PRIMARY KEY (id),
     UNIQUE KEY un_day (day, name, type)
 ) ENGINE=InnoDB

@@ -32,6 +32,13 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         print(f'{end_date} 非交易日，跳过')
         return
 
+    print(f'--- shibor_rate ({now_date}) ---')
+    _check_step(run_deployment(
+        "shibor_rate/shibor_rate",
+        parameters={"start_date": now_date, "end_date": now_date},
+        as_subflow=True,
+    ), "shibor_rate/shibor_rate")
+
     print(f'--- 步骤 1: stock_info_ts ({now_date}) ---')
     _check_step(run_deployment(
         "stock_info_ts/stock_info_ts",

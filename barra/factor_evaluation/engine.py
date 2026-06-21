@@ -18,6 +18,7 @@ from .layer3_decay import SignalDecay
 from .conf import DEFAULT_N_GROUPS, DEFAULT_MAX_DECAY_LAG
 from utils.preprocess import neutralize
 from utils.logger import LoggerFactory
+from utils.stats import coef_tstat  # noqa: F401
 from utils import PickleIO, DataFrameIO
 
 logger = LoggerFactory.get_logger(__name__)
@@ -46,7 +47,7 @@ class FactorEvalEngine:
         risk_factors: Optional[pd.DataFrame] = None,
         alpha_factors: Optional[pd.DataFrame] = None,
         ic_periods: tuple = (1,),
-        benchmark_close: Optional[pd.Series] = None,
+        benchmark_close: pd.Series = None,
     ):
         """Initialize the factor evaluation engine.
 
@@ -209,7 +210,10 @@ class FactorEvalEngine:
         from utils import write_to_mysql
         fields = [
             'day', 'name', 'type', 'IC', 'ICIR', 'RIC', 'RICIR', 'long_short',
-            'avg_return', 'half_life'
+            'avg_return', 'half_life',
+            'monotonic_tstat',
+            'ls_alpha', 'ls_alpha_tstat', 'ls_beta',
+            'ls_ir', 'ls_cum_return_1y',
         ]
         unique_key = ['day', 'name', 'type']
         write_to_mysql('factor_evaluation', rows, fields, unique_key, overwrite=True)
@@ -223,8 +227,11 @@ class FactorEvalEngine:
         l2 = layer_dict['layer2']
         l3 = layer_dict.get('layer3', {})
 
+        ls = l2['long_short']
+        ja = self._compute_jensen_alpha(ls, self.benchmark_close)
+
         """
-            IC / RIC： 用最近日期值作为估计。 
+            IC / RIC： 用最近日期值作为估计。
             因为 Ref($close, -k-1) / Ref($close, -k) -1  计算逻辑，calc_date 日期的指标数据不可计算
         """
         return {
@@ -235,14 +242,64 @@ class FactorEvalEngine:
             'ICIR': _safe_round(l1.get('icir')),
             'RIC': _safe_round(l1.get('ric').dropna().iloc[-1]),
             'RICIR': _safe_round(l1.get('ricir')),
-            'long_short': _safe_round(l2['long_short'].mean()),
+            'long_short': _safe_round(ls.mean()),
             'avg_return': _safe_round(l2['avg_return'].mean()),
             'half_life': _safe_round(l3.get('half_life')),
+            'monotonic_tstat': _safe_round(l2.get('monotonic_tstat')),
+            'ls_alpha': _safe_round(ja['alpha']),
+            'ls_alpha_tstat': _safe_round(ja['alpha_tstat']),
+            'ls_beta': _safe_round(ja['beta']),
+            'ls_ir': _safe_round(self._compute_ir(ls)),
+            'ls_cum_return_1y': _safe_round(self._compute_cum_return(ls)),
         }
 
     # ------------------------------------------------------------------
     # Static utilities
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_ir(ls: pd.Series) -> float:
+        """收益率 IR = mean(ls) / std(ls, ddof=1)（事后业绩 IR，非 ICIR）"""
+        s = ls.dropna()
+        if len(s) <= 2 or s.std(ddof=1) == 0:
+            return 0.0
+        return s.mean() / s.std(ddof=1)
+
+    @staticmethod
+    def _compute_cum_return(ls: pd.Series, window: int = 252) -> float:
+        """近 window 天累计收益"""
+        s = ls.dropna().tail(window)
+        if len(s) == 0:
+            return 0.0
+        return (1 + s).prod() - 1
+
+    def _compute_jensen_alpha(self, ls: pd.Series, bench_close: pd.Series) -> dict:
+        """Jensen's alpha: ls_t = α + β * bench_ret_t + ε_t
+
+        使用加权最小二乘（WLS）计算 alpha/beta 及其 t 统计量。
+        手动计算标准误：SE = sqrt(σ² * diag((X'X)⁻¹))，其中 σ² = Σε_t² / (n-2)。
+        """
+        from utils.stats import WLS
+        s = ls.dropna()
+        s.index = pd.to_datetime(s.index)
+        bench_ret = bench_close.shift(-self.ic_periods[0] - 1) / bench_close.shift(-self.ic_periods[0]) - 1
+        bench_ret.dropna(inplace=True)
+        common = s.index.intersection(bench_ret.index)
+        if len(common) < 10:
+            return {'alpha': 0.0, 'alpha_tstat': 0.0, 'beta': 0.0}
+        y = s.loc[common]
+        X_mkt = bench_ret.loc[common].values.reshape(-1, 1)
+        beta, alpha, resid = WLS(y=y.values, X=X_mkt, intercept=True, weight=1, verbose=True)
+        n = len(resid)
+        X_mat = np.column_stack([np.ones(n), X_mkt])
+        sigma2 = np.sum(resid.values ** 2) / (n - 2)
+        XtX_inv = np.linalg.inv(X_mat.T @ X_mat)
+        se = np.sqrt(sigma2 * np.diag(XtX_inv))
+        return {
+            'alpha': alpha,
+            'alpha_tstat': alpha / se[0] if se[0] > 0 else 0.0,
+            'beta': beta.iloc[0] if len(beta) > 0 else 0.0,
+        }
 
     @staticmethod
     def _build_decay_lags(max_lag: int, gamma: float = 1.1) -> tuple:

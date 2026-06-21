@@ -127,6 +127,48 @@ long_short, avg_return = qlib_ls(df[factor_col], df[ret_col], quantile=1.0/G)
 
 `long_short` 为每日多空收益序列，`avg_return` 为顶部组减全市场平均的序列。两者均由 qlib 实现，该模块仅做包装。
 
+### 6.3 分组单调性检验
+
+面板回归检验各组收益是否存在显著的线性单调趋势：
+
+$$
+r_{g,t} = \alpha + \beta \cdot g + \varepsilon_{g,t}, \quad g = 0, 1, \dots, G-1
+$$
+
+其中 $r_{g,t}$ 为第 g 组在日期 t 的等权平均收益。将 T × G 个观测堆叠为面板，OLS 估计斜率 $\hat{\beta}$ 及其标准误 $SE(\hat{\beta})$，t 统计量：
+
+$$
+t_{\text{mono}} = \frac{\hat{\beta}}{SE(\hat{\beta})}
+$$
+
+- $t_{\text{mono}} > 0$：因子值越大收益越高（如 SIZE 因子）
+- $t_{\text{mono}} < 0$：因子值越大收益越低（如价值因子）
+- 采用面板回归（堆叠 T × G 个观测），而非逐日回归。一次回归利用所有时间截面信息，标准误来自 T × G - 2 个自由度
+
+### 6.4 多空收益统计指标
+
+基于 `long_short` 序列派生三项事后业绩指标：
+
+**Jensen's alpha**：
+
+$$
+r_{\text{ls}, t} = \alpha + \beta \cdot r_{\text{bench}, t} + \varepsilon_t
+$$
+
+使用 `utils.stats.WLS` 对基准收益做加权最小二乘回归（`weight=1`，等权重等价于 OLS）。标准误手动计算：SE = $\sqrt{\sigma^2 \cdot \text{diag}((X'X)^{-1})}$，其中 $\sigma^2 = \frac{1}{n-2}\sum\varepsilon_t^2$。$\hat{\alpha}$ 的 t 统计量检验多空超额收益是否显著不为零。
+
+**收益率 IR**（事后业绩信息比率）：
+
+$$
+IR_{\text{yield}} = \frac{\text{mean}(r_{\text{ls}})}{\text{std}(r_{\text{ls}}, \text{ddof}=1)}
+$$
+
+度量多空组合的风险调整收益。注意与 ICIR 区分：ICIR = $\text{mean}(IC) / \text{std}(IC)$ 度量截面预测稳定性，$IR_{\text{yield}}$ 度量事后业绩风险收益比。
+
+**1 年累计超额收益**：
+
+近 252 个交易日多空收益的复利累积：$\prod_{t}(1 + r_{\text{ls}, t}) - 1$。
+
 ## 七、第三层：信号半衰期
 
 ### 7.1 理论
@@ -258,6 +300,12 @@ alpha_neutralized = neutralize(
 | long_short | DECIMAL(10,6) | 多空组合超额收益率均值 |
 | avg_return | DECIMAL(10,6) | 市场平均超额收益率均值 |
 | half_life | DECIMAL(10,2) | 半衰期（天），仅 Alpha 因子 |
+| monotonic_tstat | DECIMAL(10,6) | 分组单调性 t 统计量 |
+| ls_alpha | DECIMAL(10,8) | 多空 Jensen alpha |
+| ls_alpha_tstat | DECIMAL(10,6) | 多空 alpha t 统计量 |
+| ls_beta | DECIMAL(10,6) | 多空市场 beta |
+| ls_ir | DECIMAL(10,6) | 多空收益率信息比率 |
+| ls_cum_return_1y | DECIMAL(10,6) | 多空 1 年累计超额收益率 |
 | id | INT (PK) | 自增主键 |
 
 唯一键 `(day, name, type)`，使用 `ON DUPLICATE KEY UPDATE` 实现幂等的每日更新。
@@ -289,3 +337,7 @@ alpha_neutralized = neutralize(
 5. **中性化与截距无关**：`intercept` 参数不影响中性化结果（残差），仅影响回归系数的可解释性。风险因子中的行业哑变量列空间已包含常数向量，加/不加截距的投影矩阵相同
 
 6. **计算周期匹配**：`max_decay_lag` 不应超过数据的时间窗口，否则对应该滞后期 k 的 `forward_ret_k` 全为 NaN，Layer 3 半衰期拟合会因有效滞后期不足 3 个而跳过。当前 `max_decay_lag=100` 配合 24 个月历史窗口（约 500 个交易日）收益充足
+
+7. **单调性 t-stat 的符号**：正值表示因子大 → 收益高（如质量因子），负值表示因子大 → 收益低（如价值因子）。t 统计量的绝对值衡量单调性强度，但不区分线性/非线性模式
+
+8. **Jensen's alpha 与多空均值的关系**：Jensen's alpha 剔除了市场 Beta 暴露后的超额收益。若多空组合的市场暴露（ls_beta）接近零，Jensen's alpha 与 mean(ls) 相近；若 ls_beta 显著不为零，两者差异反映市场暴露的收益贡献
