@@ -48,6 +48,7 @@ class FactorEvalEngine:
         alpha_factors: Optional[pd.DataFrame] = None,
         ic_periods: tuple = (1,),
         benchmark_close: pd.Series = None,
+        risk_free_rate:
     ):
         """Initialize the factor evaluation engine.
 

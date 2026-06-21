@@ -64,6 +64,9 @@ def run(
     benchmark_close = benchmark_close.droplevel('instrument')
     benchmark_close.sort_index(inplace=True)
 
+    # 加载无风险利率
+    risk_free_rate = data_loader.load_rate(start_date, calc_date)
+
     # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
     exposure_path = project_root / "barra/factors/data" / calc_date / "exposure_matrix.parquet"
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
@@ -84,16 +87,19 @@ def run(
     DataFrameIO.write(close.to_frame(), output / 'close.parquet')
     DataFrameIO.write(risk_factors, output / 'risk_factors.parquet')
     DataFrameIO.write(alpha_factors, output / 'alpha_factors.parquet')
-    DataFrameIO.write(bench_close_df, output / 'bench_close.parquet')
+    DataFrameIO.write(benchmark_close.to_, output / 'bench_close.parquet')
+    DataFrameIO.write(risk_free_rate, output / 'risk_free_rate.parquet')
     logger.info('After align. close shape: {}, risk_factors shape: {}, alpha_factors shape: {}, '
-                'bench_close shape: {}'.format(
-        close.shape, risk_factors.shape, alpha_factors.shape, benchmark_close.shape))
+                'bench_close shape: {}, risk_free_rate shape: {}'.format(
+        close.shape, risk_factors.shape, alpha_factors.shape,
+              benchmark_close.shape, risk_free_rate.shape))
 
     # ---- Evaluate ----
     engine = FactorEvalEngine(
         close=close, risk_factors=risk_factors, alpha_factors=alpha_factors,
         ic_periods=ic_periods,
         benchmark_close=benchmark_close,
+        risk_free_rate=risk_free_rate,
     )
     result = engine.run(
         neutralize=True,
