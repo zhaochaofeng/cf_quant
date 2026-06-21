@@ -43,7 +43,7 @@ from .multiprocess import multiprocessing_wrapper, multiprocessing_wrapper_same
 from .dt import DateTimeUtils as dt
 
 # 统计方法
-from .stats import WLS
+from .stats import WLS, coef_tstat
 from .tsa import TimeSeriesAnalysis
 
 # 凸优化方法

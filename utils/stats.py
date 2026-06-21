@@ -248,6 +248,12 @@ def get_exp_weight(window, half_life):
     return exp_wt[::-1] / np.sum(exp_wt)
 
 
+def coef_tstat(x: pd.Series, y: pd.Series) -> dict:
+    """用 statsmodels 计算一元线形回归 β₀, β₁ 的 t 统计量"""
+    X = sm.add_constant(x)
+    model = sm.OLS(y, X).fit()
+    return {"t_beta0": model.tvalues.iloc[0], "t_beta1": model.tvalues.iloc[1]}
+
 
 
 
