@@ -115,7 +115,7 @@ class BaseDataLoader:
         logger.info(f'信号数据加载完成: {df.shape}')
         return df
 
-    def load_rate(self, start_time: str, end_time: str):
+    def load_rate(self, start_time: str, end_time: str) -> pd.Series:
         """从MySQL加载 无风险利率
 
                 Args:
@@ -135,9 +135,9 @@ class BaseDataLoader:
         df = pd.read_sql(sql, engine)
         if df.empty:
             raise ValueError(f'无风险利率数据在 [{start_time}, {end_time}] 为空')
-
         df['datetime'] = pd.to_datetime(df['datetime'])
         df = df.set_index(['datetime'])
+        df = df['rate']   # 转化为 Series
         # 去除重复条目（取最后一条）
         dup_count = df.index.duplicated().sum()
         if dup_count > 0:
