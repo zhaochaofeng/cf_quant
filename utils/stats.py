@@ -258,11 +258,16 @@ def coef_tstat(x, y) -> dict:
         y: 因变量 (np.array / pd.Series)
 
     Returns:
-        {"t_beta0": float, "t_beta1": float}
+        {"alpha": float, "beta": float, "t_alpha": float, "t_beta": float}
     """
     X = sm.add_constant(x)
     model = sm.OLS(y, X).fit()
-    return {"t_beta0": np.asarray(model.tvalues)[0], "t_beta1": np.asarray(model.tvalues)[1]}
+    return {
+        "alpha": np.asarray(model.params)[0],
+        "beta": np.asarray(model.params)[1],
+        "t_alpha": np.asarray(model.tvalues)[0],
+        "t_beta": np.asarray(model.tvalues)[1],
+    }
 
 
 

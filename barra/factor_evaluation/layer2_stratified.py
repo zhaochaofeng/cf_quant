@@ -4,8 +4,10 @@ Computes daily group returns for factor-sorted quantile bins via manual
 pd.qcut, and long-short returns via qlib's calc_long_short_return.
 """
 
+import numpy as np
 import pandas as pd
 from qlib.contrib.eva.alpha import calc_long_short_return as qlib_ls
+from utils import coef_tstat
 
 
 class StratifiedReturn:
@@ -45,6 +47,9 @@ class StratifiedReturn:
                   (top quantile minus bottom quantile).
                 - 'avg_return': Series(index=datetime), qlib long-average return
                   (top quantile minus average).
+                - 'monotonic_tstat': float, t-statistic of monotonicity slope
+                  from panel regression r_g,t = α + β * group_id + ε_g,t.
+                  Tests whether group returns show a significant linear trend.
 
         Raises:
             ValueError: If factor_col or ret_col are not in df.columns.
@@ -74,7 +79,8 @@ class StratifiedReturn:
             return {
                 'group_returns': pd.DataFrame(columns=range(n)),
                 'long_short': pd.Series(dtype=float),
-                'long_short_qlib': pd.Series(dtype=float),
+                'avg_return': pd.Series(dtype=float),
+                'monotonic_tstat': 0.0,
             }
 
         group_returns = pd.DataFrame(records).reindex(columns=range(n))
@@ -86,8 +92,21 @@ class StratifiedReturn:
         )
         long_short.name = 'long_short'
 
+        # Monotonicity: panel regression r_g,t = α + β * group_id + ε_g,t
+        # 使用 T×G 条日频分组样本直接拟合（非先聚合再回归）。
+        # 相比先对每组求均值再回归（仅 G 个观测），panel 回归保留了
+        # 时间维度信息，自由度 T×G−2 >> G−2，统计功效更高。
+        y = group_returns.values.flatten()
+        x = np.tile(np.arange(n), len(group_returns))
+        valid = ~np.isnan(y)
+        if valid.sum() >= 3:
+            monotonic_tstat = coef_tstat(x[valid], y[valid])["t_beta"]
+        else:
+            monotonic_tstat = 0.0
+
         return {
             'group_returns': group_returns,
             'long_short': long_short,
             'avg_return': avg_return,
+            'monotonic_tstat': monotonic_tstat,
         }
