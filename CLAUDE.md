@@ -117,7 +117,6 @@ TuShare/BaoStock/JQ
 
 ## Hard Rule
 - 提交代码到 git 前必须询问
-- 代码提交到 git 前删除生成的测试代码（如果有）
 - 不要将测试代码提交到 git
 - Latex 公式仅使用 xFormula 兼容的函数. 对于中文，使用 \text{} 函数
 
