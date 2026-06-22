@@ -55,7 +55,6 @@ def run(
     close = close_df["$close"]  # Series
     close.name = 'close'
     close.sort_index(inplace=True)
-    logger.info('{}\n {}'.format('-'*50, close))
 
     # 加载基准（沪深300）close 数据
     bench_close_df = D.features([BENCHMARK_CONFIG['BENCHMARK']],
@@ -70,18 +69,16 @@ def run(
     if inter_ratio < 0.9:
         raise ValueError("risk_free_rate 与 benchmark_close 的日期交集比例小于90%： {}".format(inter_ratio))
 
-    # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故需要单独再进行市值中性化
+    # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故不需要单独再进行市值中性化
     exposure_path = project_root / "barra/factors/data" / calc_date / "exposure_matrix.parquet"
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
     risk_factors.sort_index(inplace=True)
-    logger.info('{}\n {}'.format('-' * 50, risk_factors))
 
     # 加载 alpha 因子数据。
     # Fix: instrument, datetime 与 close 中存在差异
     alpha_factors = data_loader.load_signal(start_date, calc_date)
     alpha_factors.columns = ['alpha1']
     alpha_factors.sort_index(inplace=True)
-    logger.info('{}\n {}'.format('-' * 50, alpha_factors))
 
     com_index = close.index.intersection(alpha_factors.index).intersection(risk_factors.index)
     close = close.loc[com_index]
