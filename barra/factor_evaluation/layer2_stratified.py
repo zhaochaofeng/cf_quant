@@ -16,6 +16,7 @@ class StratifiedReturn:
     For each trading date, stocks are divided into n_groups equal-sized bins
     based on factor values (using pd.qcut). Within each bin, equal-weighted
     mean returns are computed, yielding a daily group return time series.
+    注：对于 行业因子，取值[0,1]. 当 n_groups > 2 时，无法划分分组，从而导致 monotonic_tstat 指标为None.
     """
 
     def __init__(self, n_groups: int = 5):
