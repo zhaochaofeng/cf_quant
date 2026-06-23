@@ -47,6 +47,7 @@ _set_defaults() {
     if [ -z "$PYTHON_PATH" ] && [ -f "${CF_QUANT_PATH}/config.sh" ]; then
         source "${CF_QUANT_PATH}/config.sh"
     fi
+    : "${PROJECT_PATH:=${CF_QUANT_PATH:-.}}"
 }
 
 # ---- 主函数 ----
