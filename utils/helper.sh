@@ -59,6 +59,8 @@ _set_defaults() {
 #     3. 如果回调返回非零且 ON_ERROR=stop，中止
 #
 #   返回值：累计失败天数（0 表示全部成功）
+
+#  改进：并行执行方式
 iterate_days() {
     if [ $# -lt 3 ]; then
         echo "用法: iterate_days <start_date> <end_date> <callback_name> [callback_args...]" >&2
