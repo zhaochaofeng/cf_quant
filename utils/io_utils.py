@@ -1,12 +1,14 @@
 """
 读写工具
 """
+import os
 import os.path
-
-import pandas as pd
 import pickle
+import shutil
 from pathlib import Path
 from typing import Any, Union
+
+import pandas as pd
 
 PathLike = Union[str, Path]
 
@@ -118,4 +120,39 @@ class DataFrameIO:
         DataFrameIO.write(df, path_tmp , type)
         os.replace(path_tmp, path)
         return str(path)
+
+
+def overwrite(src: PathLike, dst: PathLike):
+    """
+    通用安全覆盖函数，支持覆盖文件 / 文件夹
+    逻辑：目标存在则先彻底删除，再原子替换源到目标
+    :param src: 源路径（文件/文件夹，必须存在）
+    :param dst: 目标路径（存在会被完全覆盖）
+    """
+    try:
+        # 校验源必须存在
+        if not os.path.exists(src):
+            raise FileNotFoundError(f"源不存在: {src}")
+
+        # 目标存在，区分文件/目录分别删除
+        if os.path.exists(dst):
+            if os.path.isdir(dst):
+                # 目标是文件夹，递归删除全部内容
+                shutil.rmtree(dst)
+            else:
+                # 目标是普通文件，直接删除
+                os.unlink(dst)
+
+        # 原子重命名/替换，文件、目录都兼容
+        os.replace(src, dst)
+        print(f"操作成功：{src} → {dst}")
+        return dst
+    except FileNotFoundError as e:
+        print(f"错误：{e}")
+    except PermissionError:
+        print(f"错误：权限不足，无法操作 {dst}")
+    except OSError as e:
+        print(f"系统操作失败：{e}")
+    except Exception as e:
+        print(f"未知异常：{type(e).__name__}: {e}")
 
