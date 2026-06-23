@@ -5,14 +5,15 @@
 import numpy as np
 import pandas as pd
 
+from config import PROVIDER_URI
+from utils import DataFrameIO
+from utils import LoggerFactory, winsorize, neutralize, standardize
+from utils import PTTM
+from utils import init_qlib
+from utils import overwrite
 from utils import send_email
 from utils.multiprocess import multiprocessing_wrapper
 from .conf import STYLE_FACTOR_LIST, FACTOR_FUNCTIONS, INDUSTRY_MAPPING
-from utils import LoggerFactory, winsorize, neutralize, standardize
-from utils import DataFrameIO
-from utils import init_qlib
-from utils import PTTM
-from config import PROVIDER_URI
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -363,6 +364,10 @@ class CNE6IndExposure:
 
         logger.info("因子暴露矩阵构建完成")
         logger.info("=" * 60)
+
+        path_dst = output.rsplit('/', 1)[0] + '/latest'
+
+        overwrite(output, path_dst, keep_src=True)
 
         return exposure_matrix
 
