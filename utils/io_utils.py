@@ -1,6 +1,7 @@
 """
 读写工具
 """
+import os.path
 
 import pandas as pd
 import pickle
@@ -40,6 +41,15 @@ class PickleIO:
         path = Path(path)
         with open(path, 'rb') as f:
             return pickle.load(f)
+
+    @staticmethod
+    def update(obj: Any, path: PathLike) -> str:
+        if not os.path.exists(str(path)):
+            return PickleIO.write(obj, path)
+        path_tmp = str(path) + '.tmp'
+        PickleIO.write(obj, path_tmp)
+        os.replace(path_tmp, path)
+        return str(path)
 
 
 class DataFrameIO:
@@ -100,4 +110,12 @@ class DataFrameIO:
         else:
             return pd.read_parquet(path)
 
+    @staticmethod
+    def update(df: pd.DataFrame, path: PathLike, type: str = 'parquet') -> str:
+        if not os.path.exists(str(path)):
+            return DataFrameIO.write(df, path, type)
+        path_tmp = str(path) + '.tmp'
+        DataFrameIO.write(df, path_tmp , type)
+        os.replace(path_tmp, path)
+        return str(path)
 
