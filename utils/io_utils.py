@@ -122,12 +122,14 @@ class DataFrameIO:
         return str(path)
 
 
-def overwrite(src: PathLike, dst: PathLike):
+def overwrite(src: PathLike, dst: PathLike, keep_src: bool = False):
     """
     通用安全覆盖函数，支持覆盖文件 / 文件夹
-    逻辑：目标存在则先彻底删除，再原子替换源到目标
+    逻辑：目标存在则先彻底删除，再替换源到目标
+
     :param src: 源路径（文件/文件夹，必须存在）
     :param dst: 目标路径（存在会被完全覆盖）
+    :param keep_src: 是否保留源数据。True 为复制，False 为移动（默认）
     """
     try:
         # 校验源必须存在
@@ -143,8 +145,15 @@ def overwrite(src: PathLike, dst: PathLike):
                 # 目标是普通文件，直接删除
                 os.unlink(dst)
 
-        # 原子重命名/替换，文件、目录都兼容
-        os.replace(src, dst)
+        if keep_src:
+            # 复制：保留源数据
+            if os.path.isdir(src):
+                shutil.copytree(src, dst)
+            else:
+                shutil.copy2(src, dst)
+        else:
+            # 移动：原子重命名/替换，文件、目录都兼容
+            os.replace(src, dst)
         print(f"操作成功：{src} → {dst}")
         return dst
     except FileNotFoundError as e:
