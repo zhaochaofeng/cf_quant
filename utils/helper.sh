@@ -43,11 +43,10 @@ _set_defaults() {
     : "${ON_ERROR:=continue}"
 
     # 尝试从 config.sh 获取路径
+    # 所有 调用此函数的脚本必须执行 source config.sh
     if [ -z "$PYTHON_PATH" ] && [ -f "${CF_QUANT_PATH}/config.sh" ]; then
         source "${CF_QUANT_PATH}/config.sh"
     fi
-    : "${PYTHON_PATH:=python3}"
-    : "${PROJECT_PATH:=${CF_QUANT_PATH:-.}}"
 }
 
 # ---- 主函数 ----
@@ -67,12 +66,12 @@ iterate_days() {
 
     local start_date=$1
     local end_date=$2
-    local callback=$3
+    local callback=$3        # 执行函数
     shift 3
 
     _set_defaults
 
-    # 验证日期格式
+    # 验证日期格式。如果验证失败则返回 2
     _validate_date "$start_date" || return 2
     _validate_date "$end_date" || return 2
 

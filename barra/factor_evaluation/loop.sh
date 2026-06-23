@@ -23,7 +23,10 @@ run_factor_eval() {
     echo "[loop] ${dt} — 开始..."
 
     local output_dir="${SCRIPT_DIR}/data/${dt}"
-    mkdir -p "$output_dir"
+    if [ ! -d "$output_dir" ]
+    then
+        mkdir -p "$output_dir"
+    fi
 
     ${PYTHON_PATH} "${SCRIPT_DIR}/run.py" \
         --now-date "$dt" \
