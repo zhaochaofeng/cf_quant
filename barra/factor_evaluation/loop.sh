@@ -22,7 +22,7 @@ run_factor_eval() {
     local dt=$1
     echo "[loop] ${dt} — 开始..."
 
-    local output_dir="${SCRIPT_DIR}/data/${dt}"
+    local output_dir="${SCRIPT_DIR}/data"
     if [ ! -d "$output_dir" ]
     then
         mkdir -p "$output_dir"
