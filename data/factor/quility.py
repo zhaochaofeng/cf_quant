@@ -3,7 +3,7 @@
 import pandas as pd
 import numpy as np
 from .utils import (
-    remap_lyr, calc_cv, get_annual_data,
+    remap_lyr, calc_cv, get_annual_data, get_annual_data2,
     map_annual_to_daily, calc_growth_rate_slope,
     get_annual_data_year_end
 )
@@ -165,7 +165,7 @@ def VFLO(df):
     df = df.sort_index()
     cf_raw = df['P($$n_cashflow_act_q)'].fillna(0)
 
-    annual_cf = get_annual_data(cf_raw, 'n_cashflow_act_q')
+    annual_cf = get_annual_data2(cf_raw, 'n_cashflow_act_q')
     cv = calc_cv(annual_cf, window=5, min_periods=3)
     # 取绝对值
     cv = cv.abs()

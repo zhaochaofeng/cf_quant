@@ -1,10 +1,12 @@
 """因子计算工具函数"""
-import pandas as pd
+from typing import Union
+
 import numpy as np
-# from .config import BENCHMARK
+import pandas as pd
+
 from config import BENCHMARK_CONFIG, PROVIDER_URI
-from utils import WLS, multiprocessing_wrapper
 from utils import LoggerFactory
+from utils import WLS, multiprocessing_wrapper
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -19,7 +21,7 @@ _stock_info_cache: dict = {}
 SENTINEL = 1e10
 
 
-def get_qlib_data(instruments: [str, list], fields: list, start_date: str, end_date: str) -> pd.DataFrame:
+def get_qlib_data(instruments: Union[str, list], fields: list, start_date: str, end_date: str) -> pd.DataFrame:
     """获取 qlib 字段数据"""
     from qlib.data import D  # 延迟导入
     if isinstance(instruments, str):
@@ -709,6 +711,88 @@ def get_annual_data(series, field_name: str):
     annual_data.name = series.name
 
     logger.debug(f'get_annual_data: successfully extracted {len(annual_data.dropna())}/{len(annual_data)} values for {field_name}')
+
+    return annual_data
+
+
+def get_annual_data2(series: pd.Series, field_name: str):
+    """使用单次 P($$field_a) 查询获取年度年报数据（替代多 PRef 查询，约 8x 加速）
+
+    直接查询年度字段 P($$field_a)，按财年规则分组取第一个值作为年度数据。
+    .first() 而非 .last()：P(_a)在每年4月底会翻转为下一年报数据。
+
+    Args:
+        series: pd.Series, MultiIndex (instrument, datetime)
+                仅用于获取 instrument 和 datetime 索引
+        field_name: str, 字段名（如 'n_cashflow_act_q'），自动转换为 _a 后缀
+
+    Returns:
+        pd.Series: MultiIndex (instrument, year)，年度年报数据
+                   year 为财报年份（fiscal_year // 100）
+    """
+    if series.empty:
+        raise ValueError(f'get_annual_data2: empty series for {field_name}')
+    if not isinstance(series.index, pd.MultiIndex):
+        raise ValueError(f'series must have MultiIndex, got {type(series.index)}')
+    required_levels = ['instrument', 'datetime']
+    if not all(level in series.index.names for level in required_levels):
+        raise ValueError(f'series index must have levels {required_levels}, got {series.index.names}')
+    if not isinstance(field_name, str) or not field_name:
+        raise ValueError(f'field_name must be non-empty string, got {field_name}')
+
+    # 提取索引信息
+    instruments = series.index.get_level_values('instrument').unique().tolist()
+    datetimes = series.index.get_level_values('datetime')
+
+    if len(instruments) == 0 or len(datetimes) == 0:
+        logger.warning(f'get_annual_data2: no instruments or datetimes for {field_name}')
+        return pd.Series(dtype=float, index=pd.MultiIndex.from_tuples([], names=['instrument', 'year']))
+
+    # 计算每个日期对应的 fiscal_year (YYYY04格式)
+    fiscal_years = _extract_fiscal_years(datetimes)
+
+    # ========== 单次查询年度数据 ==========
+    field_name_a = field_name.replace('_q', '_a')
+    field_query = f'P($${field_name_a})'
+
+    try:
+        start_time = str(datetimes.min())[:10]
+        end_time = str(datetimes.max())[:10]
+
+        logger.debug(f'get_annual_data2: querying {field_query} for {len(instruments)} instruments')
+
+        df_all = get_qlib_data(
+            instruments=instruments,
+            fields=[field_query],
+            start_date=start_time,
+            end_date=end_time,
+        )
+
+        if df_all.empty:
+            logger.warning(f'get_annual_data2: empty result from D.features for {field_name_a}')
+            return pd.Series(dtype=float, index=pd.MultiIndex.from_tuples([], names=['instrument', 'year']))
+
+    except Exception as e:
+        logger.error(f'get_annual_data2: failed to query data for {field_name_a}: {e}')
+        raise RuntimeError(f'Failed to query annual data for {field_name_a}: {e}')
+
+    # ========== 提取年度数据 ==========
+    # 为每行添加 fiscal_year，按 (instrument, fy) 取第一个值
+    df_all = df_all.reset_index()
+    df_all['_fy04'] = fiscal_years
+
+    df_clean = df_all.dropna(subset=[field_query])
+    annual_data = df_clean.groupby(['instrument', '_fy04'])[field_query].first()
+    annual_data.name = series.name
+
+    # 转换 fy04 → year (整数)
+    annual_data.index = pd.MultiIndex.from_arrays(
+        [annual_data.index.get_level_values('instrument'),
+         annual_data.index.get_level_values('_fy04') // 100],
+        names=['instrument', 'year']
+    )
+
+    logger.debug(f'get_annual_data2: successfully extracted {len(annual_data.dropna())}/{len(annual_data)} values for {field_name_a}')
 
     return annual_data
 
