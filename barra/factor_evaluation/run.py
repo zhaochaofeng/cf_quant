@@ -70,7 +70,7 @@ def run(
         raise ValueError("risk_free_rate 与 benchmark_close 的日期交集比例小于90%： {}".format(inter_ratio))
 
     # 加载风险因子数据。CNE6中包含了 LNCAP 因子，故不需要单独再进行市值中性化
-    exposure_path = project_root / "barra/factors/data/latest/exposure_matrix.parquet"
+    exposure_path = project_root / "barra/factor_com/data/latest/exposure_matrix.parquet"
     risk_factors = DataFrameIO.read(str(exposure_path), "parquet")
     risk_factors.sort_index(inplace=True)
 
