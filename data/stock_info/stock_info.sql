@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS stock_info_ts(
     act_name VARCHAR(100) COMMENT '实控人名称',
     act_ent_type VARCHAR(50) COMMENT '实控人企业性质',
     l1_code VARCHAR(30) COMMENT '申万一级行业代码',
-    l1_name VARCHAR(30) COMMENT '申万二级行业名称',
+    l1_name VARCHAR(30) COMMENT '申万一级行业名称',
     l2_code VARCHAR(30) COMMENT '申万二级行业代码',
     l2_name VARCHAR(30) COMMENT '申万二级行业名称',
     l3_code VARCHAR(30) COMMENT '申万三级行业代码',
