@@ -17,8 +17,8 @@ from prefect.logging import get_run_logger
 
 from utils import init_qlib
 from utils import dt, get_trade_cal_inter, is_trade_day, email_send_message_flow
-from barra.factors.data_loader import DataLoader
-from barra.factors.exposure import CNE6IndExposure
+from barra.factor_com.data_loader import DataLoader
+from barra.factor_com.exposure import CNE6IndExposure
 
 
 def run(calc_date: str,
