@@ -20,7 +20,7 @@ def LNCAP(df) -> pd.Series:
     return lncap
 
 
-def MIDCAP(df):
+def MIDCAP(df) -> pd.Series:
     """ 中等市值 """
 
     circ_mv = df['$circ_mv']
@@ -34,7 +34,7 @@ def MIDCAP(df):
     midcap.columns = ['MIDCAP']
     midcap.sort_index(inplace=True)
 
-    return midcap
+    return midcap['MIDCAP']
 
 
 
