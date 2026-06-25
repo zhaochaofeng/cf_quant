@@ -1,3 +1,12 @@
+'''
+    因子库
+规则：
+    1）返回 pd.Series
+    2）因子删除 NaN 元素
+    3）按照<instrument, datetime> 排序
+'''
+
+
 
 """ 表达式因子 """
 from .factor_func import (
