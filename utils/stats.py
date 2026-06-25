@@ -15,8 +15,13 @@ def WLS(y, X, intercept=True, weight=1, verbose=True, backend='statsmodels'):
         X: [array, Series, DataFrame]. 自变量
         intercept: 是否包含截距项
         weight: array_like/float。权重
-        verbose: 是否返回残差
+        verbose: 是否返回残差、截距项
         backend: 计算后端，'statsmodels' 或 'numpy'
+
+        返回：Beta, alpha, resid 或 Beta
+            Beta: pd.Series
+            alpha: float
+            resid: pd.DataFrame
     """
     # Series/DataFrame 对齐索引
     if isinstance(y, (pd.Series, pd.DataFrame)) and isinstance(X, (pd.Series, pd.DataFrame)):
