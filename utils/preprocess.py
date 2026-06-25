@@ -306,11 +306,15 @@ def neutralize(
     x: Union[np.ndarray, pd.Series, pd.DataFrame],
     weight: Union[np.ndarray, float] = 1,
     intercept: bool = True,
-    level: Optional[Union[int, str]] = None
+    level: Optional[Union[int, str]] = None,
+    backend='numpy'
 ) -> Union[np.ndarray, pd.Series, pd.DataFrame]:
-    """中性化处理：用x对y进行线性回归，取残差
-
-    通过WLS回归拟合y，返回残差（实际值 - 预测值），即剔除x影响后的y。
+    """中性化处理：用x对y进行线性回归，取残差 e， 剔除x影响后的y
+    1）中性化后: np.dot(e, x) = 0 (一元线形回归目标函数Q对系数beta_1求导)
+    2）中性化通常在【横截面】维度回归，即对每个时间点（datetime）的【所有股票】。
+        时间序列方向正交化 容易导致针对特定时间点的正交结果误差。如：收益率 对 市值因子 按时间序列正交，
+        假设整体 受到大盘股正向影响，则回归系数beta_1 > 0。在时刻 t 受小盘股正向影响，此刻的斜率
+        应该为负。
 
     Args:
         y: 因变量，支持 array/Series/DataFrame
@@ -319,20 +323,21 @@ def neutralize(
         intercept: 是否包含截距项，默认True
         level: 分组索引层级（int 或 str），按该层级 groupby 后分组回归。
                None 表示不分组，对全量数据回归。
+        backend: 计算后端，'statsmodels' 或 'numpy'
 
     Returns:
         中性化后的残差，维度和类型与y一致
     """
+
     is_series = isinstance(y, pd.Series)
-    is_1d_array = isinstance(y, np.ndarray) and y.ndim == 1
-    is_nd_array = isinstance(y, np.ndarray) and y.ndim > 1
+    is_array = isinstance(y, np.ndarray)
 
     y_df = _to_dataframe(y)
     x_df = _to_dataframe(x)
 
     # 无分组：单次回归
     if level is None:
-        _, _, resid = WLS(y_df, x_df, intercept=intercept, weight=weight, verbose=True)
+        _, _, resid = WLS(y_df, x_df, intercept=intercept, weight=weight, verbose=True, backend=backend)
     else:
         # 有分组：按 level 分组回归
         _validate_groupby_index(y_df, level)
@@ -343,7 +348,7 @@ def neutralize(
             idx = group_y.index
             group_x = x_df.loc[idx]
             _, _, group_resid = WLS(
-                group_y, group_x, intercept=intercept, weight=weight, verbose=True
+                group_y, group_x, intercept=intercept, weight=weight, verbose=True, backend=backend
             )
             return group_resid
 
@@ -352,9 +357,7 @@ def neutralize(
     # 恢复原始类型
     if is_series:
         return resid.iloc[:, 0]
-    if is_1d_array:
+    if is_array:
         return resid.values.flatten()
-    if is_nd_array:
-        return resid.values
     return resid
 
