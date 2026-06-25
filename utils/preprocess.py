@@ -141,8 +141,8 @@ def winsorize(
 
     # 无分组：全局去极值
     if level is None:
-        lower_bound, upper_bound = _compute_bounds(df, method, k, lower, upper, axis)
-        return _apply_bounds(df, lower_bound, upper_bound, axis, inclusive)
+        lb, ub = _compute_bounds(df, method, k, lower, upper, axis)
+        return _apply_bounds(df, lb, ub, axis, inclusive)
 
     # 有分组：校验索引 → groupby 分组去极值
     _validate_groupby_index(df, level)
