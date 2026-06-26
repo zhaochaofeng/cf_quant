@@ -1,4 +1,5 @@
 """因子计算工具函数"""
+import functools
 from typing import Union
 
 import numpy as np
@@ -1189,3 +1190,50 @@ def calc_ind_momentum(group):
     if w_sum <= 0:
         return pd.Series({'rs_ind': np.nan, 'w_sum': np.nan})
     return pd.Series({'rs_ind': (group['rs'] * w).sum() / w_sum, 'w_sum': w_sum})
+
+
+def factor_output(func):
+    """装饰器：标准化因子输出格式
+
+    统一处理：
+    1. 类型转换为 pd.Series（DataFrame 取首列）
+    2. Series.name = 函数名
+    3. 删除 NaN
+    4. 索引排序 sort_index()
+
+    Usage:
+        @factor_output
+        def BETA(df):
+            ...
+            return beta_series
+
+    Note:
+        与 @time_decorator 一起使用时，@factor_output 应在下层：
+        @time_decorator
+        @factor_output
+        def BETA(df):
+            ...
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+
+        if isinstance(result, pd.DataFrame):
+            if result.shape[1] != 1:
+                raise ValueError(
+                    f'{func.__name__} returned DataFrame with {result.shape[1]} columns, '
+                    f'expected single column'
+                )
+            result = result.iloc[:, 0]
+        elif not isinstance(result, pd.Series):
+            raise TypeError(
+                f'{func.__name__} must return Series or single-column DataFrame, '
+                f'got {type(result).__name__}'
+            )
+
+        result.name = func.__name__
+        result = result.dropna()
+        result = result.sort_index()
+        return result
+
+    return wrapper
