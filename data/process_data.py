@@ -665,3 +665,54 @@ class ShiborRate(Base):
             self.logger.error(error_msg)
             raise Exception(error_msg)
 
+
+class SuspendD(Base):
+    """ 股票停复盘数据 """
+
+    def __init__(self, start_date: str, end_date: str, **kwargs):
+        super().__init__(**kwargs)
+        self.start_date = start_date
+        self.end_date = end_date
+
+    def fetch_data_from_api(self) -> pd.DataFrame:
+        self.logger.info('\n{}\n{}'.format('=' * 100, 'fetch_data_from_api ...'))
+        df = pd.DataFrame()
+        try:
+            date_inter = get_trade_cal_inter(self.start_date, self.end_date)
+
+            pro = tushare_pro()
+            for date in date_inter:
+                date = date.replace('-', '')
+                tmp = ts_api(pro, 'suspend_d', trade_date=date)
+                df = pd.concat([df, tmp], axis=0)
+                self.logger.info('date: {}, len: {}'.format(date, len(tmp)))
+            if df.empty:
+                self.logger.warning('df is empty')
+            self.logger.info('df shape: {}'.format(df.shape))
+        except Exception as e:
+            error_msg = 'fetch_data_from_api error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
+
+        return df
+
+    def parse_line(self, row) -> dict:
+        ''' 解析单条数据 '''
+        try:
+            tmp = {}
+            for f in self.feas.keys():
+                v = row[self.feas[f]]
+                if pd.isna(v):
+                    v = None
+                elif f in ['day']:
+                    # 日期格式转换
+                    v = datetime.strptime(v, '%Y%m%d').strftime('%Y-%m-%d')
+                elif f == 'qlib_code':
+                    code, suffix = v.split('.')
+                    v = '{}{}'.format(suffix.upper(), code)
+                tmp[f] = v
+            return tmp
+        except Exception as e:
+            error_msg = 'parse_line error: {}'.format(e)
+            self.logger.error(error_msg)
+            raise Exception(error_msg)
