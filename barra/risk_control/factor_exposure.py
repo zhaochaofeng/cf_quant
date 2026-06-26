@@ -92,7 +92,10 @@ class FactorExposureBuilder:
         try:
             result = factor_func(raw_data)
             if result is not None and not result.empty:
-                series = result.iloc[:, 0]  # 取第一列
+                if isinstance(result, pd.DataFrame):
+                    series = result.iloc[:, 0]  # 取第一列
+                else:
+                    series = result
                 return factor_name, series
         except Exception as e:
             err_msg = f"因子{factor_name}计算失败: {str(e)}"
