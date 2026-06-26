@@ -89,7 +89,10 @@ class CNE6IndExposure:
         try:
             result = factor_func(raw_data)
             if result is not None and not result.empty:
-                series = result.iloc[:, 0]  # 取第一列
+                if isinstance(result, pd.DataFrame):
+                    series = result.iloc[:, 0]  # 取第一列
+                else:
+                    series = result
                 return factor_name, series
             else:
                 return factor_name, None
