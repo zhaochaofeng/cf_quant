@@ -1,9 +1,9 @@
 '''
-    因子库
+    因子库建设
 规则：
     1）返回 pd.Series
     2）因子删除 NaN 元素
-    3）按照<instrument, datetime> 排序
+    3）按照 <instrument, datetime> 排序
 '''
 
 
