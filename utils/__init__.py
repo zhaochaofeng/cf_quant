@@ -31,7 +31,7 @@ from .preprocess import winsorize, standardize, neutralize, fillna
 from .io_utils import PickleIO, DataFrameIO, overwrite
 
 # 数据转换
-from .trans import calculate_excess_returns
+from .trans import calculate_excess_returns, excess_ret, get_ret
 
 # 回测工具
 from .backtest import RollingPortAnaRecord

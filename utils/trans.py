@@ -27,3 +27,33 @@ def calculate_excess_returns(returns_df: pd.DataFrame, benchmark_df: pd.DataFram
     return returns_df - aligned_benchmark.reshape(-1, 1)
 
 
+def excess_ret(ret: pd.Series, bench: pd.Series) -> pd.Series:
+    """
+        计算 超额 / 超常 收益率. ret -> excess_ret
+        Parameters
+        ----------
+        ret: 个股收益率。索引 <instrument, datetime>
+        bench：基准收益率。无风险利率 / 市场收益率。索引 <datetime>
+    """
+    dates = ret.index.get_level_values('datetime')
+    aligned_bench = bench.reindex(dates).values
+    return ret - aligned_bench
+
+
+def get_ret(close: pd.Series, k: int=1) -> pd.Series:
+    """
+        计算收益率。close -> ret
+
+        Parameters
+        ----------
+        close：收盘价
+        k：收益率期数
+    """
+
+    close.sort_index(inplace=True)
+    ret = close.groupby(level='instrument', group_keys=False).apply(lambda x: x.shift(-k-1) / x.shift(-1) - 1)
+    ret.name = 'ret'
+    return ret
+
+
+
