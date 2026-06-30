@@ -39,6 +39,13 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True,
     ), "shibor_rate/shibor_rate")
 
+    print(f'--- suspend_d ({now_date}) ---')
+    _check_step(run_deployment(
+        "suspend_d/suspend_d",
+        parameters={"start_date": now_date, "end_date": now_date},
+        as_subflow=True,
+    ), "suspend_d/suspend_d")
+
     print(f'--- 步骤 1: stock_info_ts ({now_date}) ---')
     _check_step(run_deployment(
         "stock_info_ts/stock_info_ts",
