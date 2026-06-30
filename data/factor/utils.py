@@ -8,7 +8,7 @@ import pandas as pd
 from config import BENCHMARK_CONFIG, PROVIDER_URI
 from utils import LoggerFactory
 from utils import WLS, multiprocessing_wrapper
-from .utils import get_excess_ret
+
 
 logger = LoggerFactory.get_logger(__name__)
 
