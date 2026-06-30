@@ -115,7 +115,8 @@ class BaseDataLoader:
         logger.info(f'信号数据加载完成: {df.shape}')
         return df
 
-    def load_rate(self, start_time: str, end_time: str) -> pd.Series:
+    @staticmethod
+    def load_rate(start_time: str, end_time: str) -> pd.Series:
         """从MySQL加载 无风险利率
 
                 Args:
