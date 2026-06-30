@@ -73,7 +73,11 @@ class Processor:
         return df
 
     def load_index(self, codes: list) -> pd.DataFrame:
-        ''' 加载指数数据 '''
+        ''' 指数数据
+            close / open / high / low：成分股流通市值加权求和，然后通过常数缩放，常数由交易所维护
+            amount / volume: 成分股字段求和（未加权）
+        '''
+
         self.logger.info('\n{}\n{}'.format('=' * 100, 'load_index ...'))
         pro = tushare_pro()
 
