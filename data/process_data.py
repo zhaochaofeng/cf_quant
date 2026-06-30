@@ -686,6 +686,7 @@ class SuspendD(Base):
                 tmp = ts_api(pro, 'suspend_d', trade_date=date)
                 df = pd.concat([df, tmp], axis=0)
                 self.logger.info('date: {}, len: {}'.format(date, len(tmp)))
+                time.sleep(60/500)   # 每分钟最多请求500次
             if df.empty:
                 self.logger.warning('df is empty')
             self.logger.info('df shape: {}'.format(df.shape))
