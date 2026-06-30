@@ -22,7 +22,7 @@ from .size import (
 
 # 2.波动率因子
 from .volatility import (
-    BETA, HSIGMA, DASTD, CMRA
+    HBETA, HSIGMA, DASTD, CMRA
 )
 
 # 3.流动性因子

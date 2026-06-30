@@ -4,7 +4,7 @@
 
 from data.factor import (
     LNCAP, MIDCAP,
-    BETA, HSIGMA, DASTD, CMRA,
+    HBETA, HSIGMA, DASTD, CMRA,
     STOM, STOQ, STOA, ATVR,
     STREV, SEASON, INDMOM, RSTR, HALPHA,
     MLEV, BLEV, DTOA,
@@ -70,7 +70,7 @@ CNE6_STYLE_FACTORS = {
     # 规模因子
     'size': ['LNCAP', 'MIDCAP'],
     # 波动率因子
-    'volatility': ['BETA', 'HSIGMA', 'DASTD', 'CMRA'],
+    'volatility': ['HBETA', 'HSIGMA', 'DASTD', 'CMRA'],
     # 流动性因子
     'liquidity': ['STOM', 'STOQ', 'STOA', 'ATVR'],
     # 动量因子
@@ -123,7 +123,7 @@ STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_vif]
 FACTOR_FUNCTIONS = {
     'LNCAP': LNCAP,
     'MIDCAP': MIDCAP,
-    'BETA': BETA,
+    'HBETA': HBETA,
     'HSIGMA': HSIGMA,
     'DASTD': DASTD,
     'CMRA': CMRA,

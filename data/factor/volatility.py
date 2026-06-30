@@ -4,14 +4,18 @@
 
 import pandas as pd
 import numpy as np
-from .utils import capm_regress, cal_cmra, rolling_with_func
+from .utils import capm_regress, cal_cmra, rolling_with_func, factor_output, get_excess_ret
 from utils import dt
+from barra.base import BaseDataLoader
 
+
+data_loader = BaseDataLoader()
 time_decorator = dt.time_decorator
 
 
 @time_decorator
-def BETA(df, num_worker=1):
+@factor_output
+def HBETA(df, num_worker=1) -> pd.Series:
     """
     Formulation: r_{i,t} = \alpha_i + \beta_i \cdot r_{m,t} + \epsilon_{i,t}
     Description：【CAPM Beta因子】通过滚动窗口(504天)加权最小二乘回归，
@@ -20,16 +24,13 @@ def BETA(df, num_worker=1):
     """
 
     df = df.sort_index()
-    stock_returns = df['$change']
+    close = df['$close']
+    ex_ret = get_excess_ret(close)
 
     # CAPM 回归: window=504, half_life=252
-    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=num_worker)
+    beta, alpha, sigma = capm_regress(ex_ret, window=504, half_life=252, num_worker=num_worker)
 
-    # 构造结果 DataFrame
-    result_df = pd.DataFrame({'BETA': beta})
-    result_df = result_df.dropna()
-
-    return result_df
+    return beta
 
 
 @time_decorator

@@ -8,6 +8,7 @@ import pandas as pd
 from config import BENCHMARK_CONFIG, PROVIDER_URI
 from utils import LoggerFactory
 from utils import WLS, multiprocessing_wrapper
+from .utils import get_excess_ret
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -162,10 +163,12 @@ def capm_regress(stock_returns, window=504, half_life=252, benchmark=BENCHMARK_C
     else:
         try:
             benchmark_df = get_qlib_data(
-                instruments=[benchmark], fields=['$change'],
+                instruments=[benchmark], fields=['$close'],
                 start_date=start_date, end_date=end_date,
             )
-            benchmark_ret = benchmark_df['$change']
+            close = benchmark_df['$close']
+            benchmark_ret = get_excess_ret(close)
+
             if benchmark_ret.index.nlevels > 1:
                 benchmark_ret = benchmark_ret.droplevel('instrument')
             if len(benchmark_ret.dropna()) == 0:
@@ -1237,3 +1240,19 @@ def factor_output(func):
         return result
 
     return wrapper
+
+
+def get_excess_ret(close: pd.Series):
+    from utils import excess_ret, get_ret
+    from barra.base import BaseDataLoader
+
+    data_loader = BaseDataLoader()
+    """ 计算超额收益率 """
+    start_date = close.index.get_level_values('datetime').min()
+    end_date = close.index.get_level_values('datetime').max()
+    ret = get_ret(close)
+    rate = data_loader.load_rate(start_date, end_date)
+    ex_ret = excess_ret(ret, rate)
+    ex_ret.dropna(inplace=True)
+    return ex_ret
+
