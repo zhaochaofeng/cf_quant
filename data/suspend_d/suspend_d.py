@@ -56,7 +56,7 @@ def flow(
     except:
         err_msg = 'suspend_d_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
         print(err_msg)
-        email_send_message_flow(subject='Data: trade_daily_ts', msg=err_msg)
+        email_send_message_flow(subject='Data: suspend_d', msg=err_msg)
         raise
 
 
