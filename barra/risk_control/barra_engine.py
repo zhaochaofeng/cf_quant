@@ -149,6 +149,8 @@ class BarraRiskEngine:
             logger.error(err_msg)
             raise ValueError(err_msg)
 
+        self.factor_exposure = self.factor_exposure.dropna()
+        returns_df = returns_df.dropna()
         self.factor_exposure = self.factor_exposure[
             self.factor_exposure.index.get_level_values('datetime').isin(
                 com_dates)
@@ -166,12 +168,11 @@ class BarraRiskEngine:
             logger.warning(f'  因子暴露为空: {self.factor_exposure.empty}')
             logger.warning(f'  收益率为空: {returns_df.empty}')
             logger.warning(f'  市值为空: {market_cap_df.empty}')
-
         logger.info(f'   对齐后 - 日期数: {len(com_dates)}, '
                      f'因子暴露: {self.factor_exposure.shape}, '
                      f'收益率: {returns_df.shape}, '
                      f'市值: {market_cap_df.shape}')
-        self.factor_exposure = self.factor_exposure.dropna()
+
         logger.info('因子暴露 删除NaN后: {}'.format(self.factor_exposure.shape))
 
         # 横截面回归估计因子收益率(b)
