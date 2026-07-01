@@ -325,6 +325,7 @@ class CNE6IndExposure:
         """
         logger.info("=" * 60)
         logger.info("开始构建因子暴露矩阵...")
+        DataFrameIO.write(raw_data, f'{output}/raw_data.parquet', type='parquet')
 
         # 1. 计算原始因子
         raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
