@@ -60,7 +60,6 @@ FIELD_GROUPS = [
     {
         'name': 'base_data',
         'fields': [
-            '$close',          # 收盘价
             '$ind_one',        # 行业ID
             '$change',         # 收盘价涨跌幅
             '$close',          # 收盘价
