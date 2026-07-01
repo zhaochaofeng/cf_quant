@@ -34,6 +34,7 @@ def HBETA(df, num_worker=1) -> pd.Series:
 
 
 @time_decorator
+@factor_output
 def HSIGMA(df):
     """
     Formulation: 通过CAPM模型回归得到的残差标准差
@@ -41,55 +42,41 @@ def HSIGMA(df):
         以沪深300指数收益率为自变量，股票收益率为因变量，估计每只股票的
         残差波动率。半衰期为252天。
     """
-    
+
     df = df.sort_index()
-    stock_returns = df['$change']
+    close = df['$close']
+    ex_ret = get_excess_ret(close)
     
     # CAPM 回归获取残差波动率: window=504, half_life=252
-    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=1)
-    
-    # 构造结果 DataFrame
-    result_df = pd.DataFrame({'HSIGMA': sigma})
-    result_df = result_df.dropna()
-    
-    return result_df
+    beta, alpha, sigma = capm_regress(ex_ret, window=504, half_life=252, num_worker=1)
+
+    return sigma
 
 
 @time_decorator
+@factor_output
 def DASTD(df):
     """
     Formulation: 带半衰期权重的日收益率标准差
     Description：【日波动率因子】过去252个交易日的日收益率标准差，使用权重递减的
         半衰期为42天的指数权重计算。
     """
-    
-    # Ensure the index is sorted
+
     df = df.sort_index()
-    
-    # Extract the daily returns
-    daily_returns = df['$change']
-    
-    # Calculate rolling standard deviation with half-life weighting
-    # Window = 252 days, Half-life = 42 days (BARRA CNE6 specification)
-    # groupby(level='instrument') ensures per-stock calculation,
-    # preventing rolling across stock boundaries.
-    dastd_series = daily_returns.groupby(level='instrument').apply(
+    close = df['$close']
+    ex_ret = get_excess_ret(close)
+
+    dastd = ex_ret.groupby(level='instrument', group_keys=False).apply(
         lambda x: rolling_with_func(x, window=252, half_life=42, func_name='std')
     )
     # 年化
-    dastd_series = np.sqrt(252) * dastd_series
-    # groupby().apply() adds an extra index level, drop it to restore original MultiIndex
-    dastd_series = dastd_series.reset_index(level=0, drop=True)
-    # Create result DataFrame
-    result_df = pd.DataFrame({'DASTD': dastd_series})
-    
-    # Drop rows where volatility is NaN (due to insufficient data)
-    result_df = result_df.dropna()
-    
-    return result_df
+    dastd = np.sqrt(252) * dastd
+
+    return dastd
 
 
 @time_decorator
+@factor_output
 def CMRA(df):
     """
     Formulation: CMRA = Z_max - Z_min, where Z_t = sum of returns over t months
@@ -97,36 +84,21 @@ def CMRA(df):
         Z值为每个月的累计收益率，CMRA为最大值与最小值之差。
         CNE6版本使用对数收益率。
     """
-    
-    # Ensure the index is sorted
+
     df = df.sort_index()
-    
-    # Extract daily returns and convert to log returns (CNE6 version)
-    log_returns = np.log(1 + df['$change'])
+    close = df['$close']
+    ex_ret = get_excess_ret(close)
 
-    # 保留 NaN 原样，cal_cmra 内部使用 nansum 跳过缺失值
-    # 不再替换为 SENTINEL，以保证滚动窗口分段步长固定
+    log_returns = np.log(1 + ex_ret)
 
-    # Apply rolling CMRA calculation per instrument
-    # cal_cmra internally uses nansum for missing values
-    cmra_series = log_returns.groupby(level='instrument').rolling(
-        window=252, min_periods=252  # Need full 12 months of data
+    cmra = log_returns.groupby(level='instrument', group_keys=False).rolling(
+        window=252, min_periods=int(252 * 0.8)
     ).apply(
         lambda x: cal_cmra(x, months=12, days_per_month=21),
         raw=True
     )
-    
-    # Reset the extra groupby level to restore original MultiIndex structure
-    cmra_series = cmra_series.reset_index(level=0, drop=True)
-    
-    # Create result DataFrame
-    result_df = pd.DataFrame({'CMRA': cmra_series})
-    
-    # Drop NaN values only
-    # Note: CMRA can be 0 when max Z equals min Z (rare but valid)
-    result_df = result_df.dropna()
-    
-    return result_df
+
+    return cmra
 
 
 @time_decorator
