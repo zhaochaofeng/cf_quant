@@ -135,6 +135,7 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         as_subflow=True
     ), "factor_evaluation/factor_evaluation")
 
+    """
     print(f'--- 步骤 15: barra_risk ({now_date}) ---')
     _check_step(run_deployment(
         "barra_risk/barra_risk",
@@ -155,6 +156,7 @@ def flow(start_date: str = '', end_date: str = '', now_date: str = ''):
         parameters={"now_date": now_date},
         as_subflow=True,
     ), "barra_portfolio/barra_portfolio")
+    """
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
