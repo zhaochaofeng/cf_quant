@@ -3,11 +3,12 @@
 '''
 
 
-import pandas as pd
-import qlib
-from qlib.data import D
 from typing import List
-from config import BENCHMARK_CONFIG, PROVIDER_URI
+
+import pandas as pd
+from qlib.data import D
+
+from config import BENCHMARK_CONFIG
 from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -151,4 +152,23 @@ class BaseDataLoader:
         return df
 
 
+    @staticmethod
+    def load_benchmark_ret(start_time: str, end_time: str,
+                           benchmark: str = BENCHMARK_CONFIG['BENCHMARK'], k: int=1) -> pd.Series:
+        """从MySQL加载 基准收益率
 
+        Args:
+            start_time: 开始日期，如 '2023-01-01'
+            end_time: 结束日期，如 '2026-03-06'
+            benchmark: 基准代码，默认为 CSI300
+            k: 收益率计算期数
+
+        Returns:
+            Index(datetime), column='bm_ret'
+        """
+        close = D.features([benchmark], ['$close'], start_time=start_time, end_time=end_time)
+        close = close.droplevel(level='instrument')
+        close = close.iloc[:,0]
+        ret = close.shift(-k-1) / close.shift(-1) - 1
+        ret.name = 'bm_ret'
+        return ret

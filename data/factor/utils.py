@@ -1242,18 +1242,26 @@ def factor_output(func):
     return wrapper
 
 
-def get_excess_ret(close: pd.Series):
+def get_excess_ret(close: pd.Series, type='excess'):
+    """ 计算超额 / 超常 收益率
+        type: excess 超额收益率； abnormal 超常收益率
+    """
+
     from utils import excess_ret, get_ret
     from barra.base import BaseDataLoader
 
     data_loader = BaseDataLoader()
-    """ 计算超额收益率 """
+
     start_date = close.index.get_level_values('datetime').min()
     end_date = close.index.get_level_values('datetime').max()
     ret = get_ret(close)
-    rate = data_loader.load_rate(start_date, end_date)
-    rate = rate / 252   # 转化为日频利率
-    ex_ret = excess_ret(ret, rate)
-    ex_ret.dropna(inplace=True)
-    return ex_ret
+    if type == 'excess':
+        rate = data_loader.load_rate(start_date, end_date)
+        rate = rate / 252   # 转化为日频利率
+        final_ret = excess_ret(ret, rate)
+    else:
+        bm_ret = data_loader.load_benchmark_ret(start_date, end_date)
+        final_ret = excess_ret(ret, bm_ret)
+    final_ret.dropna(inplace=True)
+    return final_ret
 
