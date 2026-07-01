@@ -1252,6 +1252,7 @@ def get_excess_ret(close: pd.Series):
     end_date = close.index.get_level_values('datetime').max()
     ret = get_ret(close)
     rate = data_loader.load_rate(start_date, end_date)
+    rate = rate / 252   # 转化为日频利率
     ex_ret = excess_ret(ret, rate)
     ex_ret.dropna(inplace=True)
     return ex_ret

@@ -1,5 +1,5 @@
 -- 上海银行间同业拆放利率（Shanghai Interbank Offered Rate，简称Shibor）
--- 利率指标经过年化处理
+-- 利率指标经过年化处理. 在计算日频超额收益时，需要先除以 252 进行日频化
 CREATE TABLE IF NOT EXISTS shibor(
     id INT NOT NULL AUTO_INCREMENT,
     `date` DATE NOT NULL COMMENT '日期，格式YYYY-MM-DD',
