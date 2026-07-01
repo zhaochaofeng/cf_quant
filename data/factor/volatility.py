@@ -91,12 +91,13 @@ def CMRA(df):
 
     log_returns = np.log(1 + ex_ret)
 
-    cmra = log_returns.groupby(level='instrument', group_keys=False).rolling(
+    cmra = log_returns.groupby(level='instrument').rolling(
         window=252, min_periods=int(252 * 0.8)
     ).apply(
         lambda x: cal_cmra(x, months=12, days_per_month=21),
         raw=True
     )
+    cmra = cmra.reset_index(level=1, drop=True)
 
     return cmra
 
