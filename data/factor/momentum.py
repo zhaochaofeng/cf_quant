@@ -15,9 +15,15 @@ from .utils import (
     rolling_with_func, calc_seasonality,
     capm_regress,
     get_benchmark_ret,
-    calc_ind_momentum
+    calc_ind_momentum,
+    get_excess_ret,
+    factor_output
 )
 from utils.dt import time_decorator
+from utils import get_ret
+from barra.base import BaseDataLoader
+
+data_loader = BaseDataLoader()
 
 
 @time_decorator
@@ -222,65 +228,66 @@ def INDMOM(df):
 
 
 @time_decorator
+@factor_output
 def RSTR(df):
     """
     Formulation: RSTR = sum(ln((1+R_s)/(1+R_b)) * weight), then smooth with 11-day MA
     Description：【相对强度因子】过去1年（252个交易日）的日对数相对市场强度
-        （股票收益率 / 基准收益率）加权之和，使用半衰期为126天的指数权重，
-        最后进行11天的移动平均平滑。
+        （股票对数收益率 / 基准对数收益率）加权之和，使用半衰期为126天的指数权重，
+        对非滞后值取滞后11天的11天等权移动平均。
     """
     # 确保索引排序
     df = df.sort_index()
-    
-    # 获取股票日收益率
-    stock_ret = df['$change']
-    log_ret = np.log(1 + stock_ret)
-    
+
+    # 股票对数收益
+    close = df['$close']
+    ret = get_ret(close)
+    log_ret = np.log(1 + ret)
+
     # 市场基准收益率
     start_date = str(df.index.get_level_values('datetime').min())[:10]
     end_date = str(df.index.get_level_values('datetime').max())[:10]
-    benchmark_ret = get_benchmark_ret(start_date, end_date)
-    benchmark_log_ret = np.log(1 + benchmark_ret)
+    bm_ret = data_loader.load_benchmark_ret(start_date, end_date)
+    log_bm_ret = np.log(1 + bm_ret)
 
-    # 计算对数形式的相对市场强度
+    # 计算对数形式的相对市场强度。
     # ln(1+R_s) - ln(1+R_b) = ln((1+R_s)/(1+R_b))
-    relative_strength = log_ret - benchmark_log_ret
+    # log_bm_ret 会自动广播到 log_ret 的 instrument 对应的 datetime索引
+    relative_strength = log_ret - log_bm_ret
 
     # 计算加权相对强度之和（252天窗口，半衰期126天）
     rstr_raw = relative_strength.groupby(level='instrument').apply(
         lambda x: rolling_with_func(x, window=252, half_life=126, func_name='sum')
     )
-    # 重置索引，确保格式正确
     rstr_raw = rstr_raw.reset_index(level=0, drop=True)
     
     # 11天移动平均平滑
-    rstr = rstr_raw.groupby(level='instrument').rolling(window=11, min_periods=1).mean()
-    rstr = rstr.reset_index(level=0, drop=True)
-    
-    # 构造结果 DataFrame
-    result_df = pd.DataFrame({'RSTR': rstr})
-    result_df = result_df.dropna()
-    
-    return result_df
+    rstr = rstr_raw.groupby(level='instrument').transform(
+        lambda x: x.rolling(window=11, min_periods=1).mean().shift(11)
+    )
+
+    return rstr
 
 
 @time_decorator
-def HALPHA(df):
+@factor_output
+def HALPHA(df) -> pd.Series:
     """
     Formulation: 通过CAPM模型回归得到的截距项Alpha
     """
 
     df = df.sort_index()
-    stock_returns = df['$change']
+    close = df['$close']
+    ex_ret = get_excess_ret(close)
 
     # CAPM 回归
-    beta, alpha, sigma = capm_regress(stock_returns, window=504, half_life=252, num_worker=1)
+    beta, alpha, sigma = capm_regress(ex_ret, window=504, half_life=252, num_worker=1)
 
-    # 构造结果 DataFrame
-    result_df = pd.DataFrame({'HALPHA': alpha})
-    result_df = result_df.dropna()
+    alpha_smoothed = alpha.groupby(level='instrument').transform(
+        lambda x: x.rolling(window=11, min_periods=1).mean().shift(11)
+    )
 
-    return result_df
+    return alpha_smoothed
 
 
 
