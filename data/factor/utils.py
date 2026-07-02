@@ -1262,6 +1262,6 @@ def get_excess_ret(close: pd.Series, type='excess'):
     else:
         bm_ret = data_loader.load_benchmark_ret(start_date, end_date)
         final_ret = excess_ret(ret, bm_ret)
-    final_ret.dropna(inplace=True)
+
     return final_ret
 
