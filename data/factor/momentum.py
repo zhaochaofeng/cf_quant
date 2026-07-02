@@ -12,9 +12,8 @@ import numpy as np
 import pandas as pd
 
 from .utils import (
-    rolling_with_func, calc_seasonality,
+    rolling_with_func,
     capm_regress,
-    get_benchmark_ret,
     calc_ind_momentum,
     get_excess_ret,
     factor_output
@@ -62,135 +61,108 @@ def STREV(df: pd.DataFrame) -> pd.Series:
 
 
 @time_decorator
-def SEASON(df, nyears=5):
+@factor_output
+def SEASON(df):
     """
-    Formulation: SEASON = mean(R_stock - R_benchmark) over past Y years
-    Description：【季节因子】捕捉股票月度日历效应，衡量股票在特定月份
-        是否存在系统性的超额收益规律（如"一月效应"、"春节效应"等）。
-        计算过去Y年（默认5年）同月份相对于基准的超额收益均值。
-        
+    Formulation: SEASON = mean(raw_daily_ret) / std(raw_daily_ret)
+    Description：【年度季节因子】前瞻性日历效应因子。过去5年同目标月份
+        （下一个月）日收益率的均值与标准差之比（标准化均值），衡量该月份
+        是否存在持续稳定的季节性收益规律。
+
     计算方法：
-        1. 月度累计简单收益率（每月日收益率复利累加）
-        2. 使用沪深300指数作为市场基准计算月度基准简单收益率
-        3. 计算超额收益 = 股票月度收益率 - 基准月度收益率
-        4. 对每个股票，按月份分组，计算过去nyears年同月份超额收益的均值
-        5. 将月度因子值扩展回日度
+        1. 由close计算日收益率 raw_ret
+        2. 按 (instrument, year, month) 聚合 stats {n, sum_ret, sum_sq}
+        3. target_month = month % 12 + 1（当前月的下一个月）
+        4. self-merge 查找过往5年中同 target_month 的数据，pool 计算 mean/std
+        5. SEASON = mean / std（N < 2 则为 NaN）
+        6. 月内所有交易日因子值相同，merge 回日度索引
     """
-    # 确保索引排序
     df = df.sort_index()
-    
-    # 获取股票日收益率
-    stock_ret = df['$change']
+    close = df['$close']
+    ret = get_ret(close)
 
-    # 计算月度累计简单收益率（每个月的日收益率复利累加）
-    monthly_simple_ret = (1 + stock_ret).groupby(
-        level='instrument'
-    ).resample('ME', level='datetime').prod() - 1
-    '''
-    instrument  datetime
-    SH600000    2018-05-31   -0.091369
-                2018-06-30   -0.093813
-                2018-07-31    0.074968
-                2018-08-31    0.015579
-    '''
+    # Stage 1: 月度聚合
+    monthly = ret.reset_index()
+    monthly['year'] = monthly['datetime'].dt.year
+    monthly['month'] = monthly['datetime'].dt.month
+    monthly_stats = monthly.groupby(['instrument', 'year', 'month'])['ret'].agg(
+        n='count', sum_ret='sum', sum_sq=lambda x: (x ** 2).sum()
+    ).reset_index()
 
-    # 获取基准指数数据（沪深300）
-    start_date = str(df.index.get_level_values('datetime').min())[:10]
-    end_date = str(df.index.get_level_values('datetime').max())[:10]
-    benchmark_ret = get_benchmark_ret(start_date, end_date)
+    if monthly_stats.empty:
+        return pd.Series([], name='SEASON', dtype=float)
 
-    # 计算基准月度累计简单收益率
-    benchmark_monthly_simple_ret = (1 + benchmark_ret).resample('ME').prod() - 1
-
-    # 计算超额收益（股票月度简单收益 - 基准月度简单收益）
-    # 将基准数据对齐到股票数据并计算超额收益. ndarray
-    benchmark_aligned = benchmark_monthly_simple_ret.reindex(
-        monthly_simple_ret.index.get_level_values('datetime')
-    ).values
-    excess_ret = monthly_simple_ret - benchmark_aligned
-
-    # 准备超额收益数据
-    excess_ret.name = 'excess_ret'
-    excess_ret_df = excess_ret.reset_index()
-    excess_ret_df['month'] = excess_ret_df['datetime'].dt.month
-    '''
-      instrument   datetime  excess_ret  month
-    0   SH600000 2018-05-31   -0.103492      5
-    1   SH600000 2018-06-30   -0.017112      6
-    2   SH600000 2018-07-31    0.072887      7
-    '''
-
-    # 按股票分组计算季节性。每只股票仅包含月末日期数据
-    # 返回列：[instrument, datetime, SEASON]
-    seasonality_monthly = (
-        excess_ret_df.groupby('instrument')
-        .apply(calc_seasonality, nyears=nyears, value_col='excess_ret')
-        .reset_index(drop=True)
+    # Stage 2: self-merge 查找历史 target_month 数据
+    monthly_stats['target_month'] = monthly_stats['month'] % 12 + 1
+    # 对齐 <instrument, target_month>. 如 <year, month> = <2024, 04>, 则 <year, target_month> = <2024,05>
+    # 需要计算 <2019,05> - <2023,05> 5年的样本数据 mean / std
+    # 最后存放在 <year, month> = <2024, 04> 对应索引中
+    merged = monthly_stats.merge(
+        monthly_stats[['instrument', 'year', 'month', 'n', 'sum_ret', 'sum_sq']],
+        left_on=['instrument', 'target_month'],
+        right_on=['instrument', 'month'],
+        suffixes=('', '_hist')
     )
-    '''
-          instrument   datetime    SEASON
-    28795   SZ302132 2025-12-31 -0.014987
-    28796   SZ302132 2026-01-31 -0.081577
-    28797   SZ302132 2026-02-28  0.795816
-    '''
+    # 过滤：历史年份在 [year-5, year-1]
+    ptrn = (merged['year_hist'] >= merged['year'] - 5) & (merged['year_hist'] <= merged['year'] - 1)
+    pooled = merged[ptrn]
 
-    if seasonality_monthly.empty:
-        return pd.DataFrame({'SEASON': []})
+    # 聚合 pool stats
+    pooled_agg = pooled.groupby(['instrument', 'year', 'month']).agg(
+        total_n=('n_hist', 'sum'),
+        total_sum=('sum_ret_hist', 'sum'),
+        total_sum_sq=('sum_sq_hist', 'sum')
+    )
 
-    # 月度数据扩展回日度：通过月末日期 merge
-    daily_index = stock_ret.index.to_frame().reset_index(drop=True)
-    daily_index['month_end'] = daily_index['datetime'] + pd.offsets.MonthEnd(0)
-    '''
-      instrument   datetime  month_end
-    0   SZ000001 2018-05-02 2018-05-31
-    1   SZ000001 2018-05-03 2018-05-31
-    '''
-    seasonality_monthly['month_end'] = seasonality_monthly['datetime'] + pd.offsets.MonthEnd(0)
-    '''
-          instrument   datetime    SEASON  month_end
-    28795   SZ302132 2025-12-31 -0.014987 2025-12-31
-    28796   SZ302132 2026-01-31 -0.081577 2026-01-31
-    '''
-    # 先用daily_index 与 seasonality_monthly 进行merge，然后对缺失值进行前向填充
-    merged = daily_index.merge(
-        seasonality_monthly[['instrument', 'month_end', 'SEASON']],
-        on=['instrument', 'month_end'], how='left'
-    ).set_index(['instrument', 'datetime'])
-    '''
-                           month_end    SEASON
-    instrument datetime
-    SH688981   2026-04-24 2026-04-30  0.020756
-               2026-04-27 2026-04-30  0.020756
-    '''
+    # 计算 pooled mean/std → SEASON
+    N = pooled_agg['total_n']
+    S = pooled_agg['total_sum']
+    SS = pooled_agg['total_sum_sq']
+    pooled_agg['SEASON'] = np.nan
+    mask = N >= 2
+    pooled_mean = S / N
+    pooled_var = (SS[mask] - S[mask] ** 2 / N[mask]) / (N[mask] - 1)
+    pooled_agg.loc[mask, 'SEASON'] = pooled_mean[mask] / np.sqrt(np.maximum(pooled_var, 0))
+    pooled_agg['SEASON'] = pooled_agg['SEASON'].replace([np.inf, -np.inf], np.nan)
 
-    return merged[['SEASON']].dropna()
+    # Stage 3: 合并回日度索引
+    daily_key = monthly[['instrument', 'datetime', 'year', 'month']]
+    result = daily_key.merge(
+        pooled_agg[['SEASON']].reset_index(),
+        on=['instrument', 'year', 'month'], how='left'
+    )
+    result_df = result.set_index(['instrument', 'datetime'])['SEASON']
+
+    return result_df
 
 
 @time_decorator
+@factor_output
 def INDMOM(df):
     """
     Formulation: INDMOM = RS_industry - c_stock * RS_stock
     Description：【行业动量因子】6个月（126个交易日）行业动量减去个股动量的加权贡献，
-        用于捕捉行业层面的动量效应。使用半衰期为21天的指数权重。
+        用于捕捉行业层面的动量效应。使用半衰期为20天的指数权重。
         权重为流通市值的平方根（cap_sqrt）归一化后的值（行业内权重和为1）。
     """
     # 确保索引排序
     df = df.sort_index()
     
     # 获取日收益率、流通市值平方根（权重）、行业分类
-    daily_returns = df['$change']
+    # daily_returns = df['$change']
+    close = df['$close']
+    ret = get_ret(close)
     cap_sqrt = np.sqrt(df['$circ_mv'])
     industry = df['$ind_one'].fillna(-1).astype(int)
 
     # 计算对数收益率
-    log_ret = np.log(1 + daily_returns)
+    log_ret = np.log(1 + ret)
     
     # 计算个股动量 rs（6个月，半衰期21天的加权对数收益率累计和）
-    rs = log_ret.groupby(level='instrument').apply(
-        lambda x: rolling_with_func(x, window=126, half_life=21, func_name='sum')
+    rs = log_ret.groupby(level='instrument', group_keys=False).apply(
+        lambda x: rolling_with_func(x, window=126, half_life=20, func_name='sum')
     )
-    rs = rs.reset_index(level=0, drop=True)
-    
+
     # 准备数据：合并 rs, cap_sqrt, industry
     data = rs.reset_index()
     data = data.merge(cap_sqrt.reset_index(), on=['instrument', 'datetime'])
@@ -229,7 +201,10 @@ def INDMOM(df):
     
     # 构造结果 DataFrame
     result_df = data.set_index(['instrument', 'datetime'])[['INDMOM']]
-    result_df = result_df.dropna()
+
+    result_df = result_df.groupby(level='instrument').transform(
+        lambda x: x.rolling(window=3, min_periods=1).mean().shift(3)
+    )
     
     return result_df
 
@@ -295,6 +270,8 @@ def HALPHA(df) -> pd.Series:
     )
 
     return alpha_smoothed
+
+
 
 
 
