@@ -856,7 +856,7 @@ def calc_growth_rate_slope(series, window=5, min_periods=3):
     return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(_calc_slope, raw=False)
 
 
-def calc_cv(series, window=5, min_periods=3):
+def calc_cv(series, window=5, min_periods=3, is_abs=False):
     """计算变异系数（Coefficient of Variation）
     
     变异系数 = 标准差 / 均值，用于衡量数据的相对波动程度。
@@ -866,6 +866,7 @@ def calc_cv(series, window=5, min_periods=3):
         series: pd.Series, MultiIndex (instrument, year) 年度数据
         window: int, 窗口年数，默认5年
         min_periods: int, 最小有效年数，默认3年
+        is_abs: bool, 分母是否取绝对值，默认False
     
     Returns:
         pd.Series: 变异系数
@@ -878,6 +879,8 @@ def calc_cv(series, window=5, min_periods=3):
         mean = valid.mean()
         if abs(mean) < 1e-6 or np.isnan(mean):
             return np.nan
+        if is_abs:
+            mean = abs(mean)
         return std / mean
     
     return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(calc_cv_inner, raw=False)
