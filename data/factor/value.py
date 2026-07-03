@@ -3,14 +3,20 @@
     包含：BTOP, ETOP, CETOP, EM, LTRSTR, LTHALPHA
 """
 
-import pandas as pd
 import numpy as np
-from .utils import capm_regress, remap_lyr
+import pandas as pd
+
+from barra.base import BaseDataLoader
+from utils import get_ret
 from utils.dt import time_decorator
+from .utils import capm_regress, factor_output, rolling_with_func, get_excess_ret
+
+data_loader = BaseDataLoader()
 
 
 @time_decorator
-def BTOP(df):
+@factor_output
+def BTOP(df) -> pd.Series:
     """
     Book to Price (账面市值比)
     Formulation: BTOP = 普通股账面价值 / 总市值
@@ -22,11 +28,8 @@ def BTOP(df):
     df = df.sort_index()
     
     # 获取数据
-    total_hldr_eqy_raw = df['P($$total_hldr_eqy_exc_min_int_q)']    # 股东权益合计(不含少数股东权益)
-    oth_eqt_tools_raw = df['P($$oth_eqt_tools_p_shr_q)'].fillna(0)  # 优先股
-
-    total_hldr_eqy = remap_lyr(total_hldr_eqy_raw, 'total_hldr_eqy_exc_min_int_q')
-    oth_eqt_tools = remap_lyr(oth_eqt_tools_raw, 'oth_eqt_tools_p_shr_q')
+    total_hldr_eqy = df['P($$total_hldr_eqy_exc_min_int_q)'].fillna(0)    # 股东权益合计(不含少数股东权益)[资产负债表]
+    oth_eqt_tools = df['P($$oth_eqt_tools_p_shr_q)'].fillna(0)            # 优先股[资产负债表]
 
     total_mv = df['$total_mv']
 
@@ -36,14 +39,13 @@ def BTOP(df):
     # BTOP = 账面价值 / 总市值
     total_mv[total_mv == 0] = np.nan
     btop = bv / total_mv
-    
-    result_df = pd.DataFrame({'BTOP': btop})
-    result_df = result_df.dropna()
-    return result_df
+
+    return btop
 
 
 @time_decorator
-def ETOP(df):
+@factor_output
+def ETOP(df) :
     """
     Trailing Earnings-to-price Ratio (EP比)
     Formulation: ETOP = 最近12个月净利润（TTM） / 总市值
@@ -53,7 +55,7 @@ def ETOP(df):
     """
     df = df.sort_index()
     
-    # 获取数据（使用 PTTM 计算的 TTM 净利润）
+    # 净利润TTM
     earnings_ttm = df['PTTM($$n_income_attr_p_q)']
     total_mv = df['$total_mv']
 
@@ -61,14 +63,13 @@ def ETOP(df):
     # 避免除以0
     total_mv = total_mv.replace(0, np.nan)
     etop = earnings_ttm / total_mv
-    
-    result_df = pd.DataFrame({'ETOP': etop})
-    result_df = result_df.dropna()
-    return result_df
+
+    return etop
 
 
 @time_decorator
-def CETOP(df):
+@factor_output
+def CETOP(df) -> pd.Series:
     """
     Cash Earnings To Price (现金盈利价比)
     Formulation: CETOP = 过去12个月现金盈利（TTM） / 总市值
@@ -78,22 +79,21 @@ def CETOP(df):
     """
     df = df.sort_index()
     
-    # 获取数据（使用 PTTM 计算的 TTM 经营现金流）
+    # 经营现金流 TTM
     cash_earnings_ttm = df['PTTM($$n_cashflow_act_q)']
     total_mv = df['$total_mv']
 
-    # CETOP = TTM经营现金流 / 总市值
+    # CETOP = 经营现金流TTM / 总市值
     # 避免除以0
     total_mv = total_mv.replace(0, np.nan)
     cetop = cash_earnings_ttm / total_mv
-    
-    result_df = pd.DataFrame({'CETOP': cetop})
-    result_df = result_df.dropna()
-    return result_df
+
+    return cetop
 
 
 @time_decorator
-def EM(df):
+@factor_output
+def EM(df) -> pd.Series:
     """
     Enterprise Multiple (企业价值倍数的倒数)
     Formulation: EM = EBIT / EV
@@ -105,16 +105,16 @@ def EM(df):
     """
     df = df.sort_index()
 
-    # ebit 字段缺失值很多
-    ebit = df['P($$ebit_q)']
+    # ebit 字段缺失值很多. 不能设置为 0，因为 ebit 可以为负
+    ebit = df['P($$ebit_a)']
     # 带息债务（缺失视为无该类借款，fillna(0)）
-    st_borr = df['P($$st_borr_q)'].fillna(0)
-    lt_borr = df['P($$lt_borr_q)'].fillna(0)
-    non_cur_liab = df['P($$non_cur_liab_due_1y_q)'].fillna(0)
-    bond_payable = df['P($$bond_payable_q)'].fillna(0)
+    st_borr = df['P($$st_borr_q)'].fillna(0)       # 短期借款[资产负债表]
+    lt_borr = df['P($$lt_borr_q)'].fillna(0)       # 长期借款[资产负债表]
+    non_cur_liab = df['P($$non_cur_liab_due_1y_q)'].fillna(0)       # 一年内到期的非流动负债[资产负债表]
+    bond_payable = df['P($$bond_payable_q)'].fillna(0)   # 应付债券[资产负债表]
     
     # 货币资金和总市值（缺失保留NaN）
-    cash = df['P($$money_cap_q)']
+    cash = df['P($$money_cap_q)'].fillna(0)   # 货币资金[资产负债表]
     total_mv = df['$total_mv']
 
     # 计算总带息债务
@@ -125,14 +125,13 @@ def EM(df):
     ev = ev.replace(0, np.nan)
     # EM = EBIT / EV
     em = ebit / ev
-    
-    result_df = pd.DataFrame({'EM': em})
-    result_df = result_df.dropna()
-    return result_df
+
+    return em
 
 
 @time_decorator
-def LTRSTR(df):
+@factor_output
+def LTRSTR(df) -> pd.Series:
     """
     Long Term Relative Strength (长期相对强度)
     Formulation: 
@@ -140,49 +139,40 @@ def LTRSTR(df):
             时间窗口1040个交易日，半衰期260个交易日
         (2) 滞后273个交易日，在11个交易日的时间窗口内取非滞后值等权平均值，然后取相反数
     Description：衡量股票在超长期（3-5年）维度上，其价格趋势的疲弱或超跌程度。
-    数据字段：股票收盘价涨跌幅、沪深300指数涨跌幅
+    数据字段：股票收盘价、沪深300指数
     """
     df = df.sort_index()
     
-    # 获取股票收益率
-    stock_ret = df['$change']
+    # 股票对数收益率
+    close = df['$close']
+
+    stock_ret = get_ret(close)
+    log_stock_ret = np.log(1 + stock_ret)
     
-    # 计算时间范围
+    # 市场对数收益率
     start_date = str(stock_ret.index.get_level_values('datetime').min())[:10]
     end_date = str(stock_ret.index.get_level_values('datetime').max())[:10]
-    
-    # 使用 utils 中的工具函数获取基准收益率
-    from .utils import get_benchmark_ret
-    benchmark_ret = get_benchmark_ret(start_date, end_date)
-    
-    # 计算对数超额收益率（按股票分组处理，避免stack/unstack）
-    def calc_excess_ret(group):
-        # 对齐基准收益率
-        common_dates = group.index.get_level_values('datetime').intersection(benchmark_ret.index)
-        group_ret = group[group.index.get_level_values('datetime').isin(common_dates)]
-        bm_ret = benchmark_ret.loc[common_dates]
-        return pd.Series(np.log((1 + group_ret.values) / (1 + bm_ret.values)), index=group_ret.index)
-    
-    excess_ret = stock_ret.groupby(level='instrument', group_keys=False).apply(calc_excess_ret)
-    
-    # 使用 utils 中的 rolling_with_func 进行半衰期加权滚动求和
-    from .utils import rolling_with_func
+    bench_ret = data_loader.load_benchmark_ret(start_date, end_date)
+    log_bm_ret = np.log(1 + bench_ret)
+
+    # 相对于市场的对数超额收益率
+    excess_ret = log_stock_ret - log_bm_ret
+
     ltrstr_raw = excess_ret.groupby(level='instrument', group_keys=False).apply(
         lambda x: rolling_with_func(x, window=1040, half_life=260, func_name='sum')
     )
-    
+
     # 滞后273个交易日，并在11个交易日窗口内取平均，然后取相反数
-    ltrstr = (-1) * ltrstr_raw.groupby(level='instrument', group_keys=False).apply(
-        lambda x: x.shift(273).rolling(window=11, min_periods=1).mean()
+    ltrstr = (-1) * ltrstr_raw.groupby(level='instrument', group_keys=False).transform(
+        lambda x: x.rolling(window=11, min_periods=1).mean().shift(273)
     )
-    
-    result_df = pd.DataFrame({'LTRSTR': ltrstr})
-    result_df = result_df.dropna()
-    return result_df
+
+    return ltrstr
 
 
 @time_decorator
-def LTHALPHA(df):
+@factor_output
+def LTHALPHA(df) -> pd.Series:
     """
     Long Term Historical Alpha (长期历史alpha)
     Formulation:
@@ -190,28 +180,18 @@ def LTHALPHA(df):
             时间窗口1040个交易日，半衰期260个交易日
         (2) 滞后273个交易日，在11个交易日的时间窗口内取非滞后值等权平均值，然后取相反数
     Description：衡量股票在超长期（3-5年）维度上，其经风险调整后的超额收益的缺失或落后程度。
-    数据字段：股票收盘价涨跌幅、沪深300指数收盘价涨跌幅
     """
     df = df.sort_index()
-    
-    # 获取股票收益率
-    stock_ret = df['$change']
+
+    close = df['$close']
+    ex_ret = get_excess_ret(close)
     
     # 使用 capm_regress 计算 alpha
     # window=1040, half_life=260
-    beta, alpha, sigma = capm_regress(stock_ret, window=1040, half_life=260, num_worker=1)
-    
-    # 将 alpha 转为宽表格式进行处理
-    alpha_wide = alpha.unstack(level='instrument')
-    
-    # 滞后273个交易日，并在11个交易日窗口内取平均，然后取相反数
-    lthalpha = (-1) * alpha_wide.shift(273).rolling(window=11, min_periods=1).mean()
-    
-    # 转回 MultiIndex 格式
-    lthalpha_series = lthalpha.stack()
-    lthalpha_series.index.names = ['datetime', 'instrument']
-    lthalpha_series = lthalpha_series.reorder_levels(['instrument', 'datetime']).sort_index()
-    
-    result_df = pd.DataFrame({'LTHALPHA': lthalpha_series})
-    result_df = result_df.dropna()
-    return result_df
+    beta, alpha, sigma = capm_regress(ex_ret, window=1040, half_life=260, num_worker=1)
+
+    lthalpha = -alpha.groupby(level='instrument', group_keys=False).transform(
+        lambda x: x.rolling(window=11, min_periods=1).mean().shift(273)
+    )
+
+    return lthalpha
