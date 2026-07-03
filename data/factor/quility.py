@@ -1,14 +1,15 @@
 """质量因子 - 杠杆因子、盈利质量、盈利能力、投资质量"""
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+
+from utils.dt import time_decorator
 from .utils import (
     remap_lyr, calc_cv, get_annual_data, get_annual_data2,
     map_annual_to_daily, calc_growth_rate_slope,
-    get_annual_data_year_end,
     factor_output
 )
-from utils.dt import time_decorator
+
 
 # ==================== Leverage (杠杆) ====================
 
@@ -24,9 +25,9 @@ def MLEV(df) -> pd.Series:
 
     me = df['$total_mv']                                    # 总市值
     me = me.groupby(level='instrument').shift(1)            # 滞后1日，避免前视偏差
-    pe = df['P($$oth_eqt_tools_p_shr_a)'].fillna(0)         # 优先股
-    # 长期借款 + 应付债券 + 长期应付款
-    ld = df['P($$lt_borr_a)'].fillna(0) + df['P($$bond_payable_a)'].fillna(0) + df['P($$lt_payable_a)'].fillna(0)
+    pe = df['P($$oth_eqt_tools_p_shr_q)'].fillna(0)         # 优先股[资产负债表]
+    # 长期借款[资产负债表] + 应付债券[资产负债表] + 长期应付款 [资产负债表]
+    ld = df['P($$lt_borr_q)'].fillna(0) + df['P($$bond_payable_q)'].fillna(0) + df['P($$lt_payable_q)'].fillna(0)
 
     # 防止分母为 0
     me[me == 0] = np.nan
@@ -46,11 +47,11 @@ def BLEV(df) -> pd.Series:
     """
     df = df.sort_index()
 
-    pe = df['P($$oth_eqt_tools_p_shr_a)'].fillna(0)            # 优先股
-    # 长期借款 + 应付债券 + 长期应付款
-    ld = df['P($$lt_borr_a)'].fillna(0) + df['P($$bond_payable_a)'].fillna(0) + df['P($$lt_payable_a)'].fillna(0)
-    # BE = 股东权益合计(不含少数股东权益) - 优先股
-    be = df['P($$total_hldr_eqy_exc_min_int_a)'] - pe
+    pe = df['P($$oth_eqt_tools_p_shr_q)'].fillna(0)            # 优先股[资产负债表]
+    # 长期借款[资产负债表] + 应付债券[资产负债表] + 长期应付款 [资产负债表]
+    ld = df['P($$lt_borr_q)'].fillna(0) + df['P($$bond_payable_q)'].fillna(0) + df['P($$lt_payable_q)'].fillna(0)
+    # BE = 股东权益合计(不含少数股东权益)[资产负债表] - 优先股[资产负债表]
+    be = df['P($$total_hldr_eqy_exc_min_int_q)'] - pe
 
     be[be == 0] = np.nan
     blev = (be + pe + ld) / be
@@ -68,8 +69,8 @@ def DTOA(df):
     """
     df = df.sort_index()
 
-    tl = df['P($$total_liab_a)'].fillna(0)    # 负债合计
-    ta = df['P($$total_assets_q)']            # 资产总计
+    tl = df['P($$total_liab_q)'].fillna(0)    # 负债合计[资产负债表]
+    ta = df['P($$total_assets_q)']            # 资产总计[资产负债表]
 
     ta[ta == 0] = np.nan
     dtoa = tl / ta
@@ -140,10 +141,9 @@ def VFLO(df):
     Formulation: std(n_cashflow_act, 5Y) / mean(n_cashflow_act, 5Y)
     Description：过去五个财年的年经营性活动现金流标准差除以平均经营性活动现金流。
         反映公司经营活动产生现金的稳定性和可预测性。
-    数据字段：经营活动产生的现金流量净额
     """
     df = df.sort_index()
-    cf = df['P($$n_cashflow_act_a)']
+    cf = df['P($$n_cashflow_act_a)']   # 经营活动产生的现金流量净额
 
     annual_cf = get_annual_data2(cf)
     cv = calc_cv(annual_cf, window=5, min_periods=3, is_abs=True)
@@ -268,7 +268,7 @@ def ACF(df):
 
 @time_decorator
 @factor_output
-def ATO(df):
+def ATO(df) -> pd.Series:
     """
     Asset Turnover (资产周转率)
     Formulation: ATO = Sales(TTM) / TA
@@ -291,7 +291,7 @@ def ATO(df):
 
 @time_decorator
 @factor_output
-def GP(df):
+def GP(df) -> pd.Series:
     """
     Gross Profitability (资产毛收益率)
     Formulation: GP = (Sales - COGS) / TA
@@ -315,7 +315,7 @@ def GP(df):
 
 @time_decorator
 @factor_output
-def GPM(df):
+def GPM(df) -> pd.Series:
     """
     Gross Profit Margin (销售毛利率)
     Formulation: GPM = (Sales - COGS) / Sales
@@ -340,7 +340,7 @@ def GPM(df):
 
 @time_decorator
 @factor_output
-def ROA(df):
+def ROA(df) -> pd.Series:
     """
     Return On Assets (总资产收益率)
     Formulation: ROA = Earnings(TTM) / TA
@@ -349,8 +349,8 @@ def ROA(df):
     """
     df = df.sort_index()
     
-    # TTM 净利润和总资产
-    earnings_ttm = df['PTTM($$n_income_attr_p_q)'].fillna(0)
+    # 净利润 TTM. 不要填充为0，因为净利润可以为负
+    earnings_ttm = df['PTTM($$n_income_attr_p_q)']
     ta = df['P($$total_assets_q)']    # 资产总计[资产负债表]
 
     # 计算 ROA
@@ -364,7 +364,7 @@ def ROA(df):
 
 @time_decorator
 @factor_output
-def AGRO(df):
+def AGRO(df) -> pd.Series:
     """
     Total Assets Growth Rate (总资产增长率)
     Formulation: AGRO = -(过去5年总资产对时间回归的斜率 / 平均总资产)
@@ -372,7 +372,7 @@ def AGRO(df):
     数据字段：资产总计
     """
     df = df.sort_index()
-    ta = df['P($$total_assets_a)']
+    ta = df['P($$total_assets_q)']       # 资产总计[资产负债表]
 
     # 提取年度数据
     annual_ta = get_annual_data2(ta)
@@ -389,7 +389,7 @@ def AGRO(df):
 
 @time_decorator
 @factor_output
-def IGRO(df):
+def IGRO(df) -> pd.Series:
     """
     Issuance Growth (股票发行量增长率)
     Formulation: IGRO = -(过去5年流通股本对时间回归的斜率 / 平均流通股本)
@@ -424,7 +424,7 @@ def IGRO(df):
 
 @time_decorator
 @factor_output
-def CXGRO(df):
+def CXGRO(df) -> pd.Series:
     """
     Capital Expenditure Growth (资本支出增长率)
     Formulation: CXGRO = -(过去5年资本支出对时间回归的斜率 / 平均资本支出)
