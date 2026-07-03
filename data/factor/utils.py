@@ -839,9 +839,9 @@ def calc_growth_rate_slope(series, window=5, min_periods=3):
         valid = y[valid_mask]
         if len(valid) < min_periods:
             return np.nan
-        # 保留原始时间位置）
+        # 保留原始时间位置
         x = np.arange(1, len(y) + 1)[valid_mask.values]
-        # 线性回归: y = a + b*x，使用 WLS 等权回归（与 BARRA _cal_growth_rate 的 _regress 对应）
+        # 线性回归: y = a + b*x，使用 WLS 等权回归
         slope, _, _ = WLS(
             pd.DataFrame(valid.values),
             pd.DataFrame(x),
