@@ -61,7 +61,7 @@ def BLEV(df) -> pd.Series:
 
 @time_decorator
 @factor_output
-def DTOA(df):
+def DTOA(df) -> pd.Series:
     """
     Formulation: DTOA = TL / TA
     Description：【债务资产比因子】衡量企业负债水平。
@@ -82,7 +82,7 @@ def DTOA(df):
 
 @time_decorator
 @factor_output
-def VSAL(df):
+def VSAL(df) -> pd.Series:
     """
     Variation in Sales (营业收入波动率)
     Formulation: std(revenue, 5Y) / mean(revenue, 5Y)
@@ -114,7 +114,7 @@ def VSAL(df):
 
 @time_decorator
 @factor_output
-def VERN(df):
+def VERN(df) -> pd.Series:
     """
     Variation in Earnings (盈利波动率)
     Formulation: std(n_income_attr_p, 5Y) / mean(n_income_attr_p, 5Y)
@@ -135,7 +135,7 @@ def VERN(df):
 
 @time_decorator
 @factor_output
-def VFLO(df):
+def VFLO(df) -> pd.Series:
     """
     Variation in Cash-Flows (现金流波动率)
     Formulation: std(n_cashflow_act, 5Y) / mean(n_cashflow_act, 5Y)
