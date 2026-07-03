@@ -163,6 +163,8 @@ get_data_from_mysql(){
           SELECT 'non_cur_liab_due_1y', b.non_cur_liab_due_1y
           UNION ALL
           SELECT 'bond_payable', b.bond_payable
+          UNION ALL
+          SELECT 'lt_payable', b.lt_payable
         ) AS jb
       WHERE
         b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH')
