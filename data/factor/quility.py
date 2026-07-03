@@ -5,93 +5,76 @@ import numpy as np
 from .utils import (
     remap_lyr, calc_cv, get_annual_data, get_annual_data2,
     map_annual_to_daily, calc_growth_rate_slope,
-    get_annual_data_year_end
+    get_annual_data_year_end,
+    factor_output
 )
 from utils.dt import time_decorator
 
-# ==================== Leverage (盈利波动率) ====================
+# ==================== Leverage ====================
 
 @time_decorator
-def MLEV(df):
+@factor_output
+def MLEV(df) -> pd.Series:
     """
     Formulation: MLEV = (ME + PE + LD) / ME
     Description：【市场杠杆因子】衡量企业整体杠杆水平。
-        ME 为总市值，PE 为优先股，LD 为非流动负债。
-        财年规则：1-4月使用上上财年数据，5月及之后使用上财年数据。
+        ME 为总市值，PE 为优先股，LD 长期负债
     """
     df = df.sort_index()
 
-    me = df['$total_mv']                              # 总市值
-    me = me.groupby(level='instrument').shift(1)  # 滞后1日，避免前视偏差
-    pe_raw = df['P($$oth_eqt_tools_p_shr_q)']     # 优先股
-    ld_raw = df['P($$total_ncl_q)']               # 非流动负债合计
+    me = df['$total_mv']                                    # 总市值
+    me = me.groupby(level='instrument').shift(1)            # 滞后1日，避免前视偏差
+    pe = df['P($$oth_eqt_tools_p_shr_a)'].fillna(0)         # 优先股
+    # 长期借款 + 应付债券 + 长期应付款
+    ld = df['P($$lt_borr_a)'].fillna(0) + df['P($$bond_payable_a)'].fillna(0) + df['P($$lt_payable_a)'].fillna(0)
 
-    # 按财年规则重映射财务数据
-    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q').fillna(0)
-    ld = remap_lyr(ld_raw, 'total_ncl_q').fillna(0)
-
+    # 防止分母为 0
+    me[me == 0] = np.nan
     mlev = (me + pe + ld) / me
 
-    result_df = pd.DataFrame({'MLEV': mlev})
-    result_df = result_df.dropna()
-    return result_df
+    return mlev
 
 
 @time_decorator
-def BLEV(df):
+@factor_output
+def BLEV(df) -> pd.Series:
     """
     Formulation: BLEV = (BE + PE + LD) / BE
                   其中 BE = 股东权益合计(不含少数股东权益) - 其他权益工具(优先股)
     Description：【账面杠杆因子】衡量企业账面杠杆水平。
-        BE 为账面权益，PE 为优先股，LD 为非流动负债。
-        财年规则：1-4月使用上上财年数据，5月及之后使用上财年数据。
+        BE 为账面权益，PE 为优先股，LD 为长期负债
     """
     df = df.sort_index()
 
-    pe_raw = df['P($$oth_eqt_tools_p_shr_q)']             # 优先股
-    ld_raw = df['P($$total_ncl_q)']                       # 非流动负债合计
-    be_raw_raw = df['P($$total_hldr_eqy_exc_min_int_q)']  # 股东权益合计(不含少数股东权益)
-
-    # 按财年规则重映射财务数据
-    pe = remap_lyr(pe_raw, 'oth_eqt_tools_p_shr_q').fillna(0)
-    ld = remap_lyr(ld_raw, 'total_ncl_q').fillna(0)
-    be_raw = remap_lyr(be_raw_raw, 'total_hldr_eqy_exc_min_int_q').fillna(0)
-
+    pe = df['P($$oth_eqt_tools_p_shr_a)'].fillna(0)            # 优先股
+    # 长期借款 + 应付债券 + 长期应付款
+    ld = df['P($$lt_borr_a)'].fillna(0) + df['P($$bond_payable_a)'].fillna(0) + df['P($$lt_payable_a)'].fillna(0)
     # BE = 股东权益合计(不含少数股东权益) - 优先股
-    be = be_raw - pe
-    # 将be 元素为0的设置NaN，防止除以0错误
-    be[be == 0] = np.nan
+    be = df['P($$total_hldr_eqy_exc_min_int_a)'] - pe
 
+    be[be == 0] = np.nan
     blev = (be + pe + ld) / be
 
-    result_df = pd.DataFrame({'BLEV': blev})
-    result_df = result_df.dropna()
-    return result_df
+    return blev
 
 
 @time_decorator
+@factor_output
 def DTOA(df):
     """
     Formulation: DTOA = TL / TA
     Description：【债务资产比因子】衡量企业负债水平。
         TL 为负债合计，TA 为资产总计。
-        财年规则：1-4月使用上上财年数据，5月及之后使用上财年数据。
     """
     df = df.sort_index()
 
-    tl_raw = df['P($$total_liab_q)']    # 负债合计
-    ta_raw = df['P($$total_assets_q)']  # 资产总计
-    tl_raw.fillna(0, inplace=True)
+    tl = df['P($$total_liab_a)'].fillna(0)    # 负债合计
+    ta = df['P($$total_assets_a)']            # 资产总计
 
-    # 按财年规则重映射财务数据
-    tl = remap_lyr(tl_raw, 'total_liab_q')
-    ta = remap_lyr(ta_raw, 'total_assets_q')
-
+    ta[ta == 0] = np.nan
     dtoa = tl / ta
 
-    result_df = pd.DataFrame({'DTOA': dtoa})
-    result_df = result_df.dropna()
-    return result_df
+    return dtoa
 
 
 # ==================== Earnings Variability (盈利波动率) ====================
