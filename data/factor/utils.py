@@ -885,7 +885,7 @@ def calc_cv(series, window=5, min_periods=3):
 
 def map_annual_to_daily(annual_series, daily_index, is_map: bool = True):
     """将年度指标映射回日频
-    
+
     将 (instrument, year) 索引的年度计算结果，按财年规则映射到每个交易日。
     
     映射规则：
@@ -903,6 +903,8 @@ def map_annual_to_daily(annual_series, daily_index, is_map: bool = True):
     
     Returns:
         pd.Series: MultiIndex (instrument, datetime)，日频数据
+
+    Fix：如果股票在 1-4月之间发布年报，如 3/15，那么 3/15 - 4/30 之间并没有用到最新财报数据
     """
     # 构建交易日→fiscal_year 映射
     instruments = daily_index.get_level_values('instrument')
