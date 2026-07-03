@@ -5,12 +5,10 @@
 import pandas as pd
 import numpy as np
 from .utils import capm_regress, cal_cmra, rolling_with_func, factor_output, get_excess_ret
-from utils import dt
+from utils.dt import time_decorator
 from barra.base import BaseDataLoader
 
-
 data_loader = BaseDataLoader()
-time_decorator = dt.time_decorator
 
 
 @time_decorator
