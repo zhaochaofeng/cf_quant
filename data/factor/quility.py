@@ -10,7 +10,7 @@ from .utils import (
 )
 from utils.dt import time_decorator
 
-# ==================== Leverage ====================
+# ==================== Leverage (杠杆) ====================
 
 @time_decorator
 @factor_output
@@ -69,7 +69,7 @@ def DTOA(df):
     df = df.sort_index()
 
     tl = df['P($$total_liab_a)'].fillna(0)    # 负债合计
-    ta = df['P($$total_assets_a)']            # 资产总计
+    ta = df['P($$total_assets_q)']            # 资产总计
 
     ta[ta == 0] = np.nan
     dtoa = tl / ta
@@ -80,6 +80,7 @@ def DTOA(df):
 # ==================== Earnings Variability (盈利波动率) ====================
 
 @time_decorator
+@factor_output
 def VSAL(df):
     """
     Variation in Sales (营业收入波动率)
@@ -89,7 +90,7 @@ def VSAL(df):
     数据字段：营业收入 P($$revenue_q)
     """
     df = df.sort_index()
-    revenue_raw = df['P($$revenue_q)'].fillna(0)
+    revenue = df['P($$revenue_a)']
 
     # 提取年度数据 (instrument, year)，每年仅包含1条数据
     '''
@@ -98,7 +99,7 @@ def VSAL(df):
                 2020    1.165640e+11
     '''
     # Fix: 滚动计算时，前边界小于window的区间值为NaN，需要按照window拉长计算区间
-    annual_rev = get_annual_data(revenue_raw, 'revenue_q')
+    annual_rev = get_annual_data2(revenue)
 
     # 对年度数据计算5年滚动变异系数
     cv = calc_cv(annual_rev, window=5, min_periods=3)
@@ -107,57 +108,49 @@ def VSAL(df):
     # 将年度结果映射回日频
     vsal = map_annual_to_daily(cv, df.index)
 
-    result_df = pd.DataFrame({'VSAL': vsal})
-    result_df = result_df.dropna()
-    return result_df
+    return vsal
 
 
 @time_decorator
+@factor_output
 def VERN(df):
     """
     Variation in Earnings (盈利波动率)
     Formulation: std(n_income_attr_p, 5Y) / mean(n_income_attr_p, 5Y)
     Description：过去五个财年的年净利润标准差除以平均年净利润。
         捕捉公司财务报表底层盈利的稳定程度。
-    数据字段：净利润(不含少数股东损益) P($$n_income_attr_p_q)
+    数据字段：净利润(不含少数股东损益)
     """
     df = df.sort_index()
-    income_raw = df['P($$n_income_attr_p_q)'].fillna(0)
+    income = df['P($$n_income_attr_p_a)']
 
-    annual_income = get_annual_data(income_raw, 'n_income_attr_p_q')
-    cv = calc_cv(annual_income, window=5, min_periods=3)
-    # 取绝对值
-    cv = cv.abs()
+    annual_income = get_annual_data2(income)
+    cv = calc_cv(annual_income, window=5, min_periods=3, is_abs=True)
     cv = cv.reset_index(level=0, drop=True)
     vern = map_annual_to_daily(cv, df.index)
 
-    result_df = pd.DataFrame({'VERN': vern})
-    result_df = result_df.dropna()
-    return result_df
+    return vern
 
 
 @time_decorator
+@factor_output
 def VFLO(df):
     """
     Variation in Cash-Flows (现金流波动率)
     Formulation: std(n_cashflow_act, 5Y) / mean(n_cashflow_act, 5Y)
     Description：过去五个财年的年经营性活动现金流标准差除以平均经营性活动现金流。
         反映公司经营活动产生现金的稳定性和可预测性。
-    数据字段：经营活动产生的现金流量净额 P($$n_cashflow_act_q)
+    数据字段：经营活动产生的现金流量净额
     """
     df = df.sort_index()
-    cf_raw = df['P($$n_cashflow_act_q)'].fillna(0)
+    cf = df['P($$n_cashflow_act_a)']
 
-    annual_cf = get_annual_data2(cf_raw, 'n_cashflow_act_q')
-    cv = calc_cv(annual_cf, window=5, min_periods=3)
-    # 取绝对值
-    cv = cv.abs()
+    annual_cf = get_annual_data2(cf)
+    cv = calc_cv(annual_cf, window=5, min_periods=3, is_abs=True)
     cv = cv.reset_index(level=0, drop=True)
     vflo = map_annual_to_daily(cv, df.index)
 
-    result_df = pd.DataFrame({'VFLO': vflo})
-    result_df = result_df.dropna()
-    return result_df
+    return vflo
 
 
 # ==================== Earnings Quality (盈利质量) ====================
@@ -274,6 +267,7 @@ def ACF(df):
 # ==================== Profitability (盈利能力) ====================
 
 @time_decorator
+@factor_output
 def ATO(df):
     """
     Asset Turnover (资产周转率)
@@ -286,17 +280,17 @@ def ATO(df):
     
     # TTM 营业收入和总资产
     sales_ttm = df['PTTM($$revenue_q)']
-    ta = df['P($$total_assets_q)']   # 最近报告期的总资产[资产负债表]
+    ta = df['P($$total_assets_q)']   # 总资总计[资产负债表]
 
     # 计算 ATO
+    ta[ta == 0] = np.nan
     ato = sales_ttm / ta
-    
-    result_df = pd.DataFrame({'ATO': ato})
-    result_df = result_df.dropna()
-    return result_df
+
+    return ato
 
 
 @time_decorator
+@factor_output
 def GP(df):
     """
     Gross Profitability (资产毛收益率)
@@ -307,26 +301,20 @@ def GP(df):
     注意：营业成本字段为 revenue_q
     """
     df = df.sort_index()
-    
-    # 使用上财年数据
-    sales_raw = df['P($$revenue_q)'].fillna(0)
-    # 营业成本
-    cogs_raw = df['P($$oper_cost_q)'].fillna(0)
-    ta_raw = df['P($$total_assets_q)']
-    
-    sales = remap_lyr(sales_raw, 'revenue_q')
-    cogs = remap_lyr(cogs_raw, 'oper_cost_q')
-    ta = remap_lyr(ta_raw, 'total_assets_q')
-    
+
+    sales = df['P($$revenue_a)'].fillna(0)   # 营业收入
+    cogs = df['P($$oper_cost_a)'].fillna(0)  # 营业成本
+    ta = df['P($$total_assets_q)']           # 资产总计[资产负债表]
+
     # 计算 GP = (Sales - COGS) / TA
+    ta[ta == 0] = np.nan
     gp = (sales - cogs) / ta
-    
-    result_df = pd.DataFrame({'GP': gp})
-    result_df = result_df.dropna()
-    return result_df
+
+    return gp
 
 
 @time_decorator
+@factor_output
 def GPM(df):
     """
     Gross Profit Margin (销售毛利率)
@@ -334,30 +322,24 @@ def GPM(df):
     Description：衡量定价权与成本控制，每单位收入中利润的占比。
         高毛利率通常意味着强大的品牌、定价权或成本优势。
     数据字段：营业收入、营业成本
-    注意：营业成本字段为 revenue_q
     """
     df = df.sort_index()
-    
-    # 使用上财年数据
-    sales_raw = df['P($$revenue_q)'].fillna(0)
+
+    sales = df['P($$revenue_a)']  # 营业收入
     # 营业成本
-    cogs_raw = df['P($$oper_cost_q)'].fillna(0)
-    
-    sales = remap_lyr(sales_raw, 'revenue_q')
-    cogs = remap_lyr(cogs_raw, 'oper_cost_q')
-    
+    cogs = df['P($$oper_cost_a)'].fillna(0)
+
     # 避免除以0
     sales[sales == 0] = np.nan
     
     # 计算 GPM = (Sales - COGS) / Sales
     gpm = (sales - cogs) / sales
-    
-    result_df = pd.DataFrame({'GPM': gpm})
-    result_df = result_df.dropna()
-    return result_df
+
+    return gpm
 
 
 @time_decorator
+@factor_output
 def ROA(df):
     """
     Return On Assets (总资产收益率)
@@ -369,22 +351,19 @@ def ROA(df):
     
     # TTM 净利润和总资产
     earnings_ttm = df['PTTM($$n_income_attr_p_q)'].fillna(0)
-    ta_raw = df['P($$total_assets_q)']
-    
-    # 总资产使用最新报告期数据
-    ta = remap_lyr(ta_raw, 'total_assets_q')
-    
+    ta = df['P($$total_assets_q)']    # 资产总计[资产负债表]
+
     # 计算 ROA
+    ta[ta == 0] = np.nan
     roa = earnings_ttm / ta
-    
-    result_df = pd.DataFrame({'ROA': roa})
-    result_df = result_df.dropna()
-    return result_df
+
+    return roa
 
 
 # ==================== Investment Quality (投资质量) ====================
 
 @time_decorator
+@factor_output
 def AGRO(df):
     """
     Total Assets Growth Rate (总资产增长率)
@@ -393,10 +372,10 @@ def AGRO(df):
     数据字段：资产总计
     """
     df = df.sort_index()
-    ta_raw = df['P($$total_assets_q)'].fillna(0)
+    ta = df['P($$total_assets_a)']
 
     # 提取年度数据
-    annual_ta = get_annual_data(ta_raw, 'total_assets_q')
+    annual_ta = get_annual_data2(ta)
 
     # 对年度数据计算5年滚动增长率
     growth = calc_growth_rate_slope(annual_ta, window=5, min_periods=3)
@@ -405,12 +384,11 @@ def AGRO(df):
     # 将年度结果映射回日频
     agro = -map_annual_to_daily(growth, df.index)
 
-    result_df = pd.DataFrame({'AGRO': agro})
-    result_df = result_df.dropna()
-    return result_df
+    return agro
 
 
 @time_decorator
+@factor_output
 def IGRO(df):
     """
     Issuance Growth (股票发行量增长率)
@@ -422,7 +400,7 @@ def IGRO(df):
     float_share = df['$float_share']
     
     # 提取年度数据（每年最后一个交易日）
-    annual_circ_mv = get_annual_data_year_end(float_share)
+    annual_circ_mv = get_annual_data2(float_share)
     '''
     instrument  year
     SH600000    2018    2.810377e+10
@@ -440,13 +418,12 @@ def IGRO(df):
     '''
     # 将年度结果映射回日频，并取负号
     igro = -map_annual_to_daily(growth, df.index)
-    
-    result_df = pd.DataFrame({'IGRO': igro})
-    result_df = result_df.dropna()
-    return result_df
+
+    return igro
 
 
 @time_decorator
+@factor_output
 def CXGRO(df):
     """
     Capital Expenditure Growth (资本支出增长率)
@@ -455,10 +432,10 @@ def CXGRO(df):
     数据字段：购建固定资产、无形资产和其他长期资产支付的现金
     """
     df = df.sort_index()
-    capex_raw = df['P($$c_pay_acq_const_fiolta_q)'].fillna(0)
+    capex = df['P($$c_pay_acq_const_fiolta_a)']
 
     # 提取年度数据
-    annual_capex = get_annual_data(capex_raw, 'c_pay_acq_const_fiolta_q')
+    annual_capex = get_annual_data2(capex)
 
     # 对年度数据计算5年滚动增长率
     growth = calc_growth_rate_slope(annual_capex, window=5, min_periods=3)
@@ -467,7 +444,4 @@ def CXGRO(df):
     # 将年度结果映射回日频
     cxgro = -map_annual_to_daily(growth, df.index)
 
-    result_df = pd.DataFrame({'CXGRO': cxgro})
-    result_df = result_df.dropna()
-    return result_df
-
+    return cxgro
