@@ -179,7 +179,7 @@ EOF
 )
   else
     sql=$(cat <<-EOF
-      SELECT
+      SELECT  -- 年度数据添加条件 right(c.end_date, 5)='12-31'
         i.f_ann_date AS date,
         i.end_date AS period,
         lower(i.qlib_code) AS symbol,
@@ -241,6 +241,49 @@ EOF
             AND c2.qlib_code = c.qlib_code
             AND c2.end_date = c.end_date
             AND c2.update_flag > c.update_flag
+        )
+
+      UNION ALL
+
+      SELECT
+        b.f_ann_date AS date,
+        b.end_date AS period,
+        lower(b.qlib_code) AS symbol,
+        jb.field,
+        jb.value
+      FROM
+        cf_quant.balance_ts b,   -- 资产负债表
+        LATERAL (
+          SELECT 'oth_eqt_tools_p_shr' AS field, b.oth_eqt_tools_p_shr AS value
+          UNION ALL
+          SELECT 'total_ncl', b.total_ncl
+          UNION ALL
+          SELECT 'total_hldr_eqy_exc_min_int', b.total_hldr_eqy_exc_min_int
+          UNION ALL
+          SELECT 'total_liab', b.total_liab
+          UNION ALL
+          SELECT 'total_assets', b.total_assets
+          UNION ALL
+          SELECT 'money_cap', b.money_cap
+          UNION ALL
+          SELECT 'st_borr', b.st_borr
+          UNION ALL
+          SELECT 'lt_borr', b.lt_borr
+          UNION ALL
+          SELECT 'non_cur_liab_due_1y', b.non_cur_liab_due_1y
+          UNION ALL
+          SELECT 'bond_payable', b.bond_payable
+          UNION ALL
+          SELECT 'lt_payable', b.lt_payable
+        ) AS jb
+      WHERE
+        b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH') and right(c.end_date, 5)='12-31'
+        AND NOT EXISTS (
+          SELECT 1 FROM cf_quant.balance_ts b2
+          WHERE b2.f_ann_date = b.f_ann_date
+            AND b2.qlib_code = b.qlib_code
+            AND b2.end_date = b.end_date
+            AND b2.update_flag > b.update_flag
         )
 EOF
 )
