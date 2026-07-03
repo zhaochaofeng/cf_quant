@@ -277,7 +277,7 @@ EOF
           SELECT 'lt_payable', b.lt_payable
         ) AS jb
       WHERE
-        b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH') and right(c.end_date, 5)='12-31'
+        b.f_ann_date >= '${dt1}' AND b.f_ann_date <= '${dt2}' AND left(b.qlib_code, 2) in ('SZ', 'SH') and right(b.end_date, 5)='12-31'
         AND NOT EXISTS (
           SELECT 1 FROM cf_quant.balance_ts b2
           WHERE b2.f_ann_date = b.f_ann_date
