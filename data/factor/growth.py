@@ -1,7 +1,7 @@
 """
 成长因子
 """
-
+import pandas as pd
 from utils.dt import time_decorator
 from .utils import (
     get_annual_data2,
@@ -13,7 +13,7 @@ from .utils import (
 
 @time_decorator
 @factor_output
-def EGRO(df):
+def EGRO(df) -> pd.Series:
     """
     Historical Earnings Per Share Growth Rate（每股收益增长率）
     
@@ -43,7 +43,7 @@ def EGRO(df):
 
 @time_decorator
 @factor_output
-def SGRO(df):
+def SGRO(df) -> pd.Series:
     """
     Historical Sales Per Share Growth Rate（每股营业收入增长率）
     
