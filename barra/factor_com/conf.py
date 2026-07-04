@@ -18,39 +18,64 @@ from data.factor import (
 
 # Qlib 字段。分组存放
 FIELD_GROUPS = [
-    # 第1组: 基础交易数据（8个字段）
+    # 第1组: 基础交易数据（7个字段）
     {
-        'name': 'base_data',
+        'name': 'base',
         'fields': [
-            '$ind_one',        # 行业ID
-            '$change',         # 收盘价涨跌幅
+            '$ind_one',        # 一级行业分类code
             '$close',          # 收盘价
             '$circ_mv',        # 流通市值（万元）
-            '$total_mv',       # 总市值 （万元）
+            '$total_mv',       # 总市值（万元）
             '$total_share',    # 总股本（万股）
             '$float_share',    # 流通股本（万股）
-            '$amount',         # 成交金额
+            '$amount',         # 成交额
         ]
     },
-    # 第2组: 资产负债表（6个字段）
+    # 第2组: 利润表（5个字段）
+    {
+        'name': 'income',
+        'fields': [
+            'P($$revenue_a)',              # 营业收入(年度)
+            'P($$n_income_attr_p_a)',      # 净利润(不含少数股东损益)(年度)
+            'P($$oper_cost_a)',            # 营业成本(年度)
+            'P($$basic_eps_a)',            # 基本每股收益(年度)
+            'P($$ebit_a)',                 # 息税前利润(年度)
+        ]
+    },
+    # 第3组: 资产负债表（10个字段）
     {
         'name': 'balance',
         'fields': [
-            'P($$oth_eqt_tools_p_shr_q)',          # 优先股
-            'P($$total_ncl_q)',                    # 非流动负债合计
+            'P($$oth_eqt_tools_p_shr_q)',          # 其他权益工具(优先股)
             'P($$total_hldr_eqy_exc_min_int_q)',   # 股东权益合计(不含少数股东权益)
             'P($$total_assets_q)',                 # 资产总计
             'P($$total_liab_q)',                   # 负债合计
-            'P($$money_cap_q)'                     # 货币资金
+            'P($$money_cap_q)',                    # 货币资金
+            'P($$st_borr_q)',                      # 短期借款
+            'P($$lt_borr_q)',                      # 长期借款
+            'P($$non_cur_liab_due_1y_q)',          # 一年内到期的非流动负债
+            'P($$bond_payable_q)',                 # 应付债券
+            'P($$lt_payable_q)',                   # 长期应付款
         ]
     },
-    # 第6组: TTM数据（3个字段）
+    # 第4组: 现金流量表（5个字段）
+    {
+        'name': 'cashflow',
+        'fields': [
+            'P($$n_cashflow_act_a)',               # 经营活动产生的现金流量净额(年度)
+            'P($$depr_fa_coga_dpba_a)',            # 固定资产折旧、油气资产折耗、生产性生物资产折旧(年度)
+            'P($$amort_intang_assets_a)',          # 无形资产摊销(年度)
+            'P($$lt_amort_deferred_exp_a)',        # 长期待摊费用摊销(年度)
+            'P($$c_pay_acq_const_fiolta_a)',       # 购建固定资产、无形资产和其他长期资产支付的现金(年度)
+        ]
+    },
+    # 第5组: TTM（3个字段）
     {
         'name': 'TTM',
         'fields': [
-            'PTTM($$revenue_q)',           # 营业收入
-            'PTTM($$n_income_attr_p_q)',   # 净利润(不含少数股东损益)
-            'PTTM($$n_cashflow_act_q)'     # 经营活动产生的现金流量净额
+            'PTTM($$revenue_q)',           # 营业收入(TTM)
+            'PTTM($$n_income_attr_p_q)',   # 净利润(不含少数股东损益)(TTM)
+            'PTTM($$n_cashflow_act_q)',    # 经营活动产生的现金流量净额(TTM)
         ]
     },
 ]
@@ -108,16 +133,16 @@ for category, factors in CNE6_STYLE_FACTORS.items():
     STYLE_FACTOR_LIST.extend(factors)
 
 # 暂时排除的因子
-exclude_factors = [
-    'VFLO', 'ROA', 'AGRO', 'VSAL', 'VERN', 'CXGRO',
-    'EGRO', 'SGRO', 'DTOA', 'BTOP', 'GPM', 'MLEV',
-    'BLEV', 'GP', 'ACF', 'ABS', 'EM', 'LTHALPHA'
-]
-# 多重共线性排除的因子
-exclude_vif = ['LTRSTR', 'STOQ']
-
-STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_factors]
-STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_vif]
+# exclude_factors = [
+#     'VFLO', 'ROA', 'AGRO', 'VSAL', 'VERN', 'CXGRO',
+#     'EGRO', 'SGRO', 'DTOA', 'BTOP', 'GPM', 'MLEV',
+#     'BLEV', 'GP', 'ACF', 'ABS', 'EM', 'LTHALPHA'
+# ]
+# # 多重共线性排除的因子
+# exclude_vif = ['LTRSTR', 'STOQ']
+#
+# STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_factors]
+# STYLE_FACTOR_LIST = [f for f in STYLE_FACTOR_LIST if f not in exclude_vif]
 
 # 因子计算函数字典
 FACTOR_FUNCTIONS = {
