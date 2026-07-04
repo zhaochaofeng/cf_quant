@@ -30,7 +30,7 @@ def run(calc_date: str,
     start_date = dt.subtract_months(calc_date, history_months)
     end_date = calc_date
     print(f'start_date: {start_date}, calc_date: {end_date}')
-    data_loader = DataLoader()
+    data_loader = DataLoader(market='all')
     exp_builder = CNE6IndExposure()
     instruments = data_loader.load_instruments(start_date, end_date)
     industry_df = data_loader.load_industry(instruments, start_date, end_date)

@@ -358,7 +358,7 @@ class CNE6IndExposure:
         # 5. 验证正交性 + VIF 检验（可选，仅用于监控）
         self.verify_orthogonality(standardized, threshold=0.5)
         if not self.verify_vif(standardized):
-            send_email('Barra: risk_control', '因子VIF检验未通过，因子间存在多重共线性 ！！！')
+            send_email('Barra: factors_exposure', '因子VIF检验未通过，因子间存在多重共线性 ！！！')
 
         # 6. 合并行业因子
         industry_dummies = get_industry_dummies(industry_df, drop_first=False, prefix='ind')
