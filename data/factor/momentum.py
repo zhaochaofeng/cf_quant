@@ -28,7 +28,7 @@ data_loader = BaseDataLoader()
 @time_decorator
 @factor_output
 def STREV(df: pd.DataFrame) -> pd.Series:
-    """ Short Long Reversal """
+    """ Short Term Reversal """
     # 确保索引排序
     df = df.sort_index()
 
@@ -47,17 +47,16 @@ def STREV(df: pd.DataFrame) -> pd.Series:
     # ln(1+R_s) - ln(1+R_b) = ln((1+R_s)/(1+R_b))
     # log_bm_ret 会自动广播到 log_ret 的 instrument 对应的 datetime索引
     short_long = log_ret - log_bm_ret
-    slrev = short_long.groupby(level='instrument').apply(
+    strev = short_long.groupby(level='instrument').apply(
         lambda x: rolling_with_func(x, window=63, half_life=10, func_name='sum')
     )
-    slrev = slrev.reset_index(level=0, drop=True)
-    slrev *= -1
-    slrev = slrev.groupby(level='instrument').apply(
+    strev = strev.reset_index(level=0, drop=True)
+    strev *= -1
+    strev = strev.groupby(level='instrument').transform(
         lambda x: x.rolling(window=3, min_periods=1).mean().shift(1)
     )
-    slrev = slrev.reset_index(level=0, drop=True)
 
-    return slrev
+    return strev
 
 
 @time_decorator
