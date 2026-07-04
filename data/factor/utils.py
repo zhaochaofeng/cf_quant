@@ -32,24 +32,6 @@ def get_qlib_data(instruments: Union[str, list], fields: list, start_date: str, 
     return df
 
 
-def get_benchmark_ret(start_date: str, end_date: str) -> pd.Series:
-    """获取 Benchmark 收益率（带缓存）"""
-    bm_key = (BENCHMARK_CONFIG['BENCHMARK'], start_date, end_date)
-    if bm_key in _benchmark_cache:
-        return _benchmark_cache[bm_key]
-    try:
-        benchmark_df = get_qlib_data(
-            instruments=[BENCHMARK_CONFIG['BENCHMARK']], fields=['$change'],
-            start_date=start_date, end_date=end_date,
-        )
-        benchmark_ret = benchmark_df['$change']
-        if benchmark_ret.index.nlevels > 1:
-            benchmark_ret = benchmark_ret.droplevel('instrument')
-    except Exception as e:
-        raise Exception(f"获取 Benchmark ret 数据失败: {e}")
-    _benchmark_cache[bm_key] = benchmark_ret
-    return benchmark_ret
-
 
 def get_exp_weight(window, half_life):
     """ 半衰期权重 . 如：
@@ -562,46 +544,6 @@ def cal_liquidity(series, days_per_month=21, sentinel=SENTINEL, min_valid_ratio=
     return res
 
 
-def calc_seasonality(group, nyears=5, value_col='$change'):
-    """计算单个股票的季节性因子
-    
-    用于 SEASON 因子计算，计算过去 nyears 年同月份的超额收益均值。
-    
-    Args:
-        group: pd.DataFrame, 单个股票的数据，包含 'datetime', 'month' 和 value_col 列
-        nyears: int, 计算历史均值的年数，默认5年
-        value_col: str, 收益率列名，默认 '$change'
-    
-    Returns:
-        pd.DataFrame: 包含 'instrument', 'datetime', 'SEASON' 列的 DataFrame
-    """
-    group = group.sort_values('datetime')
-    result = []
-    
-    for idx, row in group.iterrows():
-        current_month = row['month']
-        current_date = row['datetime']
-        
-        # 获取过去同月份的数据（不包括当前月，因为当前月是被预测的对象）
-        # 每一行对应一个 historical
-        historical = group[
-            (group['month'] == current_month) & 
-            (group['datetime'] < current_date)
-        ]
-        
-        # 取最近 nyears 年的均值
-        if len(historical) > 0:
-            season_val = historical.tail(nyears)[value_col].mean()
-        else:
-            season_val = np.nan
-        
-        result.append({
-            'instrument': row['instrument'],
-            'datetime': current_date,
-            'SEASON': season_val
-        })
-    
-    return pd.DataFrame(result)
 
 
 def get_annual_data(series, field_name: str):
@@ -764,63 +706,6 @@ def get_annual_data2(series: pd.Series):
     return annual_data
 
 
-def get_annual_data_year_end(series):
-    """从日频数据中提取年度数据（每年最后一个交易日的值）
-    
-    与 get_annual_data 不同：本函数取每年最后一个交易日的值，
-    适用于日频交易数据（如市值、价格等），而非财务报告数据。
-    
-    Args:
-        series: pd.Series, MultiIndex (instrument, datetime)
-                日频数据（如 $circ_mv, $close 等）
-    
-    Returns:
-        pd.Series: MultiIndex (instrument, year), 年度数据
-                   year 为数据所在年份
-    """
-    data = series.reset_index()
-    data.columns = ['instrument', 'datetime', 'value']
-    data['year'] = data['datetime'].dt.year
-    '''
-      instrument   datetime         value  year
-    0   SZ000001 2018-05-02  1.691798e+10  2018
-    1   SZ000001 2018-05-03  1.691798e+10  2018
-    '''
-    # 取每年最后一个交易日的值
-    annual = data.groupby(['instrument', 'year']).last().reset_index()
-    '''
-      instrument  year   datetime         value
-    0   SH600000  2018 2018-12-28  2.810377e+10
-    1   SH600000  2019 2019-12-31  2.810377e+10
-    '''
-    annual = annual.set_index(['instrument', 'year'])['value']
-    annual.index.names = ['instrument', 'year']
-    annual.name = series.name
-    return annual
-
-
-def calc_variation(series, window=5, min_periods=3):
-    """计算过去N年的变异系数（标准差/均值）
-    
-    Args:
-        series: pd.Series, MultiIndex (instrument, year) 年度数据
-        window: int, 窗口年数，默认5年
-        min_periods: int, 最小有效年数，默认3年
-    
-    Returns:
-        pd.Series: 变异系数
-    """
-    def _calc_cv(x):
-        valid = x.dropna()
-        if len(valid) < min_periods:
-            return np.nan
-        std = valid.std()
-        mean = valid.mean()
-        if mean == 0 or np.isnan(mean):
-            return np.nan
-        return std / mean
-    
-    return series.groupby(level='instrument').rolling(window=window, min_periods=min_periods).apply(_calc_cv, raw=False)
 
 
 def calc_growth_rate_slope(series, window=5, min_periods=3):
