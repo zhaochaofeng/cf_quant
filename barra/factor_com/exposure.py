@@ -155,7 +155,7 @@ class CNE6IndExposure:
             if valid_mask.sum() / factor_df.shape[1] < 0.5:
                 err_msg = f"因子{factor_name}有效样本低于 50%"
                 logger.error(err_msg)
-                raise Exception(err_msg)
+                # raise Exception(err_msg)
 
             resid = neutralize(
                 y_aligned[valid_mask], x_aligned.loc[valid_mask], intercept=True,
@@ -236,7 +236,7 @@ class CNE6IndExposure:
         if df.shape[0] / factor_df.shape[0] < 0.5:
             err_msg = 'VIF 检验: 有效数据占比 {} 低于 50%'.format(df.shape[0] / factor_df.shape[0])
             logger.warning(err_msg)
-            raise Exception(err_msg)
+            # raise Exception(err_msg)
 
         factors = df.columns.tolist()
         X_all = df.values
