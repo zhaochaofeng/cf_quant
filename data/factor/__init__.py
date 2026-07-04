@@ -1,11 +1,6 @@
 '''
     因子库建设
-规则：
-    1）返回 pd.Series
-    2）因子删除 NaN 元素
-    3）按照 <instrument, datetime> 排序
 '''
-
 
 
 """ 表达式因子 """
@@ -15,41 +10,41 @@ from .factor_func import (
 
 """ 函数因子-CNE6 (当前38个) """
 # 函数因子输入的df 索引为 <instrument, datetime>
-# 1.规模因子
+# 1.规模因子（2个）
 from .size import (
     LNCAP, MIDCAP
 )
 
-# 2.波动率因子
+# 2.波动率因子（4个）
 from .volatility import (
     HBETA, HSIGMA, DASTD, CMRA
 )
 
-# 3.流动性因子
+# 3.流动性因子（4个）
 from .liquidity import (
     STOM, STOQ, STOA, ATVR
 )
 
-# 4.动量因子
+# 4.动量因子（5个）
 from .momentum import (
     STREV, SEASON, INDMOM, RSTR, HALPHA
 )
 
-# 5.质量因子
+# 5.质量因子（15个）
 from .quility import (
-    MLEV, BLEV, DTOA,  # 杠杆
-    VSAL, VERN, VFLO,  # 盈利波动性
-    ABS, ACF,          # 盈利质量
+    MLEV, BLEV, DTOA,   # 杠杆
+    VSAL, VERN, VFLO,   # 盈利波动性
+    ABS, ACF,           # 盈利质量
     ATO, GP, GPM, ROA,  # 盈利能力,
     AGRO, IGRO, CXGRO,  # 投资能力
 )
 
-# 6.价值因子
+# 6.价值因子（6个）
 from .value import (
-    BTOP, ETOP, CETOP, EM,  LTRSTR, LTHALPHA
+    BTOP, ETOP, CETOP, EM, LTRSTR, LTHALPHA
 )
 
-# 7.成长因子
+# 7.成长因子（2个）
 from .growth import (
     EGRO, SGRO
 )
