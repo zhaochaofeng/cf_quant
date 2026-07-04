@@ -257,7 +257,9 @@ def ACF(df) -> pd.Series:
     
     # 计算 ACF = -ACCR_CF / TA
     ta_annual.replace(0, np.nan, inplace=True)
-    acf = -accr_cf / ta_annual
+    acf_annual = -accr_cf / ta_annual
+
+    acf = map_annual_to_daily(acf_annual, df.index)
 
     return acf
 
