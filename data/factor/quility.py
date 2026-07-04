@@ -156,7 +156,8 @@ def VFLO(df) -> pd.Series:
 # ==================== Earnings Quality (盈利质量) ====================
 
 @time_decorator
-def ABS(df):
+@factor_output
+def ABS(df) -> pd.Series:
     """
     Accruals Balance Sheet Version（资产负债表应计项目）
     Formulation: ABS = -ACCR_BS / TA
@@ -170,35 +171,35 @@ def ABS(df):
         一年内到期的非流动负债、应付债券、固定资产折旧、无形资产摊销、长期待摊费用摊销
     """
     df = df.sort_index()
-    
-    # 原始数据获取（日频 P() 数据）
-    ta_raw = df['P($$total_assets_q)'].fillna(0)      # 总资产
-    cash_raw = df['P($$money_cap_q)'].fillna(0)       # 货币资金
-    tl_raw = df['P($$total_liab_q)'].fillna(0)        # 总负债
-    st_borr_raw = df['P($$st_borr_q)'].fillna(0)      # 短期借款
-    lt_borr_raw = df['P($$lt_borr_q)'].fillna(0)      # 长期借款
-    non_cur_raw = df['P($$non_cur_liab_due_1y_q)'].fillna(0)  # 一年内到期的非流动负债
-    bond_raw = df['P($$bond_payable_q)'].fillna(0)    # 应付债券
-    depr_raw = df['P($$depr_fa_coga_dpba_q)'].fillna(0)  # 固定资产折旧
-    amort_raw = df['P($$amort_intang_assets_q)'].fillna(0)  # 无形资产摊销
-    lt_amort_raw = df['P($$lt_amort_deferred_exp_q)'].fillna(0)  # 长期待摊费用摊销
 
-    # 提取年度数据（使用 PRef 查询原始字段）
-    # NOA = (TA - Cash) - (TL - TD)，需要先获取各组成部分的年度数据
-    ta_annual = get_annual_data(ta_raw, 'total_assets_q').fillna(0)
-    cash_annual = get_annual_data(cash_raw, 'money_cap_q').fillna(0)
-    tl_annual = get_annual_data(tl_raw, 'total_liab_q').fillna(0)
-    st_borr_annual = get_annual_data(st_borr_raw, 'st_borr_q').fillna(0)
-    lt_borr_annual = get_annual_data(lt_borr_raw, 'lt_borr_q').fillna(0)
-    non_cur_annual = get_annual_data(non_cur_raw, 'non_cur_liab_due_1y_q').fillna(0)
-    bond_annual = get_annual_data(bond_raw, 'bond_payable_q').fillna(0)
-    depr_annual = get_annual_data(depr_raw, 'depr_fa_coga_dpba_q').fillna(0)
-    amort_annual = get_annual_data(amort_raw, 'amort_intang_assets_q').fillna(0)
-    lt_amort_annual = get_annual_data(lt_amort_raw, 'lt_amort_deferred_exp_q').fillna(0)
+    ta_raw = df['P($$total_assets_q)']      # 总资产[资产负债表]
+    cash_raw = df['P($$money_cap_q)']       # 货币资金[资产负债表]
+    tl_raw = df['P($$total_liab_q)']        # 负债合计[资产负债表]
+    st_borr_raw = df['P($$st_borr_q)']      # 短期借款[资产负债表]
+    lt_borr_raw = df['P($$lt_borr_q)']      # 长期借款[资产负债表]
+    non_cur_raw = df['P($$non_cur_liab_due_1y_q)']  # 一年内到期的非流动负债[资产负债表]
+    bond_raw = df['P($$bond_payable_q)']     # 应付债券[资产负债表]
+    depr_raw = df['P($$depr_fa_coga_dpba_a)']          # 固定资产折旧、油气资产折耗、生产性生物资产折旧
+    amort_raw = df['P($$amort_intang_assets_a)']       # 无形资产摊销
+    lt_amort_raw = df['P($$lt_amort_deferred_exp_a)']  # 长期待摊费用摊销
 
-    # 在年度粒度上计算中间变量
+    # 提取年度数据
+    ta_annual = get_annual_data2(ta_raw)
+    cash_annual = get_annual_data2(cash_raw).fillna(0)
+    tl_annual = get_annual_data2(tl_raw).fillna(0)
+    st_borr_annual = get_annual_data2(st_borr_raw).fillna(0)
+    lt_borr_annual = get_annual_data2(lt_borr_raw).fillna(0)
+    non_cur_annual = get_annual_data2(non_cur_raw).fillna(0)
+    bond_annual = get_annual_data2(bond_raw).fillna(0)
+    depr_annual = get_annual_data2(depr_raw).fillna(0)
+    amort_annual = get_annual_data2(amort_raw).fillna(0)
+    lt_amort_annual = get_annual_data2(lt_amort_raw).fillna(0)
+
+    # 总带息债务(TD) = 短期借款+长期借款+一年内到期的非流动负债+应付债券
     td_annual = st_borr_annual + lt_borr_annual + non_cur_annual + bond_annual
+    # 折旧与摊销之和(DA) = (固定资产折旧、油气资产折耗、生产性生物资产折旧) + 无形资产摊销 + 长期待摊费用摊销
     da_annual = depr_annual + amort_annual + lt_amort_annual
+    # NOA = (TA - Cash) - (TL - TD)
     noa_annual = (ta_annual - cash_annual) - (tl_annual - td_annual)
     
     # 在年度粒度上计算 NOA(t) - NOA(t-1)
@@ -209,19 +210,18 @@ def ABS(df):
     accr_bs_annual = noa_diff_annual - da_annual
     
     # 在年度粒度计算 ABS = -ACCR_BS / TA
-    ta_annual[ta_annual == 0] = np.nan
+    ta_annual.replace(0, np.nan, inplace=True)
     abs_annual = -accr_bs_annual / ta_annual
     
     # 映射回日频
-    abs_val = map_annual_to_daily(abs_annual, df.index)
-    
-    result_df = pd.DataFrame({'ABS': abs_val})
-    result_df = result_df.dropna()
-    return result_df
+    abs = map_annual_to_daily(abs_annual, df.index)
+
+    return abs
 
 
 @time_decorator
-def ACF(df):
+@factor_output
+def ACF(df) -> pd.Series:
     """
     Accruals CashFlow version (现金流量表应计项目)
     Formulation: ACF = -ACCR_CF / TA
@@ -234,34 +234,32 @@ def ACF(df):
     df = df.sort_index()
     
     # 原始数据获取
-    ni_raw = df['P($$n_income_attr_p_q)'].fillna(0)   # 净利润
-    cfo_raw = df['P($$n_cashflow_act_q)'].fillna(0)   # 经营现金流
-    depr_raw = df['P($$depr_fa_coga_dpba_q)'].fillna(0)  # 固定资产折旧
-    amort_raw = df['P($$amort_intang_assets_q)'].fillna(0)  # 无形资产摊销
-    lt_amort_raw = df['P($$lt_amort_deferred_exp_q)'].fillna(0)  # 长期待摊费用摊销
-    ta_raw = df['P($$total_assets_q)'].fillna(0)      # 总资产
+    ni_raw = df['P($$n_income_attr_p_a)']             # 净利润(不含少数股东损益)
+    cfo_raw = df['P($$n_cashflow_act_a)']             # 经营活动产生的现金流量净额
+    depr_raw = df['P($$depr_fa_coga_dpba_a)']         # 固定资产折旧、油气资产折耗、生产性生物资产折旧
+    amort_raw = df['P($$amort_intang_assets_a)']      # 无形资产摊销
+    lt_amort_raw = df['P($$lt_amort_deferred_exp_a)'] # 长期待摊费用摊销
+    ta_raw = df['P($$total_assets_q)'].fillna(0)      # 总资产[资产负债表]
     
     # 按财年规则重映射
-    ni = remap_lyr(ni_raw, 'n_income_attr_p_q')
-    cfo = remap_lyr(cfo_raw, 'n_cashflow_act_q')
-    depr = remap_lyr(depr_raw, 'depr_fa_coga_dpba_q')
-    amort = remap_lyr(amort_raw, 'amort_intang_assets_q')
-    lt_amort = remap_lyr(lt_amort_raw, 'lt_amort_deferred_exp_q')
-    ta = remap_lyr(ta_raw, 'total_assets_q')
+    ni_annual = get_annual_data2(ni_raw)
+    cfo_annual = get_annual_data2(cfo_raw).fillna(0)
+    depr_annual = get_annual_data2(depr_raw).fillna(0)
+    amort_annual = get_annual_data2(amort_raw).fillna(0)
+    lt_amort_annual = get_annual_data2(lt_amort_raw).fillna(0)
+    ta_annual = get_annual_data2(ta_raw)
     
-    # 计算折旧摊销 DA
-    da = depr + amort + lt_amort
+    # 折旧与摊销之和(DA) = (固定资产折旧、油气资产折耗、生产性生物资产折旧) + 无形资产摊销 + 长期待摊费用摊销
+    da = depr_annual + amort_annual + lt_amort_annual
     
     # 计算应计项目 ACCR_CF = NI - CFO + DA
-    accr_cf = ni - cfo + da
+    accr_cf = ni_annual - cfo_annual + da
     
     # 计算 ACF = -ACCR_CF / TA
-    ta[ta == 0] = np.nan
-    acf_val = -accr_cf / ta
-    
-    result_df = pd.DataFrame({'ACF': acf_val})
-    result_df = result_df.dropna()
-    return result_df
+    ta_annual.replace(0, np.nan, inplace=True)
+    acf = -accr_cf / ta_annual
+
+    return acf
 
 
 # ==================== Profitability (盈利能力) ====================
