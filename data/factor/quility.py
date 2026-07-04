@@ -5,7 +5,7 @@ import pandas as pd
 
 from utils.dt import time_decorator
 from .utils import (
-    remap_lyr, calc_cv, get_annual_data, get_annual_data2,
+    calc_cv, get_annual_data2,
     map_annual_to_daily, calc_growth_rate_slope,
     factor_output
 )
