@@ -339,6 +339,7 @@ class CNE6IndExposure:
         # 1. 计算原始因子
         raw_factors = self.calculate_raw_factors(raw_data, n_jobs=n_jobs)
         DataFrameIO.write(raw_factors, f'{output}/raw_factors.parquet', type='parquet')
+        del raw_data  # 释放 ~1.4 GB，factor_func 已从 _SHARED_RAW_DATA 读取
 
         # 过滤日期
         logger.info('过滤日期 ...')
@@ -351,6 +352,7 @@ class CNE6IndExposure:
         # 2. 去极值
         winsorized = winsorize(raw_factors, method='median', level='datetime')
         DataFrameIO.write(winsorized, f'{output}/winsorized.parquet', type='parquet')
+        del raw_factors  # 释放 ~1.2 GB
 
         # 正交性检验
         logger.info('中性化前正交检验 ...')
@@ -359,10 +361,12 @@ class CNE6IndExposure:
         # 3. 行业、市值中性化
         neutralized = self.neutralize_factors(winsorized, industry_df, market_cap_df)
         DataFrameIO.write(neutralized, f'{output}/neutralized.parquet', type='parquet')
+        del winsorized, market_cap_df  # 释放 ~1.4 GB
 
         # 4. 标准化
         standardized = standardize(neutralized, method='zscore', level='datetime')
         DataFrameIO.write(standardized, f'{output}/standardized.parquet', type='parquet')
+        del neutralized  # 释放 ~2.5 GB
 
         # 5. 验证正交性 + VIF 检验（可选，仅用于监控）
         self.verify_orthogonality(standardized, threshold=0.5)
@@ -374,6 +378,7 @@ class CNE6IndExposure:
         industry_dummies.drop(columns=['ind_nan'], inplace=True)
         exposure_matrix = self.merge_industry_factors(standardized, industry_dummies)
         DataFrameIO.write(exposure_matrix, f'{output}/exposure_matrix.parquet', type='parquet')
+        del standardized, industry_dummies  # 释放 ~2.7 GB
 
         logger.info("因子暴露矩阵构建完成")
         logger.info("=" * 60)
