@@ -21,7 +21,7 @@ def MLEV(df) -> pd.Series:
     Description：【市场杠杆因子】衡量企业整体杠杆水平。
         ME 为总市值，PE 为优先股，LD 长期负债
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     me = df['$total_mv']                                    # 总市值
     me = me.groupby(level='instrument').shift(1)            # 滞后1日，避免前视偏差
@@ -30,7 +30,7 @@ def MLEV(df) -> pd.Series:
     ld = df['P($$lt_borr_q)'].fillna(0) + df['P($$bond_payable_q)'].fillna(0) + df['P($$lt_payable_q)'].fillna(0)
 
     # 防止分母为 0
-    me[me == 0] = np.nan
+    me = me.mask(me == 0, np.nan)
     mlev = (me + pe + ld) / me
 
     return mlev
@@ -45,7 +45,7 @@ def BLEV(df) -> pd.Series:
     Description：【账面杠杆因子】衡量企业账面杠杆水平。
         BE 为账面权益，PE 为优先股，LD 为长期负债
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     pe = df['P($$oth_eqt_tools_p_shr_q)'].fillna(0)            # 优先股[资产负债表]
     # 长期借款[资产负债表] + 应付债券[资产负债表] + 长期应付款 [资产负债表]
@@ -53,7 +53,7 @@ def BLEV(df) -> pd.Series:
     # BE = 股东权益合计(不含少数股东权益)[资产负债表] - 优先股[资产负债表]
     be = df['P($$total_hldr_eqy_exc_min_int_q)'] - pe
 
-    be[be == 0] = np.nan
+    be = be.mask(be == 0, np.nan)
     blev = (be + pe + ld) / be
 
     return blev
@@ -67,12 +67,12 @@ def DTOA(df) -> pd.Series:
     Description：【债务资产比因子】衡量企业负债水平。
         TL 为负债合计，TA 为资产总计。
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     tl = df['P($$total_liab_q)'].fillna(0)    # 负债合计[资产负债表]
     ta = df['P($$total_assets_q)']            # 资产总计[资产负债表]
 
-    ta[ta == 0] = np.nan
+    ta = ta.mask(ta == 0, np.nan)
     dtoa = tl / ta
 
     return dtoa
@@ -90,7 +90,7 @@ def VSAL(df) -> pd.Series:
         反映公司营业收入的波动情况，消除公司规模影响。
     数据字段：营业收入 P($$revenue_q)
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     revenue = df['P($$revenue_a)']
 
     # 提取年度数据 (instrument, year)，每年仅包含1条数据
@@ -122,7 +122,7 @@ def VERN(df) -> pd.Series:
         捕捉公司财务报表底层盈利的稳定程度。
     数据字段：净利润(不含少数股东损益)
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     income = df['P($$n_income_attr_p_a)']
 
     annual_income = get_annual_data2(income)
@@ -142,7 +142,7 @@ def VFLO(df) -> pd.Series:
     Description：过去五个财年的年经营性活动现金流标准差除以平均经营性活动现金流。
         反映公司经营活动产生现金的稳定性和可预测性。
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     cf = df['P($$n_cashflow_act_a)']   # 经营活动产生的现金流量净额
 
     annual_cf = get_annual_data2(cf)
@@ -170,7 +170,7 @@ def ABS(df) -> pd.Series:
     数据字段：资产总计、货币资金、负债合计、短期借款、长期借款、
         一年内到期的非流动负债、应付债券、固定资产折旧、无形资产摊销、长期待摊费用摊销
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     ta_raw = df['P($$total_assets_q)']      # 总资产[资产负债表]
     cash_raw = df['P($$money_cap_q)']       # 货币资金[资产负债表]
@@ -231,7 +231,7 @@ def ACF(df) -> pd.Series:
     数据字段：净利润(不含少数股东损益)、经营活动产生的现金流量净额、
         固定资产折旧、无形资产摊销、长期待摊费用摊销、资产总计
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 原始数据获取
     ni_raw = df['P($$n_income_attr_p_a)']             # 净利润(不含少数股东损益)
@@ -276,14 +276,14 @@ def ATO(df) -> pd.Series:
         比率越高，说明资产运营效率越高。
     数据字段：营业收入(TTM)、资产总计
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # TTM 营业收入和总资产
     sales_ttm = df['PTTM($$revenue_q)']
     ta = df['P($$total_assets_q)']   # 总资总计[资产负债表]
 
     # 计算 ATO
-    ta[ta == 0] = np.nan
+    ta = ta.mask(ta == 0, np.nan)
     ato = sales_ttm / ta
 
     return ato
@@ -300,14 +300,14 @@ def GP(df) -> pd.Series:
     数据字段：营业收入、营业成本、资产总计
     注意：营业成本字段为 revenue_q
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     sales = df['P($$revenue_a)'].fillna(0)   # 营业收入
     cogs = df['P($$oper_cost_a)'].fillna(0)  # 营业成本
     ta = df['P($$total_assets_q)']           # 资产总计[资产负债表]
 
     # 计算 GP = (Sales - COGS) / TA
-    ta[ta == 0] = np.nan
+    ta = ta.mask(ta == 0, np.nan)
     gp = (sales - cogs) / ta
 
     return gp
@@ -323,15 +323,15 @@ def GPM(df) -> pd.Series:
         高毛利率通常意味着强大的品牌、定价权或成本优势。
     数据字段：营业收入、营业成本
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     sales = df['P($$revenue_a)']  # 营业收入
     # 营业成本
     cogs = df['P($$oper_cost_a)'].fillna(0)
 
     # 避免除以0
-    sales[sales == 0] = np.nan
-    
+    sales = sales.mask(sales == 0, np.nan)
+
     # 计算 GPM = (Sales - COGS) / Sales
     gpm = (sales - cogs) / sales
 
@@ -347,14 +347,14 @@ def ROA(df) -> pd.Series:
     Description：衡量综合盈利能力，公司利用全部资产创造净利润的整体效率。
     数据字段：净利润(TTM)、资产总计
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 净利润 TTM. 不要填充为0，因为净利润可以为负
     earnings_ttm = df['PTTM($$n_income_attr_p_q)']
     ta = df['P($$total_assets_q)']    # 资产总计[资产负债表]
 
     # 计算 ROA
-    ta[ta == 0] = np.nan
+    ta = ta.mask(ta == 0, np.nan)
     roa = earnings_ttm / ta
 
     return roa
@@ -371,7 +371,7 @@ def AGRO(df) -> pd.Series:
     Description：衡量资产扩张程度，增长过快的公司可能依赖并购或重资产扩张。
     数据字段：资产总计
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     ta = df['P($$total_assets_q)']       # 资产总计[资产负债表]
 
     # 提取年度数据
@@ -396,7 +396,7 @@ def IGRO(df) -> pd.Series:
     Description：衡量股权稀释，频繁增发的公司对外部股权融资依赖度高。
     数据字段：流通股本 $float_share
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     float_share = df['$float_share']
     
     # 提取年度数据（每年最后一个交易日）
@@ -431,7 +431,7 @@ def CXGRO(df) -> pd.Series:
     Description：衡量资本开支增速，增速过高的公司可能存在过度投资风险。
     数据字段：购建固定资产、无形资产和其他长期资产支付的现金
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     capex = df['P($$c_pay_acq_const_fiolta_a)']
 
     # 提取年度数据

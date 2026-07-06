@@ -23,7 +23,7 @@ def STOM(df) -> pd.Series:
         换手率 = 成交额($amount) / 流通市值($circ_mv)，反映股票的交易活跃度。
         该因子用于衡量股票的短期流动性风险。
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 计算日换手率: 成交额 / 流通市值
     share_turnover = df['$amount'] / df['$circ_mv']
@@ -56,7 +56,7 @@ def STOQ(df) -> pd.Series:
         该因子用于衡量股票的中期流动性风险。
     """
     # 确保索引排序
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 计算日换手率: 成交额 / 流通市值
     share_turnover = df['$amount'] / df['$circ_mv']
@@ -86,7 +86,7 @@ def STOA(df) -> pd.Series:
         该因子用于衡量股票的长期流动性风险。
     """
     # 确保索引排序
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 计算日换手率: 成交额 / 流通市值
     share_turnover = df['$amount'] / df['$circ_mv']
@@ -116,7 +116,7 @@ def ATVR(df) -> pd.Series:
         与 STOM/STOQ/STOA 不同，ATVR 直接使用换手率率（%）而非成交额/市值比。
     """
     # 确保索引排序
-    df = df.sort_index()
+    # df = df.sort_index()
     turnover_rate = df['$amount'] / df['$circ_mv']
 
     turnover_rate = turnover_rate.where(pd.notnull(turnover_rate), SENTINEL)

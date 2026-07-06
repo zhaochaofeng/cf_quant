@@ -29,8 +29,7 @@ data_loader = BaseDataLoader()
 @factor_output
 def STREV(df: pd.DataFrame) -> pd.Series:
     """ Short Term Reversal """
-    # 确保索引排序
-    df = df.sort_index()
+    # df = df.sort_index()
 
     # 股票对数收益
     close = df['$close']
@@ -76,7 +75,7 @@ def SEASON(df):
         5. SEASON = mean / std（N < 2 则为 NaN）
         6. 月内所有交易日因子值相同，merge 回日度索引
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     close = df['$close']
     ret = get_ret(close)
 
@@ -144,8 +143,7 @@ def INDMOM(df):
         用于捕捉行业层面的动量效应。使用半衰期为20天的指数权重。
         权重为流通市值的平方根（cap_sqrt）归一化后的值（行业内权重和为1）。
     """
-    # 确保索引排序
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 获取日收益率、流通市值平方根（权重）、行业分类
     # daily_returns = df['$change']
@@ -217,8 +215,7 @@ def RSTR(df):
         （股票对数收益率 / 基准对数收益率）加权之和，使用半衰期为126天的指数权重，
         对非滞后值取滞后11天的11天等权移动平均。
     """
-    # 确保索引排序
-    df = df.sort_index()
+    # df = df.sort_index()
 
     # 股票对数收益
     close = df['$close']
@@ -256,8 +253,7 @@ def HALPHA(df) -> pd.Series:
     """
     Formulation: 通过CAPM模型回归得到的截距项Alpha
     """
-
-    df = df.sort_index()
+    # df = df.sort_index()
     close = df['$close']
     ex_ret = get_excess_ret(close)
 

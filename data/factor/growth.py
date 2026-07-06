@@ -21,7 +21,7 @@ def EGRO(df) -> pd.Series:
     Description：反应已实现的盈利增长趋势，衡量公司过去的增长执行力。
     数据字段：基本每股收益 P($$basic_eps_q)
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 基本每股收益
     eps = df['P($$basic_eps_a)']
@@ -51,7 +51,7 @@ def SGRO(df) -> pd.Series:
     Description：描述已实现的营收增长趋势，衡量公司业务规模的扩张历史。
     数据字段：总股本 $total_share，营业收入 P($$revenue_q)
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     total_share = df['$total_share']    # 总股本
     revenue = df['P($$revenue_a)']      # 营业收入

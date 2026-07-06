@@ -15,6 +15,9 @@ from utils import send_email
 from utils.multiprocess import multiprocessing_wrapper
 from .conf import STYLE_FACTOR_LIST, FACTOR_FUNCTIONS, INDUSTRY_MAPPING
 
+# 多进程共享数据：利用 fork COW，worker 只读不触发内存复制
+_SHARED_RAW_DATA: pd.DataFrame | None = None
+
 logger = LoggerFactory.get_logger(__name__)
 
 class CNE6IndExposure:
@@ -41,20 +44,25 @@ class CNE6IndExposure:
         factor_results = {}
 
         if n_jobs > 1:
-            # 并行计算
-            func_calls = []
-            for factor_name in STYLE_FACTOR_LIST:
-                if factor_name in FACTOR_FUNCTIONS:
-                    func_calls.append((
-                        self._compute_single_factor,
-                        (raw_data, factor_name, FACTOR_FUNCTIONS[factor_name])
-                    ))
+            # 并行计算：raw_data 通过模块级全局变量共享，利用 fork COW 避免 pickle 复制
+            global _SHARED_RAW_DATA
+            _SHARED_RAW_DATA = raw_data
+            try:
+                func_calls = []
+                for factor_name in STYLE_FACTOR_LIST:
+                    if factor_name in FACTOR_FUNCTIONS:
+                        func_calls.append((
+                            self._compute_single_factor,
+                            (factor_name, FACTOR_FUNCTIONS[factor_name])
+                        ))
 
-            results = multiprocessing_wrapper(func_calls, n=n_jobs,
-                                              initializer=init_qlib,
-                                              initargs=(PROVIDER_URI, [PTTM]))
-            for factor_name, val in results:
-                factor_results[factor_name] = val
+                results = multiprocessing_wrapper(func_calls, n=n_jobs,
+                                                  initializer=init_qlib,
+                                                  initargs=(PROVIDER_URI, [PTTM]))
+                for factor_name, val in results:
+                    factor_results[factor_name] = val
+            finally:
+                _SHARED_RAW_DATA = None
         else:
             # 串行计算
             for factor_name in STYLE_FACTOR_LIST:
@@ -74,18 +82,19 @@ class CNE6IndExposure:
 
         return factor_df
 
-    def _compute_single_factor(self, raw_data: pd.DataFrame,
+    def _compute_single_factor(self,
                                factor_name: str,
                                factor_func) -> tuple:
         """
         计算单个因子（用于并行）
-        raw_data：原始字段数据
         factor_name：因子名称
         factor_func：因子计算函数
+        从模块全局 _SHARED_RAW_DATA 读取数据（利用 fork COW 共享）
 
         Returns:
             (factor_name, series)
         """
+        raw_data = _SHARED_RAW_DATA
         try:
             result = factor_func(raw_data)
             if result is not None and not result.empty:

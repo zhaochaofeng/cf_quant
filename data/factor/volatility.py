@@ -21,7 +21,7 @@ def HBETA(df, num_worker=1) -> pd.Series:
         beta系数。半衰期为252天。
     """
 
-    df = df.sort_index()
+    # df = df.sort_index()
     close = df['$close']
     ex_ret = get_excess_ret(close)
 
@@ -41,7 +41,7 @@ def HSIGMA(df):
         残差波动率。半衰期为252天。
     """
 
-    df = df.sort_index()
+    # df = df.sort_index()
     close = df['$close']
     ex_ret = get_excess_ret(close)
     
@@ -60,7 +60,7 @@ def DASTD(df):
         半衰期为42天的指数权重计算。
     """
 
-    df = df.sort_index()
+    # df = df.sort_index()
     close = df['$close']
     ex_ret = get_excess_ret(close)
 
@@ -83,7 +83,7 @@ def CMRA(df):
         CNE6版本使用对数收益率。
     """
 
-    df = df.sort_index()
+    # df = df.sort_index()
     close = df['$close']
     ex_ret = get_excess_ret(close)
 

@@ -25,7 +25,7 @@ def BTOP(df) -> pd.Series:
         BTOP越高，股价相对净资产越便宜，股票越偏向"价值型"。
     数据字段：股东权益合计(不含少数股东权益)、其他权益工具(优先股)、总市值
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 获取数据
     total_hldr_eqy = df['P($$total_hldr_eqy_exc_min_int_q)'].fillna(0)    # 股东权益合计(不含少数股东权益)[资产负债表]
@@ -37,7 +37,7 @@ def BTOP(df) -> pd.Series:
     bv = total_hldr_eqy - oth_eqt_tools
 
     # BTOP = 账面价值 / 总市值
-    total_mv[total_mv == 0] = np.nan
+    total_mv = total_mv.mask(total_mv == 0, np.nan)
     btop = bv / total_mv
 
     return btop
@@ -53,7 +53,7 @@ def ETOP(df) :
         ETOP值高，股价相对盈利便宜，偏价值；ETOP值低，股价相对盈利偏贵，偏成长。
     数据字段：净利润(不含少数股东损益) TTM、总市值
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 净利润TTM
     earnings_ttm = df['PTTM($$n_income_attr_p_q)']
@@ -77,7 +77,7 @@ def CETOP(df) -> pd.Series:
         更真实反映公司现金产生能力与股价的关系。
     数据字段：经营活动产生的现金流量净额 TTM、总市值
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 经营现金流 TTM
     cash_earnings_ttm = df['PTTM($$n_cashflow_act_q)']
@@ -103,7 +103,7 @@ def EM(df) -> pd.Series:
         EM高，企业价值相对核心盈利便宜，投资回报率高。
     数据字段：息税前利润、短期借款、长期借款、一年内到期的非流动负债、应付债券、货币资金、总市值
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     # ebit 字段缺失值很多. 不能设置为 0，因为 ebit 可以为负
     ebit = df['P($$ebit_a)']
@@ -141,7 +141,7 @@ def LTRSTR(df) -> pd.Series:
     Description：衡量股票在超长期（3-5年）维度上，其价格趋势的疲弱或超跌程度。
     数据字段：股票收盘价、沪深300指数
     """
-    df = df.sort_index()
+    # df = df.sort_index()
     
     # 股票对数收益率
     close = df['$close']
@@ -181,7 +181,7 @@ def LTHALPHA(df) -> pd.Series:
         (2) 滞后273个交易日，在11个交易日的时间窗口内取非滞后值等权平均值，然后取相反数
     Description：衡量股票在超长期（3-5年）维度上，其经风险调整后的超额收益的缺失或落后程度。
     """
-    df = df.sort_index()
+    # df = df.sort_index()
 
     close = df['$close']
     ex_ret = get_excess_ret(close)

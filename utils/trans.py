@@ -50,7 +50,7 @@ def get_ret(close: pd.Series, k: int=1) -> pd.Series:
         k：收益率期数
     """
 
-    close.sort_index(inplace=True)
+    close = close.sort_index()
     ret = close.groupby(level='instrument', group_keys=False).apply(lambda x: x.shift(-k-1) / x.shift(-1) - 1)
     ret.name = 'ret'
     return ret
