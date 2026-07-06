@@ -2,15 +2,26 @@
     并行计算
 """
 
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Optional
 import multiprocessing as mp
+
+
+def _get_pool(n: int, start_method: Optional[str] = None, initializer=None,
+              initargs=(), maxtasksperchild: int = 10) -> mp.Pool:
+    if start_method is not None:
+        ctx = mp.get_context(start_method)
+    else:
+        ctx = mp.get_context()
+    return ctx.Pool(processes=n, initializer=initializer,
+                    initargs=initargs, maxtasksperchild=maxtasksperchild)
 
 
 def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]],
                             n: int = 1,
                             initializer = None,
                             initargs = (),
-                            maxtasksperchild: int = 10
+                            maxtasksperchild: int = 10,
+                            start_method: str = None
                             ) -> list:
     """ 独立函数/参数并行计算
 
@@ -26,6 +37,7 @@ def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]],
     initargs : tuple
         传递出是函数的参数
     maxtasksperchild: int。当个子进程最多可完成的任务数
+    start_method: str。启动子进程的方法，可选值有 'fork', 'spawn', 'forkserver'
 
     Returns
     -------
@@ -35,10 +47,11 @@ def multiprocessing_wrapper(func_calls: list[tuple[Callable, tuple]],
     if n == 1 or max(1, min(n, len(func_calls))) == 1:
         return [f(*args) for f, args in func_calls]
 
-    with mp.Pool(processes=max(1, min(n, len(func_calls))),
-                 initializer=initializer,
-                 initargs=initargs,
-                 maxtasksperchild=maxtasksperchild) as pool:
+    with _get_pool(max(1, min(n, len(func_calls))),
+                   initializer=initializer,
+                   initargs=initargs,
+                   maxtasksperchild=maxtasksperchild,
+                   start_method=start_method) as pool:
         results = [
             pool.apply_async(f, args) for f, args in func_calls
         ]
@@ -50,7 +63,8 @@ def multiprocessing_wrapper_same(func: Callable, args: Iterable,
                                  n: int = 1,
                                  initializer = None,
                                  initargs = (),
-                                 maxtasksperchild: int = 10
+                                 maxtasksperchild: int = 10,
+                                 start_method: str = None
                                  ) -> list:
     """ 相同函数，不同参数并行计算
     
@@ -72,24 +86,23 @@ def multiprocessing_wrapper_same(func: Callable, args: Iterable,
     Examples
     --------
     >>> def square(x): return x ** 2
-    >>> multiprocessing_wrapper_same(square, [1, 2, 3], n=2)
+    >>> multiprocessing_wrapper_same(square, [1, 2, 3], n=2, start_method='fork')
     [1, 4, 9]
     
     >>> def add(args): return args[0] + args[1]
-    >>> multiprocessing_wrapper_same(add, [(1, 2), (3, 4)], n=2)
+    >>> multiprocessing_wrapper_same(add, [(1, 2), (3, 4)], n=2, start_method='fork')
     [3, 7]
     """
     if n == 1:
         return [func(arg) for arg in args]
-    
-    with mp.Pool(processes=max(1, n),
-                 initializer=initializer,
-                 initargs=initargs,
-                 maxtasksperchild=maxtasksperchild
-                 ) as pool:
+
+    with _get_pool(max(1, n),
+                   initializer=initializer,
+                   initargs=initargs,
+                   maxtasksperchild=maxtasksperchild,
+                   start_method=start_method) as pool:
         results = []
         for res in pool.imap_unordered(func, args):
             results.append(res)
     
     return results
-
