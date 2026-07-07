@@ -42,7 +42,7 @@ def run(calc_date: str,
     exp_builder.build_exposure_matrix(raw_data, industry_df, market_cap_df, n_jobs, com_date, output)
 
 
-@flow(name='factors_exposure', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 1)
+@flow(name='factors_exposure', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
 def flow(now_date: str=''):
     logger = get_run_logger()
     now_date = now_date or datetime.now().strftime('%Y-%m-%d')
