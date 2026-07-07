@@ -58,7 +58,8 @@ class CNE6IndExposure:
 
                 results = multiprocessing_wrapper(func_calls, n=n_jobs,
                                                   initializer=init_qlib,
-                                                  initargs=(PROVIDER_URI, [PTTM]))
+                                                  initargs=(PROVIDER_URI, [PTTM]),
+                                                  start_method="fork")
                 for factor_name, val in results:
                     factor_results[factor_name] = val
             finally:
