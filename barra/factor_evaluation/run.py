@@ -44,7 +44,8 @@ def run(
     output = Path(output)
 
     init_qlib()
-    data_loader = BaseDataLoader(market=BENCHMARK_CONFIG['market'])
+    # data_loader = BaseDataLoader(market=BENCHMARK_CONFIG['market'])
+    data_loader = BaseDataLoader(market='all')
 
     start_date = dt.subtract_months(calc_date, history_months)
     logger.info('{} \nstart_date: {}, calc_date: {}'.format( '-'*50, start_date, calc_date))
@@ -57,6 +58,7 @@ def run(
     close.sort_index(inplace=True)
 
     # 加载基准（沪深300）close 数据
+    # Fix: 如果是针对整个行业，需要通过市值加权手动计算 benchmark 的 close
     bench_close_df = D.features([BENCHMARK_CONFIG['BENCHMARK']],
                                 ["$close"], start_date, calc_date)
     benchmark_close = bench_close_df["$close"]
