@@ -25,7 +25,7 @@ from barra.factor_evaluation.conf import DEFAULT_MAX_DECAY_LAG
 
 def run(
     calc_date: str,
-    history_months: int = 24,
+    history_months: int = 12,
     ic_periods=(1, ),
     n_groups=5,
     output: str = "./data",
