@@ -187,14 +187,16 @@ if __name__ == '__main__':
     parser.add_argument('--n-pop', type=int, default=10, help='population 大小')
     parser.add_argument('--n-gen', type=int, default=5, help='进化代数')
     parser.add_argument('--hof_size', type=int, default=15, help='Hall of Fame 大小')
+    parser.add_argument('--kernels', type=int, default=1, help='number of kernels')
 
     args = parser.parse_args()
     print(args)
-    # qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
-    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq',
-              default_conf='server',
-              region=REG_CN,
-              expression_cache=None)
+    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq', kernels=args.kernels)
+    # qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+    #           default_conf='server',
+    #           region=REG_CN,
+    #           expression_cache=None,
+    #           kernels=args.kernels)
     t = time.time()
     main(args)
     print(f'total time: {time.time() - t:.2f}s')
