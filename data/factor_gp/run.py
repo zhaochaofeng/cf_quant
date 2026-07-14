@@ -195,5 +195,7 @@ if __name__ == '__main__':
               default_conf='server',
               region=REG_CN,
               expression_cache=None)
+    t = time.time()
     main(args)
+    print(f'total time: {time.time() - t:.2f}s')
 
