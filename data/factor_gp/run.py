@@ -7,7 +7,7 @@
 """
 import multiprocessing
 
-multiprocessing.set_start_method("fork", force=True)
+# multiprocessing.set_start_method("fork", force=True)
 
 import random
 import operator
@@ -28,7 +28,6 @@ import argparse
 
 
 def get_ret(start_date, end_date, market='csi300'):
-    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
     # qlib 多线程 worker 各自创建 logger, 主线程 setLevel 不生效
     # 需要用 Filter 全局屏蔽 WARNING
     for name in ["qlib", "qlib.Max", "qlib.Min"]:
@@ -190,6 +189,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print(args)
+    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
     main(args)
 
 
