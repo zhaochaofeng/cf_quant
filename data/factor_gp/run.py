@@ -21,6 +21,7 @@ logging.getLogger("qlib").setLevel(logging.ERROR)
 
 import qlib
 from qlib.data import D
+from qlib.constant import REG_CN
 
 from deap import base, creator, gp, tools, algorithms
 
@@ -189,8 +190,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     print(args)
-    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
+    # qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
+    qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq',
+              default_conf='server',
+              region=REG_CN,
+              expression_cache=None)
     main(args)
-
-
 
