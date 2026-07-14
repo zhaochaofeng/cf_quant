@@ -159,9 +159,9 @@ def main(args):
     hof = tools.HallOfFame(args.hof_size)
     # 注册统计量
     stats = tools.Statistics(lambda ind: ind.fitness.values[0])
-    stats.register("avg", np.mean)
-    stats.register("std", np.std)
-    stats.register("max", np.max)
+    stats.register("avg", np.nanmean)
+    stats.register("std", np.nanstd)
+    stats.register("max", np.nanmax)
 
     t_start = time.time()
     popu, logbook = algorithms.eaSimple(
