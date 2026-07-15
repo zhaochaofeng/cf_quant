@@ -48,9 +48,13 @@ def get_ret(start_date, end_date, market='csi300'):
     return target, instruments
 
 
-def cross_sectional_ic(returns_series, factor_series):
+def cross_sectional_ic(pred, label):
     from qlib.contrib.eva.alpha import calc_ic
-    return calc_ic(factor_series, returns_series)[0].mean()
+    pred = pred.dropna()
+    label = label.dropna()
+    pred = pred[np.isfinite(pred)]
+    label = label[np.isfinite(label)]
+    return calc_ic(pred, label)[0].mean()
 
 
 def main(args):
@@ -129,7 +133,7 @@ def main(args):
             if len(factor) == 0:
                 cache[expr_str] = 0.0
                 return (0.0,)
-            ic = cross_sectional_ic(target, factor)
+            ic = cross_sectional_ic(factor, target)
             # 常数因子产生 nan (相关系数除以零), 视为无效
             if not np.isfinite(ic):
                 ic = 0.0
