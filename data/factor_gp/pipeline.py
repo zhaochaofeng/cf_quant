@@ -13,19 +13,16 @@ import time
 
 import numpy as np
 import pandas as pd
-
-import qlib
 from qlib.data import D
 
-from utils.qlib import init_qlib, get_instruments, get_universe
-from utils.logger import LoggerFactory
-from utils.io_utils import PickleIO, DataFrameIO
-
 from data.factor_gp.conf import GPConfig
-from data.factor_gp.primitives import PrimitiveRegistry
 from data.factor_gp.evaluate import FactorEvaluator
 from data.factor_gp.evolution import IslandEvolution
+from data.factor_gp.primitives import PrimitiveRegistry
 from data.factor_gp.screening import FactorScreening
+from utils.io_utils import DataFrameIO
+from utils.logger import LoggerFactory
+from utils.qlib import init_qlib
 
 logger = LoggerFactory.get_logger(__name__)
 
