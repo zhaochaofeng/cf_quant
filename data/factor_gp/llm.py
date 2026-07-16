@@ -133,7 +133,7 @@ class LLMInterface:
     def __init__(self, model: str = None, base_url: str = None, api_key: str = None,
                  temperature: float = 0.7, max_tokens: int = 4096):
         cfg = get_config().get("llm_deepseek", {})
-        self.model = model or "deepseek-chat"
+        self.model = model or "deepseek-v4-pro"
         self.base_url = base_url or cfg.get("base_url", "https://api.deepseek.com")
         self.api_key = api_key or cfg.get("api_key", "")
         self.temperature = temperature
