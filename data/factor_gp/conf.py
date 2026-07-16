@@ -1,7 +1,7 @@
 """GP + LLM 因子挖掘 — 全局配置"""
 
 from dataclasses import dataclass, field
-
+from config import PROVIDER_URI
 
 @dataclass
 class GPConfig:
@@ -41,13 +41,13 @@ class GPConfig:
     n_workers: int = 4  # 并行评估 worker 数
 
     # ========== 路径 ==========
-    output_dir: str = "data/factor_gp/output"
+    output_dir: str = "data"
 
     # ========== 随机种子 ==========
     seed: int = 42
 
     # ========== qlib ==========
-    provider_uri: str = "~/.qlib/qlib_data/custom_data_hfq"
+    provider_uri: str = PROVIDER_URI
     kernels: int = 1
 
 
