@@ -1,0 +1,61 @@
+"""GP + LLM 因子挖掘 — 全局配置"""
+
+from dataclasses import dataclass, field
+
+
+@dataclass
+class GPConfig:
+    # ========== 数据 ==========
+    start_date: str = "2018-01-01"
+    end_date: str = "2026-05-11"
+    train_end: str = "2022-12-31"  # 训练/测试分割点
+    market: str = "csi300"
+
+    # ========== GP 参数 ==========
+    n_pop: int = 600  # 每岛种群大小（报告：1800/3 岛）
+    n_gen: int = 20  # 总进化代数
+    n_islands: int = 3  # 岛屿数量
+    cxpb: float = 0.7
+    mutpb: float = 0.3
+    max_height: int = 8
+    tournsize: int = 3
+
+    # ========== 岛间迁移 ==========
+    migration_freq: int = 4  # 每 N 代迁移一次
+    migration_n: int = 1  # 每次每岛迁出个体数
+
+    # ========== LLM 注入 ==========
+    llm_inject_freq: int = 3  # 每 N 代 LLM 生成一次
+    llm_inject_n: int = 5  # 每次每岛生成数
+    # LLM API 配置（model/base_url/api_key）从 config.yaml llm_deepseek 读取
+
+    # ========== 适应度 ==========
+    complexity_penalty: float = 0.005  # 表达式深度惩罚系数
+    icir_weight: float = 0.5  # ICIR 在 fitness 中的权重
+
+    # ========== 筛选 ==========
+    corr_threshold: float = 0.70  # 相关性阈值
+    hof_size: int = 30  # 最终保留因子数
+
+    # ========== 性能 ==========
+    n_workers: int = 4  # 并行评估 worker 数
+
+    # ========== 路径 ==========
+    output_dir: str = "data/factor_gp/output"
+
+    # ========== 随机种子 ==========
+    seed: int = 42
+
+    # ========== qlib ==========
+    provider_uri: str = "~/.qlib/qlib_data/custom_data_hfq"
+    kernels: int = 1
+
+
+@dataclass
+class EvolutionState:
+    """进化过程中需要持久化的状态，支持断点恢复"""
+
+    generation: int = 0
+    cache: dict = field(default_factory=dict)  # expr_str → fitness
+    invalid_exprs: set = field(default_factory=set)
+    llm_history: list = field(default_factory=list)  # LLM 生成历史

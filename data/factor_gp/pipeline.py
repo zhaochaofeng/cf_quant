@@ -1,0 +1,315 @@
+"""GP + LLM 因子挖掘主流水线。
+
+串联四个 Phase：
+  Phase 0: qlib 初始化 → 数据加载 → pset 构建
+  Phase 1: LLM 子表达式基因提取（可选）
+  Phase 2: 分岛进化
+  Phase 3: 后处理筛选 + 报告
+"""
+
+import argparse
+import logging
+import time
+
+import numpy as np
+import pandas as pd
+
+import qlib
+from qlib.data import D
+
+from utils.qlib import init_qlib, get_instruments, get_universe
+from utils.logger import LoggerFactory
+from utils.io_utils import PickleIO, DataFrameIO
+
+from data.factor_gp.conf import GPConfig
+from data.factor_gp.primitives import PrimitiveRegistry
+from data.factor_gp.evaluate import FactorEvaluator
+from data.factor_gp.evolution import IslandEvolution
+from data.factor_gp.screening import FactorScreening
+
+logger = LoggerFactory.get_logger(__name__)
+
+
+class GPLlamaPipeline:
+    """GP + LLM 因子挖掘主流水线。"""
+
+    def __init__(self, config: GPConfig, enable_llm: bool = True):
+        self.config = config
+        self.enable_llm = enable_llm
+        self.registry = PrimitiveRegistry()
+        self.evaluator: FactorEvaluator | None = None
+        self.llm = None
+        self._instruments = None
+        self._target_train = None
+        self._target_test = None
+
+    # ================================================================
+    # 主入口
+    # ================================================================
+
+    def run(self) -> pd.DataFrame:
+        """执行完整流水线，返回筛选后的因子 DataFrame。"""
+        t_start = time.time()
+
+        # Phase 0
+        self._phase0_init()
+        self._build_pset(None)
+
+        # Phase 1
+        self._phase1_llm_genes()
+
+        # Phase 2
+        result = self._phase2_evolve()
+
+        # Phase 3
+        df = self._phase3_screening(result)
+
+        logger.info("流水线完成，总耗时: %.1fs", time.time() - t_start)
+        return df
+
+    # ================================================================
+    # Phase 0: 初始化
+    # ================================================================
+
+    def _phase0_init(self):
+        """qlib 初始化 + 行情数据加载 + train/test 划分。"""
+        logger.info("=" * 60)
+        logger.info("Phase 0: 初始化")
+
+        # qlib 初始化
+        init_qlib(provider_uri=self.config.provider_uri)
+        logger.info("qlib 初始化完成: %s, kernels=%d",
+                     self.config.provider_uri, self.config.kernels)
+
+        # 屏蔽 qlib 多线程 WARNING
+        for name in ["qlib", "qlib.Max", "qlib.Min"]:
+            logging.getLogger(name).addFilter(
+                lambda r: r.levelno >= logging.ERROR)
+
+        # 获取股票列表
+        cfg = D.instruments(market=self.config.market)
+        self._instruments = D.list_instruments(
+            cfg, start_time=self.config.start_date, end_time=self.config.end_date)
+
+        # 加载行情数据
+        fields = ['$close', '$open', '$high', '$low', '$volume', '$amount']
+        df = D.features(
+            self._instruments, fields,
+            start_time=self.config.start_date, end_time=self.config.end_date)
+
+        # 计算未来收益（T+1 执行滞后）
+        target = (df['$close'].groupby('instrument', group_keys=False)
+                  .apply(lambda x: x.shift(-2) / x.shift(-1) - 1))
+        target.dropna(inplace=True)
+
+        # train/test 划分
+        self._target_train = target[target.index.get_level_values('datetime')
+                                    <= self.config.train_end]
+        self._target_test = target[target.index.get_level_values('datetime')
+                                   > self.config.train_end]
+
+        logger.info("数据加载: %d instruments, train=%d, test=%d",
+                     len(self._instruments),
+                     len(self._target_train.index.get_level_values('datetime').unique()),
+                     len(self._target_test.index.get_level_values('datetime').unique()))
+
+    def _build_pset(self, gene_aliases: list[str] | None):
+        """构建 PrimitiveSetTyped（不含子表达式基因时先构建基础 pset）。"""
+        self.registry.build_pset()
+
+    # ================================================================
+    # Phase 1: LLM 子表达式基因提取
+    # ================================================================
+
+    def _phase1_llm_genes(self):
+        """LLM 从初始优质因子提取子表达式基因，注册到 pset。"""
+        if not self.enable_llm:
+            logger.info("Phase 1: 跳过（LLM 未启用）")
+            return
+
+        logger.info("=" * 60)
+        logger.info("Phase 1: LLM 子表达式基因提取")
+
+        from data.factor_gp.llm import LLMInterface
+        self.llm = LLMInterface()
+
+        # 加载 Alpha158 因子作为种子
+        factor_exprs = self._load_alpha158()
+        if not factor_exprs:
+            logger.warning("未加载到 Alpha158 因子，跳过基因提取")
+            return
+
+        # LLM 提取子表达式基因
+        genes = self.llm.extract_sub_expr_genes(factor_exprs)
+        if not genes:
+            return
+
+        # 注册到 pset
+        self.registry.register_sub_exprs(genes)
+        self.llm.set_gene_aliases(self.registry.get_gene_aliases())
+
+        logger.info("子表达式基因注册完成: %d 个基因", len(genes))
+
+    def _load_alpha158(self) -> list[tuple[str, str]]:
+        """从 Alpha158 加载因子表达式。"""
+        try:
+            from qlib.contrib.data.loader import Alpha158DL
+            fields, names = Alpha158DL.get_feature_config()
+            return [(name, expr) for name, expr in zip(names, fields)]
+        except Exception as e:
+            logger.warning("Alpha158 加载失败: %s", e)
+            return []
+
+    # ================================================================
+    # Phase 2: 分岛进化
+    # ================================================================
+
+    def _phase2_evolve(self):
+        """运行分岛进化。"""
+        logger.info("=" * 60)
+        logger.info("Phase 2: 分岛进化")
+
+        # 构建 evaluator
+        self.evaluator = FactorEvaluator(
+            instruments=self._instruments,
+            target_train=self._target_train,
+            target_test=self._target_test,
+            config=self.config,
+        )
+
+        # 随机种子
+        import random
+        random.seed(self.config.seed)
+        np.random.seed(self.config.seed)
+
+        # 设置 DEAP creator
+        self._setup_creator()
+
+        # 启动进化
+        engine = IslandEvolution(
+            pset=self.registry.pset,
+            evaluator=self.evaluator,
+            config=self.config,
+            llm_interface=self.llm,
+        )
+        engine.setup_islands()
+        result = engine.run()
+
+        # 暂存基因别名（Phase 3 报告可用）
+        self._gene_aliases = self.registry.get_gene_aliases()
+
+        return result
+
+    @staticmethod
+    def _setup_creator():
+        """确保 DEAP creator 类只创建一次。"""
+        from deap import base, creator, gp
+        for name in ["FitnessMax", "Individual"]:
+            if name in creator.__dict__:
+                del creator.__dict__[name]
+        creator.create("FitnessMax", base.Fitness, weights=(1.0,))
+        creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
+
+    # ================================================================
+    # Phase 3: 后处理
+    # ================================================================
+
+    def _phase3_screening(self, result) -> pd.DataFrame:
+        """测试集评估 + 低相关筛选 + 报告 + 持久化。"""
+        logger.info("=" * 60)
+        logger.info("Phase 3: 后处理筛选")
+
+        import os
+        from datetime import datetime
+
+        screening = FactorScreening(self.evaluator, self.config)
+
+        # 限制候选数量（避免测试集评估过慢）
+        candidates = result.candidates[:self.config.hof_size * 3]
+
+        # 测试集评估
+        df = screening.evaluate_all_on_test(candidates)
+        if df.empty:
+            logger.warning("无有效候选因子")
+            return df
+
+        # 低相关筛选
+        df = screening.filter_by_correlation(df)
+
+        # 生成报告
+        report = screening.generate_report(df)
+
+        # ---- 持久化 ----
+        output_dir = self.config.output_dir
+        os.makedirs(output_dir, exist_ok=True)
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # 因子结果 CSV
+        csv_path = os.path.join(output_dir, f"factors_{ts}.csv")
+        # 报告中的表达式列可能很长，保存时处理
+        save_df = df.copy()
+        if "ic_series" in save_df.columns:
+            save_df = save_df.drop(columns=["ic_series"], errors="ignore")
+        DataFrameIO.write(save_df, csv_path, type="csv")
+        logger.info("因子结果已保存: %s", csv_path)
+
+        # 报告文本
+        report_path = os.path.join(output_dir, f"report_{ts}.txt")
+        with open(report_path, "w") as f:
+            f.write(report)
+        logger.info("报告已保存: %s", report_path)
+
+        # 进化日志 JSON
+        log_path = os.path.join(output_dir, f"evolution_{ts}.json")
+        import json
+        log_data = {}
+        for i, logbook in enumerate(result.logbooks):
+            log_data[f"island_{i}"] = list(logbook)
+        with open(log_path, "w") as f:
+            json.dump(log_data, f, indent=2, default=str)
+        logger.info("进化日志已保存: %s", log_path)
+
+        return df
+
+
+# ================================================================
+# CLI 入口
+# ================================================================
+
+def main():
+    parser = argparse.ArgumentParser(description='GP + LLM 因子挖掘')
+    parser.add_argument('--start-date', type=str, default='2018-01-01')
+    parser.add_argument('--end-date', type=str, default='2026-05-11')
+    parser.add_argument('--train-end', type=str, default='2022-12-31')
+    parser.add_argument('--market', type=str, default='csi300')
+    parser.add_argument('--n-pop', type=int, default=100, help='每岛种群大小')
+    parser.add_argument('--n-gen', type=int, default=10, help='进化代数')
+    parser.add_argument('--n-islands', type=int, default=3, help='岛屿数量')
+    parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
+    parser.add_argument('--kernels', type=int, default=1, help='qlib kernels')
+    parser.add_argument('--seed', type=int, default=42)
+
+    args = parser.parse_args()
+
+    config = GPConfig(
+        start_date=args.start_date,
+        end_date=args.end_date,
+        train_end=args.train_end,
+        market=args.market,
+        n_pop=args.n_pop,
+        n_gen=args.n_gen,
+        n_islands=args.n_islands,
+        kernels=args.kernels,
+        seed=args.seed,
+    )
+
+    pipeline = GPLlamaPipeline(config, enable_llm=not args.no_llm)
+    df = pipeline.run()
+
+    if not df.empty:
+        selected = df[df.get("selected", True)]
+        print(f"\n最终筛选结果: {len(selected)}/{len(df)} 个因子")
+
+
+if __name__ == '__main__':
+    main()
