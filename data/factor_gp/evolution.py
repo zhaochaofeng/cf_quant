@@ -209,7 +209,13 @@ class IslandEvolution:
             island.best_fitness = island.hof[0].fitness.values[0]
 
     def _eval_population(self, island: Island):
-        """评估整群个体（仅初始化时调用）。"""
+        """评估整群个体（仅初始化时调用）。
+
+        DEAP 创建种群时 fitness.values 为空，需要首次评估使每个个体有分数。
+        不评估则后续选择算子、统计量 compiley 和 HoF 更新无法工作。
+
+        _evolve_one_generation 处理的是交叉变异产生的新个体，初始种群需要单独评估。
+        """
         invalid_ind = [ind for ind in island.population if not ind.fitness.valid]
         for ind in invalid_ind:
             ind.fitness.values = island.toolbox.evaluate(ind)
