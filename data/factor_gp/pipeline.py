@@ -33,12 +33,12 @@ class GPLlamaPipeline:
     def __init__(self, config: GPConfig, enable_llm: bool = True):
         self.config = config
         self.enable_llm = enable_llm
-        self.registry = PrimitiveRegistry()
-        self.evaluator: FactorEvaluator | None = None
+        self.registry = PrimitiveRegistry()             # 注册算子
+        self.evaluator: FactorEvaluator | None = None   # 因子评估器
         self.llm = None
-        self._instruments = None
-        self._target_train = None
-        self._target_test = None
+        self._instruments = None     # 股票集合
+        self._target_train = None    # 训练集收益率
+        self._target_test = None     # 测试集收益率
 
     # ================================================================
     # 主入口
@@ -88,10 +88,9 @@ class GPLlamaPipeline:
         self._instruments = D.list_instruments(
             cfg, start_time=self.config.start_date, end_time=self.config.end_date)
 
-        # 加载行情数据
-        fields = ['$close', '$open', '$high', '$low', '$volume', '$amount']
+        # 加载收盘价数据
         df = D.features(
-            self._instruments, fields,
+            self._instruments, ['$close'],
             start_time=self.config.start_date, end_time=self.config.end_date)
 
         # 计算未来收益（T+1 执行滞后）
@@ -105,10 +104,12 @@ class GPLlamaPipeline:
         self._target_test = target[target.index.get_level_values('datetime')
                                    > self.config.train_end]
 
+        train_len = len(self._target_train.index.get_level_values('datetime').unique())
+        test_len = len(self._target_test.index.get_level_values('datetime').unique())
         logger.info("数据加载: %d instruments, train=%d, test=%d",
-                     len(self._instruments),
-                     len(self._target_train.index.get_level_values('datetime').unique()),
-                     len(self._target_test.index.get_level_values('datetime').unique()))
+                     len(self._instruments), train_len, test_len)
+        if train_len == 0 or test_len == 0:
+            raise Exception('train_len == 0 or test_len == 0')
 
     def _build_pset(self, gene_aliases: list[str] | None):
         """构建 PrimitiveSetTyped（不含子表达式基因时先构建基础 pset）。"""
