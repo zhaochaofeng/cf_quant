@@ -13,6 +13,8 @@ import json
 import logging
 import re
 import time
+
+import httpx
 from typing import Optional
 
 from utils import get_config
@@ -145,7 +147,11 @@ class LLMInterface:
     def client(self):
         if self._client is None:
             from openai import OpenAI
-            self._client = OpenAI(base_url=self.base_url, api_key=self.api_key)
+            self._client = OpenAI(
+                base_url=self.base_url,
+                api_key=self.api_key,
+                timeout=httpx.Timeout(120.0, read=300.0),
+            )
         return self._client
 
     # ================================================================
@@ -321,7 +327,14 @@ class LLMInterface:
                     temperature=self.temperature,
                     max_tokens=self.max_tokens,
                 )
-                return response.choices[0].message.content or ""
+                content = response.choices[0].message.content or ""
+                if not content.strip():
+                    logger.warning("LLM 返回空内容 (attempt %d)", attempt + 1)
+                    if attempt < 2:
+                        time.sleep(2 ** attempt)
+                        continue
+                    raise ValueError("LLM 连续返回空内容")
+                return content
 
             except Exception as e:
                 logger.warning("LLM 调用失败 (attempt %d): %s", attempt + 1, e)
@@ -334,7 +347,7 @@ class LLMInterface:
 
     def _parse_json_response(self, response: str) -> Optional[dict]:
         """从 LLM 回复中提取 JSON。"""
-        if not response:
+        if not response or not response.strip():
             return None
 
         # 尝试直接解析
@@ -350,6 +363,22 @@ class LLMInterface:
                 return json.loads(match.group(1))
             except json.JSONDecodeError:
                 pass
+
+        # 尝试处理被截断的 markdown 代码块（有开头 ```json 但无闭合 ```）
+        stripped = response.strip()
+        if stripped.startswith("```"):
+            inner = re.sub(r'^```(?:json)?\s*', '', stripped)
+            if inner.strip():
+                try:
+                    return json.loads(inner)
+                except json.JSONDecodeError:
+                    pass
+                match = re.search(r'\{[\s\S]*\}', inner)
+                if match:
+                    try:
+                        return json.loads(match.group(0))
+                    except json.JSONDecodeError:
+                        pass
 
         # 尝试找到第一个 { ... } 块
         match = re.search(r'\{[\s\S]*\}', response)
