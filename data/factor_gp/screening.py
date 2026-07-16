@@ -213,11 +213,12 @@ class FactorScreening:
         factor_series = {}
         for expr_str in expr_list:
             try:
-                df_r = D.features(
-                    self.evaluator.instruments, [expr_str],
-                    start_time=self.config.train_end,
-                    end_time=self.config.end_date,
-                )
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    df_r = D.features(
+                        self.evaluator.instruments, [expr_str],
+                        start_time=self.config.train_end,
+                        end_time=self.config.end_date,
+                    )
                 series = df_r[expr_str].dropna()
                 if len(series) > 100:
                     factor_series[expr_str] = series

@@ -89,12 +89,13 @@ class FactorEvaluator:
         self._eval_count += 1
 
         try:
-            # qlib 计算因子值
-            df_r = D.features(
-                self.instruments, [expr_str],
-                start_time=self.config.start_date,
-                end_time=self.config.train_end,
-            )
+            # qlib 计算因子值（屏蔽 Log(≤0) 等数学无效告警）
+            with np.errstate(divide="ignore", invalid="ignore"):
+                df_r = D.features(
+                    self.instruments, [expr_str],
+                    start_time=self.config.start_date,
+                    end_time=self.config.train_end,
+                )
             factor = df_r[expr_str].dropna()
 
             if len(factor) == 0:
@@ -166,11 +167,12 @@ class FactorEvaluator:
     def evaluate_test(self, expr_str: str) -> dict:
         """在测试集上评估因子，返回完整指标。"""
         try:
-            df_r = D.features(
-                self.instruments, [expr_str],
-                start_time=self.config.train_end,
-                end_time=self.config.end_date,
-            )
+            with np.errstate(divide="ignore", invalid="ignore"):
+                df_r = D.features(
+                    self.instruments, [expr_str],
+                    start_time=self.config.train_end,
+                    end_time=self.config.end_date,
+                )
             factor = df_r[expr_str].dropna()
 
             if len(factor) == 0:
