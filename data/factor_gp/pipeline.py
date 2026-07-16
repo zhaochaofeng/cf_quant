@@ -147,6 +147,8 @@ class GPLlamaPipeline:
         self.llm.set_gene_aliases(self.registry.get_gene_aliases())
 
         logger.info("子表达式基因注册完成: %d 个基因", len(genes))
+        for alias, expr in genes.items():
+            logger.info('{} -> {}'.format(alias, expr))
 
     def _load_alpha158(self) -> list[tuple[str, str]]:
         """从 Alpha158 加载因子表达式。"""
@@ -276,12 +278,12 @@ class GPLlamaPipeline:
 
 def main():
     parser = argparse.ArgumentParser(description='GP + LLM 因子挖掘')
-    parser.add_argument('--start-date', type=str, default='2018-01-01')
+    parser.add_argument('--start-date', type=str, default='2025-01-01')
     parser.add_argument('--end-date', type=str, default='2026-05-11')
-    parser.add_argument('--train-end', type=str, default='2022-12-31')
+    parser.add_argument('--train-end', type=str, default='2026-01-31')
     parser.add_argument('--market', type=str, default='csi300')
-    parser.add_argument('--n-pop', type=int, default=100, help='每岛种群大小')
-    parser.add_argument('--n-gen', type=int, default=10, help='进化代数')
+    parser.add_argument('--n-pop', type=int, default=10, help='每岛种群大小')
+    parser.add_argument('--n-gen', type=int, default=4, help='进化代数')
     parser.add_argument('--n-islands', type=int, default=3, help='岛屿数量')
     parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
     parser.add_argument('--kernels', type=int, default=1, help='qlib kernels')
