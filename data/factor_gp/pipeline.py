@@ -110,8 +110,8 @@ class GPLlamaPipeline:
                                     <= self.config.train_end]
         self._target_test = target[target.index.get_level_values('datetime')
                                    > self.config.train_end]
-        DataFrameIO.write(self._target_train, f'{self.config.output_dir}/target_train.parquet')
-        DataFrameIO.write(self._target_test, f'{self.config.output_dir}/target_test.parquet')
+        DataFrameIO.write(self._target_train.to_frame(), f'{self.config.output_dir}/target_train.parquet')
+        DataFrameIO.write(self._target_test.to_frame(), f'{self.config.output_dir}/target_test.parquet')
         train_len = len(self._target_train.index.get_level_values('datetime').unique())
         test_len = len(self._target_test.index.get_level_values('datetime').unique())
         logger.info("数据加载: %d instruments, train=%d, test=%d",
@@ -191,10 +191,6 @@ class GPLlamaPipeline:
         random.seed(self.config.seed)
         np.random.seed(self.config.seed)
 
-        # 设置 DEAP creator
-        print('{}\n{}'.format('-' * 50, '_setup_creator...'))
-        self._setup_creator()
-
         # 启动进化
         engine = IslandEvolution(
             pset=self.registry.pset,
@@ -211,16 +207,6 @@ class GPLlamaPipeline:
         self._gene_aliases = self.registry.get_gene_aliases()
 
         return result
-
-    @staticmethod
-    def _setup_creator():
-        """确保 DEAP creator 类只创建一次。"""
-        from deap import base, creator, gp
-        for name in ["FitnessMax", "Individual"]:
-            if name in creator.__dict__:
-                del creator.__dict__[name]
-        creator.create("FitnessMax", base.Fitness, weights=(1.0,))
-        creator.create("Individual", gp.PrimitiveTree, fitness=creator.FitnessMax)
 
     # ================================================================
     # Phase 3: 后处理
