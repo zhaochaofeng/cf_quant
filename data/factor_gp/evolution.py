@@ -7,7 +7,6 @@
 - LLM 周期性注入（竞争替换，而非直接注入）
 """
 
-import logging
 import operator
 import time
 from dataclasses import dataclass, field
@@ -15,8 +14,10 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from deap import base, creator, gp, tools
+from utils.dt import time_decorator
+from utils import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 
 @dataclass
@@ -64,7 +65,7 @@ class IslandEvolution:
     # ================================================================
     # 岛屿初始化
     # ================================================================
-
+    @time_decorator
     def setup_islands(self):
         """为每个岛创建独立的 toolbox 和初始种群。
 
@@ -133,7 +134,7 @@ class IslandEvolution:
     # ================================================================
     # 主进化循环
     # ================================================================
-
+    @time_decorator
     def run(self) -> "EvolutionResult":
         """主进化循环。"""
         logger.info("=" * 60)
@@ -167,6 +168,7 @@ class IslandEvolution:
 
         return self.collect_result()
 
+    @time_decorator
     def _evolve_one_generation(self, island: Island):
         """对单个岛执行一代进化（选择 → 交叉 → 变异 → 评估 → 替换）。"""
         pop = island.population
@@ -226,7 +228,7 @@ class IslandEvolution:
     # ================================================================
     # 岛间迁移
     # ================================================================
-
+    @time_decorator
     def _migrate(self):
         """环形迁移：每岛迁出最佳个体到下一个岛，接收上一个岛的最佳个体。
 
@@ -370,7 +372,7 @@ class IslandEvolution:
     # ================================================================
     # 日志
     # ================================================================
-
+    @time_decorator
     def _log_generation(self, gen: int):
         elapsed = time.time() - self._gen_start_time
         parts = [f"Gen {gen + 1}/{self.config.n_gen} ({elapsed:.1f}s)"]

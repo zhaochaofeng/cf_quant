@@ -1,14 +1,14 @@
 """因子适应度评估：语法校验 → qlib 计算 → IC/ICIR → fitness"""
 
-import logging
 import numpy as np
 import pandas as pd
 
 import qlib
 from qlib.data import D
 from qlib.contrib.eva.alpha import calc_ic
+from utils import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 
 class FactorEvaluator:

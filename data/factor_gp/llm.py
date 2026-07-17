@@ -10,7 +10,6 @@
 """
 
 import json
-import logging
 import re
 import time
 
@@ -18,8 +17,9 @@ import httpx
 from typing import Optional
 
 from utils import get_config
+from utils import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 # ================================================================
 # 提示词模板

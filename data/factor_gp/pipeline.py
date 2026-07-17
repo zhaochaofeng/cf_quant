@@ -23,9 +23,12 @@ from data.factor_gp.screening import FactorScreening
 from utils.io_utils import DataFrameIO
 from utils.logger import LoggerFactory
 from utils.qlib import init_qlib
+from utils.dt import time_decorator
 
 logger = LoggerFactory.get_logger(__name__)
 
+# import numpy as np
+# np.seterr(all='ignore')
 
 class GPLlamaPipeline:
     """GP + LLM 因子挖掘主流水线。"""
@@ -68,6 +71,7 @@ class GPLlamaPipeline:
     # Phase 0: 初始化
     # ================================================================
 
+    @time_decorator
     def _phase0_init(self):
         """qlib 初始化 + 行情数据加载 + train/test 划分。"""
         logger.info("=" * 60)
@@ -111,6 +115,7 @@ class GPLlamaPipeline:
         if train_len == 0 or test_len == 0:
             raise Exception('train_len == 0 or test_len == 0')
 
+    @time_decorator
     def _build_pset(self, gene_aliases: list[str] | None):
         """构建 PrimitiveSetTyped（不含子表达式基因时先构建基础 pset）。"""
         self.registry.build_pset()
@@ -118,7 +123,7 @@ class GPLlamaPipeline:
     # ================================================================
     # Phase 1: LLM 子表达式基因提取
     # ================================================================
-
+    @time_decorator
     def _phase1_llm_genes(self):
         """LLM 从初始优质因子提取子表达式基因，注册到 pset。"""
         if not self.enable_llm:
@@ -163,7 +168,7 @@ class GPLlamaPipeline:
     # ================================================================
     # Phase 2: 分岛进化
     # ================================================================
-
+    @time_decorator
     def _phase2_evolve(self):
         """运行分岛进化。"""
         logger.info("=" * 60)
@@ -183,6 +188,7 @@ class GPLlamaPipeline:
         np.random.seed(self.config.seed)
 
         # 设置 DEAP creator
+        print('{}\n{}'.format('-' * 50, '_setup_creator...'))
         self._setup_creator()
 
         # 启动进化
@@ -192,7 +198,9 @@ class GPLlamaPipeline:
             config=self.config,
             llm_interface=self.llm,
         )
+        print('{}\n{}'.format('-' * 50, 'setup_islands...'))
         engine.setup_islands()
+        print('{}\n{}'.format('-'* 50, 'engine.run...'))
         result = engine.run()
 
         # 暂存基因别名（Phase 3 报告可用）
@@ -213,7 +221,7 @@ class GPLlamaPipeline:
     # ================================================================
     # Phase 3: 后处理
     # ================================================================
-
+    @time_decorator
     def _phase3_screening(self, result) -> pd.DataFrame:
         """测试集评估 + 低相关筛选 + 报告 + 持久化。"""
         logger.info("=" * 60)

@@ -1,11 +1,10 @@
 """后处理筛选：测试集评估 + 低相关筛选 + 报告生成"""
 
-import logging
-
 import numpy as np
 import pandas as pd
+from utils import LoggerFactory
 
-logger = logging.getLogger(__name__)
+logger = LoggerFactory.get_logger(__name__)
 
 
 class FactorScreening:
