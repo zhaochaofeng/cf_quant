@@ -59,10 +59,6 @@ class PrimitiveRegistry:
         for f in terminals:
             pset.addTerminal(f, ret_type=float, name=f)
 
-        # 已注册的子表达式基因
-        for alias, expr in self.sub_expr_genes.items():
-            self._add_gene_terminal(pset, alias, expr)
-
         # 叶子常量
         pset.addEphemeralConstant("C", partial(random.uniform, -1, 1), ret_type=float)
         pset.addEphemeralConstant("N", partial(random.randint, 5, 30), ret_type=int)
