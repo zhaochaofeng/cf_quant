@@ -7,6 +7,7 @@
   Phase 3: 后处理筛选 + 报告
 """
 
+import os
 import argparse
 import logging
 import time
@@ -43,6 +44,8 @@ class GPLlamaPipeline:
         self._target_train = None    # 训练集收益率
         self._target_test = None     # 测试集收益率
 
+        os.makedirs(self.config.output_dir, exist_ok=True)
+
     # ================================================================
     # 主入口
     # ================================================================
@@ -53,7 +56,7 @@ class GPLlamaPipeline:
 
         # Phase 0
         self._phase0_init()
-        self._build_pset(None)
+        self._build_pset()
 
         # Phase 1
         self._phase1_llm_genes()
@@ -107,7 +110,8 @@ class GPLlamaPipeline:
                                     <= self.config.train_end]
         self._target_test = target[target.index.get_level_values('datetime')
                                    > self.config.train_end]
-
+        DataFrameIO.write(self._target_train, f'{self.config.output_dir}/target_train.parquet')
+        DataFrameIO.write(self._target_test, f'{self.config.output_dir}/target_test.parquet')
         train_len = len(self._target_train.index.get_level_values('datetime').unique())
         test_len = len(self._target_test.index.get_level_values('datetime').unique())
         logger.info("数据加载: %d instruments, train=%d, test=%d",
@@ -116,8 +120,8 @@ class GPLlamaPipeline:
             raise Exception('train_len == 0 or test_len == 0')
 
     @time_decorator
-    def _build_pset(self, gene_aliases: list[str] | None):
-        """构建 PrimitiveSetTyped（不含子表达式基因时先构建基础 pset）。"""
+    def _build_pset(self):
+        """构建 PrimitiveSetTyped。"""
         self.registry.build_pset()
 
     # ================================================================
