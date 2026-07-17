@@ -133,13 +133,12 @@ class LLMInterface:
     """
 
     def __init__(self, model: str = None, base_url: str = None, api_key: str = None,
-                 temperature: float = 0.7, max_tokens: int = 4096):
+                 temperature: float = 0.7):
         cfg = get_config().get("llm_deepseek", {})
         self.model = model or "deepseek-v4-pro"
         self.base_url = base_url or cfg.get("base_url", "https://api.deepseek.com")
         self.api_key = api_key or cfg.get("api_key", "")
         self.temperature = temperature
-        self.max_tokens = max_tokens
         self._client = None
         self._gene_aliases: list[str] = []
 
@@ -325,7 +324,9 @@ class LLMInterface:
                         {"role": "user", "content": prompt},
                     ],
                     temperature=self.temperature,
-                    max_tokens=self.max_tokens,
+                    stream=False,
+                    reasoning_effort="high",
+                    extra_body={"thinking": {"type": "enabled"}}
                 )
                 content = response.choices[0].message.content or ""
                 if not content.strip():
