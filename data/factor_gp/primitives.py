@@ -71,7 +71,8 @@ class PrimitiveRegistry:
         _dummy = lambda *a: None
 
         # Element-wise (arity=1)
-        for op in ["Abs", "Log", "Sign"]:
+        # 不加 "Log" 防止 负数报错
+        for op in ["Abs", "Sign"]:
             pset.addPrimitive(_dummy, in_types=[float], ret_type=float, name=op)
 
         # Pair-wise (arity=2)
