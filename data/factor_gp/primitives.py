@@ -107,20 +107,18 @@ class PrimitiveRegistry:
 
         # 如果 pset 已构建，动态添加终端
         if self.pset is not None:
-            self._add_gene_terminal(self.pset, alias, qlib_expr)
+            self._add_gene_terminal(self.pset, qlib_expr)
 
     def register_sub_exprs(self, genes: dict[str, str]):
         """批量注册子表达式基因。"""
         for alias, expr in genes.items():
             self.register_sub_expr(alias, expr)
 
-    def _add_gene_terminal(self, pset: gp.PrimitiveSetTyped, alias: str, qlib_expr: str):
+    def _add_gene_terminal(self, pset: gp.PrimitiveSetTyped, qlib_expr: str):
         """将子表达式基因注册为终端。
 
         终端 name 设为 qlib 表达式字符串，嵌入树字符串后 qlib 可直接计算。
-        同时存储 alias → qlib_expr 映射用于可读性展示。
         """
-        # 用括号包裹以确保运算优先级
         safe_expr = f"({qlib_expr})"
         pset.addTerminal(safe_expr, ret_type=float, name=safe_expr)
 
