@@ -128,15 +128,3 @@ class PrimitiveRegistry:
 
     def get_gene_aliases(self) -> list[str]:
         return list(self.sub_expr_genes.keys())
-
-    # ================================================================
-    # 表达式可读性
-    # ================================================================
-
-    def readable_expr(self, expr_str: str) -> str:
-        """将包含子表达式基因的表达式替换为可读别名。"""
-        result = expr_str
-        for alias, qlib_expr in self.sub_expr_genes.items():
-            safe_expr = f"({qlib_expr})"
-            result = result.replace(safe_expr, alias)
-        return result
