@@ -76,46 +76,107 @@ class FactorEvaluator:
     # ================================================================
 
     def evaluate(self, individual) -> tuple:
-        """计算个体适应度（训练集），返回 DEAP 需要的 tuple。
-
-        适应度 = |RankIC_train| + icir_weight * |ICIR_train| - complexity_penalty * depth
-        """
+        """计算个体适应度（训练集），返回 DEAP 需要的 tuple。"""
         expr_str = str(individual)
-
-        # 缓存命中
         if expr_str in self.cache:
             return self.cache[expr_str]
 
         self._eval_count += 1
+        fitness = self._compute_fitness(individual, expr_str)
+        self.cache[expr_str] = fitness
+        return fitness
 
+    def evaluate_batch(self, individuals: list) -> list[tuple]:
+        """批量评估多个个体。
+
+        一次 D.features 调用计算所有未缓存表达式，避免反复初始化/读盘。
+        缓存命中的直接从 self.cache 取，不进入批量。
+
+        Returns:
+            fitness tuple 列表，与原 individuals 顺序一致
+        """
+        # 1. 分离已缓存和未缓存
+        cached = []
+        uncached_ind = []
+        uncached_exprs = []
+        for ind in individuals:
+            expr_str = str(ind)
+            if expr_str in self.cache:
+                cached.append((ind, self.cache[expr_str]))
+            else:
+                uncached_ind.append(ind)
+                uncached_exprs.append(expr_str)
+
+        if not uncached_exprs:
+            return [self.cache[str(ind)] for ind in individuals]
+
+        # 2. 一次 D.features 批量计算所有未缓存表达式
+        # 排除含 IntCast 的表达式（DEAP-only 类型转换，qlib 无法解析）
+        batch_exprs = []
+        fallback_ind = []
+        fallback_exprs = []
+        for ind, expr_str in zip(uncached_ind, uncached_exprs):
+            if "IntCast" in expr_str or expr_str in self.invalid_exprs:
+                fallback_ind.append(ind)
+                fallback_exprs.append(expr_str)
+            else:
+                batch_exprs.append(expr_str)
+
+        df_r = None
+        if batch_exprs:
+            unique_exprs = list(set(batch_exprs))
+            try:
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    df_r = D.features(
+                        self.instruments, unique_exprs,
+                        start_time=self.config.start_date,
+                        end_time=self.config.train_end,
+                    )
+            except Exception:
+                logger.debug("训练集批量 D.features 失败，回退逐条评估")
+                df_r = None
+
+        # 3. 逐个计算 IC/ICIR/fitness
+        # 批量成功时从 df_r 取因子值，失败时回退逐条
+        for ind, expr_str in zip(uncached_ind, uncached_exprs):
+            self._eval_count += 1
+            if df_r is not None and expr_str in df_r.columns:
+                fitness = self._compute_fitness(ind, expr_str, df_r)
+            else:
+                fitness = self.evaluate(ind)  # 逐条回退
+                continue
+            self.cache[expr_str] = fitness
+
+        # 4. 按原顺序返回
+        return [self.cache[str(ind)] for ind in individuals]
+
+    def _compute_fitness(self, individual, expr_str: str,
+                         df_r: pd.DataFrame | None = None) -> tuple:
+        """从因子值计算适应度。df_r 为 None 时自行调用 D.features。"""
         try:
-            # qlib 计算因子值（屏蔽 Log(≤0) 等数学无效告警）
-            with np.errstate(divide="ignore", invalid="ignore"):
-                df_r = D.features(
-                    self.instruments, [expr_str],
-                    start_time=self.config.start_date,
-                    end_time=self.config.train_end,
-                )
-            factor = df_r[expr_str].dropna()
+            if df_r is not None:
+                factor = df_r[expr_str].dropna()
+            else:
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    df_r = D.features(
+                        self.instruments, [expr_str],
+                        start_time=self.config.start_date,
+                        end_time=self.config.train_end,
+                    )
+                factor = df_r[expr_str].dropna()
 
             if len(factor) == 0:
                 self.invalid_exprs.add(expr_str)
-                result = (0.0,)
-                self.cache[expr_str] = result
-                return result
+                return (0.0,)
 
-            # 对齐预测值与标签
             common_idx = factor.index.intersection(self.target_train.index)
             if len(common_idx) == 0:
                 self.invalid_exprs.add(expr_str)
-                result = (0.0,)
-                self.cache[expr_str] = result
-                return result
+                return (0.0,)
 
             pred = factor.loc[common_idx]
             label = self.target_train.loc[common_idx]
 
-            # 去除 inf/NaN
             pred = pred[np.isfinite(pred)]
             label = label[np.isfinite(label)]
             common_idx = pred.index.intersection(label.index)
@@ -124,22 +185,14 @@ class FactorEvaluator:
 
             if len(pred) < 100:
                 self.invalid_exprs.add(expr_str)
-                result = (0.0,)
-                self.cache[expr_str] = result
-                return result
+                return (0.0,)
 
-            # RankIC + ICIR
             ic_series, rank_ic_series = calc_ic(pred, label)
-            ic_mean = ic_series.mean()
             rank_ic_mean = rank_ic_series.mean()
             rank_ic_std = rank_ic_series.std()
 
-            if rank_ic_std < 1e-12:
-                icir = 0.0
-            else:
-                icir = rank_ic_mean / rank_ic_std
+            icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
 
-            # 适应度 = |RankIC| + weight * |ICIR| - penalty * depth
             depth = individual.height
             fitness = (
                 abs(rank_ic_mean)
@@ -150,15 +203,11 @@ class FactorEvaluator:
             if not np.isfinite(fitness):
                 fitness = 0.0
 
-            result = (fitness,)
-            self.cache[expr_str] = result
-            return result
+            return (fitness,)
 
         except Exception:
             self.invalid_exprs.add(expr_str)
-            result = (0.0,)
-            self.cache[expr_str] = result
-            return result
+            return (0.0,)
 
     # ================================================================
     # 测试集评估（不参与进化）

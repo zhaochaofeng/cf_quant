@@ -235,14 +235,14 @@ class GPLlamaPipeline:
         # 限制候选数量（避免测试集评估过慢）
         candidates = result.candidates[:self.config.hof_size * 3]
 
-        # 测试集评估
-        df = screening.evaluate_all_on_test(candidates)
+        # 测试集评估（返回 factor_series 供相关性计算复用）
+        df, factor_series = screening.evaluate_all_on_test(candidates)
         if df.empty:
             logger.warning("无有效候选因子")
             return df
 
-        # 低相关筛选
-        df = screening.filter_by_correlation(df)
+        # 低相关筛选（复用 factor_series，避免重复 D.features）
+        df = screening.filter_by_correlation(df, factor_series=factor_series)
 
         # 生成报告
         report = screening.generate_report(df)

@@ -20,71 +20,112 @@ class FactorScreening:
 
     def evaluate_all_on_test(
         self, candidates: list[tuple[str, float]]
-    ) -> pd.DataFrame:
-        """对所有候选因子计算测试集指标。
+    ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+        """对所有候选因子计算测试集指标（批量 D.features）。
 
         Args:
             candidates: [(expr_str, train_fitness), ...]
 
         Returns:
-            DataFrame: expr | train_fitness | ic_train | icir_train |
-                       ic_test | rank_ic_test | icir_test | depth
+            (df, factor_series): DataFrame 包含各指标列，factor_series 为 expr→Series，
+                                 可直接传给 filter_by_correlation 避免重复计算
         """
-        rows = []
-        for expr_str, train_fitness in candidates:
-            test_result = self.evaluator.evaluate_test(expr_str)
+        from qlib.data import D
 
-            if "error" in test_result:
+        # 收集所有表达式，排除已知无效的（如含 IntCast 等 DEAP-only 符号）
+        all_exprs = list(set(
+            expr for expr, _ in candidates
+            if expr not in self.evaluator.invalid_exprs
+        ))
+        if not all_exprs:
+            return pd.DataFrame(), {}
+
+        try:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                df_r = D.features(
+                    self.evaluator.instruments, all_exprs,
+                    start_time=self.config.train_end,
+                    end_time=self.config.end_date,
+                )
+        except Exception as e:
+            logger.warning("测试集批量 D.features 失败: %s，回退逐条评估", e)
+            return self._evaluate_all_on_test_fallback(candidates)
+
+        # 逐个计算指标，同时保存 factor series
+        rows = []
+        factor_series = {}
+        for expr_str, train_fitness in candidates:
+            if expr_str not in df_r.columns:
+                continue
+            factor = df_r[expr_str].dropna()
+            if len(factor) == 0:
                 continue
 
-            depth = self._expr_depth(expr_str)
+            common_idx = factor.index.intersection(self.evaluator.target_test.index)
+            if len(common_idx) == 0:
+                continue
 
+            pred = factor.loc[common_idx]
+            label = self.evaluator.target_test.loc[common_idx]
+            pred = pred[np.isfinite(pred)]
+            label = label[np.isfinite(label)]
+            common_idx = pred.index.intersection(label.index)
+            pred = pred.loc[common_idx]
+            label = label.loc[common_idx]
+
+            if len(pred) < 100:
+                continue
+
+            from qlib.contrib.eva.alpha import calc_ic
+            ic, rank_ic = calc_ic(pred, label)
+
+            # 保存 factor series（用于相关性计算）
+            factor_series[expr_str] = pred
+
+            depth = self._expr_depth(expr_str)
             rows.append({
                 "expr": expr_str,
                 "train_fitness": train_fitness,
                 "train_ic": self.evaluator.get_train_ic(expr_str),
-                "test_rank_ic": test_result["rank_ic_mean"],
-                "test_icir": test_result["icir"],
+                "test_rank_ic": rank_ic.mean(),
+                "test_icir": rank_ic.mean() / rank_ic.std() if rank_ic.std() > 1e-12 else 0.0,
                 "depth": depth,
-                "n_samples": test_result["n_samples"],
-                "ic_decay": self.evaluator.get_train_ic(expr_str)
-                - test_result["rank_ic_mean"],
+                "n_samples": len(pred),
+                "ic_decay": self.evaluator.get_train_ic(expr_str) - rank_ic.mean(),
             })
 
         df = pd.DataFrame(rows)
         if df.empty:
             logger.warning("无有效候选因子")
-            return df
+            return df, factor_series
 
-        # 统一方向后计算绝对指标
         df["abs_test_rank_ic"] = df["test_rank_ic"].abs()
         df["abs_train_ic"] = df["train_ic"].abs()
-
-        # 按测试集 |RankIC| 降序
         df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
 
         logger.info(
             "测试集评估: %d 个候选, |RankIC| mean=%.4f, max=%.4f",
             len(df), df["abs_test_rank_ic"].mean(), df["abs_test_rank_ic"].max(),
         )
-        return df
+        return df, factor_series
 
     # ================================================================
     # 低相关筛选
     # ================================================================
 
     def filter_by_correlation(
-        self, df: pd.DataFrame, threshold: float = None
+        self, df: pd.DataFrame, threshold: float = None,
+        factor_series: dict[str, pd.Series] = None,
     ) -> pd.DataFrame:
         """贪心低相关筛选。
 
-        算法：
-        1. 按测试集 |RankIC| 降序排列
-        2. 逐个检查：如果与已选因子的最大相关性 < threshold，则保留
-        3. 输出筛选后的因子集合
+        Args:
+            df: 因子指标 DataFrame
+            threshold: 相关性阈值
+            factor_series: expr→Series 映射，由 evaluate_all_on_test 返回，避免重复 D.features
 
         Returns:
-            筛选后的 DataFrame（新增 corr_to_selected 列）
+            筛选后的 DataFrame（新增 max_corr, selected 列）
         """
         if threshold is None:
             threshold = self.config.corr_threshold
@@ -92,15 +133,16 @@ class FactorScreening:
         if df.empty:
             return df
 
-        # 计算因子值矩阵（测试集区间）
-        factor_matrix = self._build_factor_matrix(df["expr"].tolist())
-        if factor_matrix is None or factor_matrix.shape[1] < 2:
+        # 直接用传入的 factor_series 构建相关性矩阵（复用 evaluate_all_on_test 结果）
+        if factor_series and len(factor_series) >= 2:
+            matrix = pd.DataFrame(factor_series).dropna()
+        else:
             logger.warning("因子相关性矩阵构建失败或因子太少")
             df["max_corr"] = 0.0
             return df.assign(selected=True)
 
         # 计算相关性矩阵
-        corr_matrix = factor_matrix.corr()
+        corr_matrix = matrix.corr()
 
         # 按 |RankIC| 降序，确保是副本
         df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
@@ -205,33 +247,36 @@ class FactorScreening:
     # 辅助方法
     # ================================================================
 
-    def _build_factor_matrix(self, expr_list: list[str]) -> pd.DataFrame | None:
-        """构建因子值矩阵（测试集区间），用于计算相关性。"""
-        from qlib.data import D
-
+    def _evaluate_all_on_test_fallback(
+        self, candidates: list[tuple[str, float]]
+    ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+        """批量失败时的回退方案：逐条调用 evaluate_test。"""
+        rows = []
         factor_series = {}
-        for expr_str in expr_list:
-            try:
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    df_r = D.features(
-                        self.evaluator.instruments, [expr_str],
-                        start_time=self.config.train_end,
-                        end_time=self.config.end_date,
-                    )
-                series = df_r[expr_str].dropna()
-                if len(series) > 100:
-                    factor_series[expr_str] = series
-            except Exception:
+        for expr_str, train_fitness in candidates:
+            test_result = self.evaluator.evaluate_test(expr_str)
+            if "error" in test_result:
                 continue
-
-        if len(factor_series) < 2:
-            return None
-
-        # 对齐 index
-        # 取所有 series 中最近一段时间的共同日期
-        matrix = pd.DataFrame(factor_series)
-        matrix = matrix.dropna()
-        return matrix
+            # evaluate_test 内部已调用 D.features，这里只保存 factor
+            factor_series[expr_str] = test_result.get("factor", pd.Series())
+            depth = self._expr_depth(expr_str)
+            rows.append({
+                "expr": expr_str,
+                "train_fitness": train_fitness,
+                "train_ic": self.evaluator.get_train_ic(expr_str),
+                "test_rank_ic": test_result["rank_ic_mean"],
+                "test_icir": test_result["icir"],
+                "depth": depth,
+                "n_samples": test_result["n_samples"],
+                "ic_decay": self.evaluator.get_train_ic(expr_str)
+                - test_result["rank_ic_mean"],
+            })
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df["abs_test_rank_ic"] = df["test_rank_ic"].abs()
+            df["abs_train_ic"] = df["train_ic"].abs()
+            df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
+        return df, factor_series
 
     @staticmethod
     def _expr_depth(expr_str: str) -> int:

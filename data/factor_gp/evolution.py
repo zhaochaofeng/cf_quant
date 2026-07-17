@@ -193,11 +193,13 @@ class IslandEvolution:
                 offspring[i], = toolbox.mutate(offspring[i])
                 del offspring[i].fitness.values
 
-        # 评估未计算适应度的个体
+        # 评估未计算适应度的个体（批量）
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
         island.invalid_count = len(invalid_ind)
-        for ind in invalid_ind:
-            ind.fitness.values = toolbox.evaluate(ind)
+        if invalid_ind:
+            fitnesses = self.evaluator.evaluate_batch(invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
 
         # 替换
         island.population = offspring
@@ -219,8 +221,10 @@ class IslandEvolution:
         _evolve_one_generation 处理的是交叉变异产生的新个体，初始种群需要单独评估。
         """
         invalid_ind = [ind for ind in island.population if not ind.fitness.valid]
-        for ind in invalid_ind:
-            ind.fitness.values = island.toolbox.evaluate(ind)
+        if invalid_ind:
+            fitnesses = self.evaluator.evaluate_batch(invalid_ind)
+            for ind, fit in zip(invalid_ind, fitnesses):
+                ind.fitness.values = fit
         island.hof.update(island.population)
         record = island.stats.compile(island.population)
         island.logbook.record(gen=0, **record)
