@@ -48,11 +48,16 @@ class FactorEvaluator:
         # 1. 语法校验：DEAP 能否解析
         from deap import gp
         try:
-            gp.PrimitiveTree.from_string(expr_str, self.pset)
+            tree = gp.PrimitiveTree.from_string(expr_str, self.pset)
         except Exception as e:
             return False, f"语法错误: {e}"
 
-        # 2. qlib 能否计算
+        # 2. qlib 语义预检（基于 tree，不调用 D.features）
+        ok, reason = self._check_qlib_semantics(tree)
+        if not ok:
+            return False, f"qlib 语义: {reason}"
+
+        # 3. qlib 能否计算
         try:
             df_r = D.features(
                 self.instruments, [expr_str],
@@ -62,7 +67,7 @@ class FactorEvaluator:
         except Exception as e:
             return False, f"qlib 计算失败: {e}"
 
-        # 3. 结果非空且有截面区分度
+        # 4. 结果非空且有截面区分度
         factor = df_r[expr_str].dropna()
         if len(factor) == 0:
             return False, "结果为空"
@@ -95,59 +100,51 @@ class FactorEvaluator:
         Returns:
             fitness tuple 列表，与原 individuals 顺序一致
         """
-        # 1. 分离已缓存和未缓存
-        cached = []
-        uncached_ind = []
-        uncached_exprs = []
+        # 筛选合法表达式
+        batch_ind = []
+        batch_exprs = []
         for ind in individuals:
             expr_str = str(ind)
             if expr_str in self.cache:
-                cached.append((ind, self.cache[expr_str]))
+                continue
+            elif "IntCast" in expr_str or expr_str in self.invalid_exprs:
+                self.cache[expr_str] = (0.0,)
+            elif not self._passes_qlib_semantic(expr_str):
+                self.invalid_exprs.add(expr_str)
+                self.cache[expr_str] = (0.0,)
             else:
-                uncached_ind.append(ind)
-                uncached_exprs.append(expr_str)
-
-        if not uncached_exprs:
-            return [self.cache[str(ind)] for ind in individuals]
-
-        # 2. 一次 D.features 批量计算所有未缓存表达式
-        # 排除含 IntCast 的表达式（DEAP-only 类型转换，qlib 无法解析）
-        batch_exprs = []
-        fallback_ind = []
-        fallback_exprs = []
-        for ind, expr_str in zip(uncached_ind, uncached_exprs):
-            if "IntCast" in expr_str or expr_str in self.invalid_exprs:
-                fallback_ind.append(ind)
-                fallback_exprs.append(expr_str)
-            else:
+                batch_ind.append(ind)
                 batch_exprs.append(expr_str)
 
+        import time
         df_r = None
         if batch_exprs:
+            t  = time.time()
             unique_exprs = list(set(batch_exprs))
+            logger.info('\n{}\n exprs len: {}'.format('-'* 50, len(unique_exprs)))
             try:
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    df_r = D.features(
-                        self.instruments, unique_exprs,
-                        start_time=self.config.start_date,
-                        end_time=self.config.train_end,
-                    )
+                # with np.errstate(divide="ignore", invalid="ignore"):
+                df_r = D.features(
+                    self.instruments, unique_exprs,
+                    start_time=self.config.start_date,
+                    end_time=self.config.train_end,
+                )
             except Exception:
-                logger.debug("训练集批量 D.features 失败，回退逐条评估")
-                df_r = None
+                err_msg = "训练集批量 D.features 失败 ！！！"
+                logger.error(err_msg)
+                raise Exception(err_msg)
+            logger.info('\n{}\n 表达式计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
 
-        # 3. 逐个计算 IC/ICIR/fitness
-        # 批量成功时从 df_r 取因子值，失败时回退逐条
-        for ind, expr_str in zip(uncached_ind, uncached_exprs):
+        # 逐个计算 fitness
+        t = time.time()
+        for ind, expr_str in zip(batch_ind, batch_exprs):
             self._eval_count += 1
-            if df_r is not None and expr_str in df_r.columns:
-                fitness = self._compute_fitness(ind, expr_str, df_r)
-            else:
-                fitness = self.evaluate(ind)  # 逐条回退
-                continue
+            fitness = self._compute_fitness(ind, expr_str, df_r)
             self.cache[expr_str] = fitness
 
-        # 4. 按原顺序返回
+        logger.info('{}\n IC 计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
+
+        # 按原顺序返回
         return [self.cache[str(ind)] for ind in individuals]
 
     def _compute_fitness(self, individual, expr_str: str,
@@ -286,3 +283,141 @@ class FactorEvaluator:
 
     # pset 由外部设置（在 primitives.py 构建后注入）
     pset = None
+
+    # ================================================================
+    # qlib 语义预检（基于 DEAP PrimitiveTree，不调用 D.features）
+    # ================================================================
+
+    def _passes_qlib_semantic(self, expr_str: str) -> bool:
+        """解析表达式并做 qlib 语义预检，返回 True/False。"""
+        from deap import gp
+        try:
+            tree = gp.PrimitiveTree.from_string(expr_str, self.pset)
+        except Exception:
+            return False
+        ok, _ = self._check_qlib_semantics(tree)
+        return ok
+
+    def _check_qlib_semantics(self, tree) -> tuple[bool, str]:
+        """基于 PrimitiveTree 做 qlib 语义预检，拦截已知不兼容模式。
+
+        PrimitiveTree 是前缀序扁平列表（list-like），Primitive 的子节点
+        按 arity 紧随其后。用索引方式遍历。
+        """
+        from deap import gp
+
+        # 防御：空树
+        if len(tree) == 0:
+            return True, "ok"
+
+        # 规则 0: 单节点树不能是字面常量（eg. 0.6973914688286109）
+        if len(tree) == 1 and isinstance(tree[0], gp.Terminal):
+            if self._node_is_literal(tree[0]):
+                return False, f"表达式为纯字面常量: {tree[0].name}"
+
+        def _next_idx(idx):
+            """返回 subtree 在 tree[idx] 结束后的下一个索引，同时做规则检查。
+            返回 (next_idx, ok, reason)"""
+            node = tree[idx]
+            if isinstance(node, gp.Terminal):
+                return idx + 1, True, "ok"
+
+            name = node.name
+            arity = node.arity
+
+            # 收集子树的起始索引
+            child_starts = []
+            pos = idx + 1
+            for _ in range(arity):
+                child_starts.append(pos)
+                pos, ok, reason = _next_idx(pos)
+                if not ok:
+                    return pos, False, reason
+
+            # ---- 规则检查 ----
+            # 规则 1: Max/Min 第二参数必须是 int
+            if name in ("Max", "Min"):
+                snd = tree[child_starts[1]]
+                if not self._node_returns_int(snd):
+                    return pos, False, (
+                        f"Max/Min 第二参数非 int: {self._short(snd)}")
+
+            # 规则 2: Sign/Abs 子节点不能是字面常量
+            if name in ("Sign", "Abs"):
+                child = tree[child_starts[0]]
+                if self._node_is_literal(child):
+                    return pos, False, (
+                        f"{name} 作用于字面常量: {self._short(child)}")
+
+            # 规则 3: Sub 两个操作数不能都是布尔表达式
+            if name == "Sub":
+                left = tree[child_starts[0]]
+                right = tree[child_starts[1]]
+                if self._node_is_bool(left) and self._node_is_bool(right):
+                    return pos, False, (
+                        f"Sub 操作数均为布尔: "
+                        f"Sub({self._short(left)}, {self._short(right)})")
+
+            # 规则 4: Corr 前两参数不能是字面常量
+            if name == "Corr":
+                for i in (0, 1):
+                    child = tree[child_starts[i]]
+                    if self._node_is_literal(child):
+                        return pos, False, (
+                            f"Corr 参数{i + 1}是字面常量: {self._short(child)}")
+
+            # 规则 5: If 第一参数（条件）不能是字面常量
+            if name == "If":
+                cond = tree[child_starts[0]]
+                if self._node_is_literal(cond):
+                    return pos, False, (
+                        f"If 条件是字面常量: {self._short(cond)}")
+
+            # 规则 6: Gt/Lt 两个参数不能都是字面常量 (产生 numpy.bool_ 标量)
+            if name in ("Gt", "Lt"):
+                left = tree[child_starts[0]]
+                right = tree[child_starts[1]]
+                if self._node_is_literal(left) and self._node_is_literal(right):
+                    return pos, False, (
+                        f"{name} 两参数均为字面常量: "
+                        f"{self._short(left)}, {self._short(right)}")
+
+            return pos, True, "ok"
+
+        _, ok, reason = _next_idx(0)
+        return ok, reason
+
+    @staticmethod
+    def _node_is_literal(node) -> bool:
+        """节点是否是字面常量（C 或 N 生成的具体数值）。"""
+        from deap import gp
+        if not isinstance(node, gp.Terminal):
+            return False
+        try:
+            float(node.name)
+            return True
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _node_is_bool(node) -> bool:
+        """节点是否产生布尔值（Gt/Lt）。"""
+        from deap import gp
+        if isinstance(node, gp.Terminal):
+            return False
+        return node.name in ("Gt", "Lt")
+
+    @staticmethod
+    def _node_returns_int(node) -> bool:
+        """节点输出类型是否为 int（N 终端或 IntCast）。"""
+        from deap import gp
+        if isinstance(node, gp.Terminal):
+            return getattr(node, 'ret', None) is int
+        return getattr(node, 'name', None) == "IntCast"
+
+    @staticmethod
+    def _short(node) -> str:
+        from deap import gp
+        if isinstance(node, gp.Terminal):
+            return node.name
+        return f"{node.name}(...)"
