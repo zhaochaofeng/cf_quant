@@ -355,7 +355,7 @@ class FactorEvaluator:
             if name in ("Add", "Sub", "Mul", "Div"):
                 left = tree[child_starts[0]]
                 right = tree[child_starts[1]]
-                if self._node_is_bool(left) and self._node_is_bool(right):
+                if self._subtree_is_bool(tree, child_starts[0]) and self._subtree_is_bool(tree, child_starts[1]):
                     return pos, False, (
                         f"{name} 操作数均为布尔: "
                         f"{self._short(left)}, {self._short(right)}")
@@ -394,6 +394,7 @@ class FactorEvaluator:
     def _node_is_literal(node) -> bool:
         """节点是否是字面常量（C 或 N 生成的具体数值）。"""
         from deap import gp
+        # 排除非叶子节点
         if not isinstance(node, gp.Terminal):
             return False
         try:
@@ -403,12 +404,21 @@ class FactorEvaluator:
             return False
 
     @staticmethod
-    def _node_is_bool(node) -> bool:
-        """节点是否产生布尔值（Gt/Lt）。"""
+    def _subtree_is_bool(tree, idx: int) -> bool:
+        """递归判断以 tree[idx] 为根的子树是否产出 bool 值。
+
+        仅 Gt/Lt 直接产出 bool；Abs 传透 bool（abs(bool_series) 保持 bool dtype）。
+        Sign(bool)→int，不做传透。
+        """
         from deap import gp
+        node = tree[idx]
         if isinstance(node, gp.Terminal):
             return False
-        return node.name in ("Gt", "Lt")
+        if node.name in ("Gt", "Lt"):
+            return True
+        if node.name == "Abs":
+            return FactorEvaluator._subtree_is_bool(tree, idx + 1)
+        return False
 
     @staticmethod
     def _node_returns_int(node) -> bool:
