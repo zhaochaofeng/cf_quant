@@ -76,8 +76,9 @@ class PrimitiveRegistry:
             pset.addPrimitive(_dummy, in_types=[float, float], ret_type=float, name=op)
 
         # Rolling (arity=2: float, int)
-        for op in ["Ref", "Mean", "Std", "Delta", "Rank", "WMA", "EMA"]:
-            pset.addPrimitive(_dummy, in_types=[float, int], ret_type=float, name=op)
+        # FIXME: 计算容易出错
+        # for op in ["Ref", "Mean", "Std", "Delta", "Rank", "WMA", "EMA"]:
+        #     pset.addPrimitive(_dummy, in_types=[float, int], ret_type=float, name=op)
 
         # 三元算子
         pset.addPrimitive(_dummy, in_types=[float, float, int], ret_type=float, name="Corr")
