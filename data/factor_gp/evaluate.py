@@ -349,14 +349,16 @@ class FactorEvaluator:
                     return pos, False, (
                         f"{name} 作用于字面常量: {self._short(child)}")
 
-            # 规则 3: Sub 两个操作数不能都是布尔表达式
-            if name == "Sub":
+            # 规则 3: 算术算子两个操作数不能都是布尔表达式
+            # Div(bool,bool)→NotImplementedError crash,
+            # Add/Mul/Sub(bool,bool)→无意义布尔运算
+            if name in ("Add", "Sub", "Mul", "Div"):
                 left = tree[child_starts[0]]
                 right = tree[child_starts[1]]
                 if self._node_is_bool(left) and self._node_is_bool(right):
                     return pos, False, (
-                        f"Sub 操作数均为布尔: "
-                        f"Sub({self._short(left)}, {self._short(right)})")
+                        f"{name} 操作数均为布尔: "
+                        f"{self._short(left)}, {self._short(right)}")
 
             # 规则 4: Corr 前两参数不能是字面常量
             if name == "Corr":
