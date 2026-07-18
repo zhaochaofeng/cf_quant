@@ -220,6 +220,7 @@ class IslandEvolution:
 
         _evolve_one_generation 处理的是交叉变异产生的新个体，初始种群需要单独评估。
         """
+        # invalid_ind 是 list[PrimitiveTree]
         invalid_ind = [ind for ind in island.population if not ind.fitness.valid]
         if invalid_ind:
             fitnesses = self.evaluator.evaluate_batch(invalid_ind)
