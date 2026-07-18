@@ -129,8 +129,8 @@ class FactorEvaluator:
                     start_time=self.config.start_date,
                     end_time=self.config.train_end,
                 )
-            except Exception:
-                err_msg = "训练集批量 D.features 失败 ！！！"
+            except Exception as e:
+                err_msg = "训练集批量 D.features 失败: {}. \n batch_exprs: {}".format(e, batch_exprs)
                 logger.error(err_msg)
                 raise Exception(err_msg)
             logger.info('\n{}\n 表达式计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
