@@ -373,8 +373,9 @@ class FactorEvaluator:
                     return pos, False, (
                         f"If 条件是字面常量: {self._short(cond)}")
 
-            # 规则 6: Gt/Lt 两个参数不能都是字面常量 (产生 numpy.bool_ 标量)
-            if name in ("Gt", "Lt"):
+            # 规则 6: 所有二元算子两个参数不能都是字面常量
+            # Add(1,2)→numpy.float64, Gt(1,2)→numpy.bool_ 标量而非 pd.Series
+            if name in ("Add", "Sub", "Mul", "Div", "Max", "Min", "Gt", "Lt"):
                 left = tree[child_starts[0]]
                 right = tree[child_starts[1]]
                 if self._node_is_literal(left) and self._node_is_literal(right):
