@@ -288,6 +288,7 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
 
     args = parser.parse_args()
+    logger.info(f'args: {args}')
 
     config = GPConfig(
         start_date=args.start_date,
