@@ -205,9 +205,7 @@ class GPLlamaPipeline:
             config=self.config,
             llm_interface=self.llm,
         )
-        print('{}\n{}'.format('-' * 50, 'setup_islands...'))
         engine.setup_islands()
-        print('{}\n{}'.format('-'* 50, 'engine.run...'))
         result = engine.run()
 
         # 暂存基因别名（Phase 3 报告可用）
