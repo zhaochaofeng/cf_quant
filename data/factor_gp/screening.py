@@ -32,13 +32,15 @@ class FactorScreening:
         """
         from qlib.data import D
 
-        # 收集所有表达式，排除已知无效的（如含 IntCast 等 DEAP-only 符号）
-        all_exprs = list(set(
-            expr for expr, _ in candidates
+        # 收集有效表达式（排除已知无效的）
+        valid_candidates = [
+            (expr, fit) for expr, fit in candidates
             if expr not in self.evaluator.invalid_exprs
-        ))
-        if not all_exprs:
+        ]
+        if not valid_candidates:
             return pd.DataFrame(), {}
+
+        all_exprs = list(set(expr for expr, _ in valid_candidates))
 
         try:
             df_r = D.features(
@@ -47,16 +49,14 @@ class FactorScreening:
                 end_time=self.config.end_date,
             )
         except Exception as e:
-            err_msg =f"测试集批量 D.features 失败: %s，回退逐条评估: {e}"
+            err_msg = f"测试集批量 D.features 失败: %s，回退逐条评估: {e}"
             logger.error(err_msg)
             raise Exception(err_msg)
-
-            # return self._evaluate_all_on_test_fallback(candidates)
 
         # 逐个计算指标，同时保存 factor series
         rows = []
         factor_series = {}
-        for expr_str, train_fitness in all_exprs:
+        for expr_str, train_fitness in valid_candidates:
             factor = df_r[expr_str].dropna()
             if len(factor) == 0:
                 continue

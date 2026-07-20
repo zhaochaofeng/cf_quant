@@ -34,6 +34,12 @@ class PrimitiveRegistry:
         "$change",  # 涨跌幅
     ]
 
+    # 单元素 算子
+    ELEM_OPS = ["Abs", "Sign", "Log", "Not"]
+
+    # 元素对算子
+    # PIRE_OPS = 
+
     def __init__(self):
         self.pset: gp.PrimitiveSetTyped | None = None
         self.sub_expr_genes: dict[str, str] = {}  # alias → qlib_expr
