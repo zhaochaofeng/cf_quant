@@ -210,7 +210,6 @@ class LLMInterface:
         self,
         top_exprs: list[tuple[str, float]],
         invalid_patterns: list[str],
-        gen: int,
     ) -> list[str]:
         """周期性生成新候选因子。
 
@@ -245,6 +244,7 @@ class LLMInterface:
             invalid_exprs=invalid_text,
             gene_aliases=", ".join(self._gene_aliases) if self._gene_aliases else "无",
         )
+        print('\n{}\n{}'.format('-' * 50, prompt))
 
         response = self._call_llm(prompt)
         data = self._parse_json_response(response)
@@ -271,6 +271,7 @@ class LLMInterface:
 
         logger.info("LLM 生成 %d 候选因子（%d 有效）",
                      len(factors), len(candidates))
+        print('\n{}\n{}'.format('-' * 50, candidates))
         return candidates
 
     # ================================================================

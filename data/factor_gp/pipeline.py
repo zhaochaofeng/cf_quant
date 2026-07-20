@@ -58,6 +58,14 @@ class GPLlamaPipeline:
         self._phase0_init()
         self._build_pset()
 
+        # 构建 evaluator
+        self.evaluator = FactorEvaluator(
+            instruments=self._instruments,
+            target_train=self._target_train,
+            target_test=self._target_test,
+            config=self.config,
+        )
+
         # Phase 1
         self._phase1_llm_genes()
 
@@ -148,7 +156,14 @@ class GPLlamaPipeline:
 
         # LLM 提取子表达式基因
         genes = self.llm.extract_sub_expr_genes(factor_exprs)
+        logger.info(f'LLM 提取因子 genes: {len(genes)}')
         if not genes:
+            return
+
+        # 检查genes 合法性
+        genes = [gene for gene in genes if self.evaluator._passes_qlib_semantic(gene)]
+        if not genes:
+            logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
             return
 
         # 注册到 pset
@@ -177,14 +192,6 @@ class GPLlamaPipeline:
         """运行分岛进化。"""
         logger.info("=" * 60)
         logger.info("Phase 2: 分岛进化")
-
-        # 构建 evaluator
-        self.evaluator = FactorEvaluator(
-            instruments=self._instruments,
-            target_train=self._target_train,
-            target_test=self._target_test,
-            config=self.config,
-        )
 
         # 随机种子
         import random

@@ -267,7 +267,7 @@ class IslandEvolution:
                             key=lambda j: island.population[j].fitness.values[0])
             island.population[worst_idx] = emigrant
 
-        logger.debug("岛间迁移完成: %d 岛", n)
+        logger.info("岛间迁移完成: %d 岛", n)
 
     # ================================================================
     # LLM 注入
@@ -304,12 +304,14 @@ class IslandEvolution:
         try:
             candidates = self.llm.generate_candidates(
                 top_exprs=unique_top[:10],
-                invalid_patterns=invalid_list,
-                gen=gen,
+                invalid_patterns=invalid_list
             )
+            logger.info(f'LLM 提取因子 candidates: {len(candidates)}')
         except Exception as e:
             logger.warning("LLM 生成失败: %s", e)
             return
+
+        candidates = [c for c in candidates if self.evaluator._passes_qlib_semantic(c)]
 
         if not candidates:
             logger.info("LLM 未生成有效候选")
@@ -317,17 +319,29 @@ class IslandEvolution:
 
         # 竞争替换：每个候选 vs 岛内底部个体
         accepted = 0
+        print('-' * 50)
+        pri_list = self.pset.primitives[float]
+        pris = [pri.name for pri in pri_list]
+        print(pris)
+
+        ter_list = self.pset.terminals[float]
+        ters = [ter.name for ter in ter_list]
+        print(ters)
+        print('-' * 50)
         for expr_str in candidates:
             # 解析为 individual
             try:
+                logger.info('expr_str: {}'.format(expr_str))
                 ind = gp.PrimitiveTree.from_string(expr_str, self.pset)
-            except Exception:
-                continue
+            except Exception as e:
+                # continue
+                raise Exception("Invalid expression: {}, e: {}".format(expr_str, e))
 
             ind = creator.Individual(ind)
             ind.fitness.values = self.evaluator.evaluate(ind)
             fitness = ind.fitness.values[0]
-
+            logger.info('gen: {}, candidate: {}, fitness: {}'.format(
+                gen, expr_str, fitness))
             if fitness <= 1e-8:
                 continue
 

@@ -41,22 +41,22 @@ class FactorScreening:
             return pd.DataFrame(), {}
 
         try:
-            with np.errstate(divide="ignore", invalid="ignore"):
-                df_r = D.features(
-                    self.evaluator.instruments, all_exprs,
-                    start_time=self.config.train_end,
-                    end_time=self.config.end_date,
-                )
+            df_r = D.features(
+                self.evaluator.instruments, all_exprs,
+                start_time=self.config.train_end,
+                end_time=self.config.end_date,
+            )
         except Exception as e:
-            logger.warning("测试集批量 D.features 失败: %s，回退逐条评估", e)
-            return self._evaluate_all_on_test_fallback(candidates)
+            err_msg =f"测试集批量 D.features 失败: %s，回退逐条评估: {e}"
+            logger.error(err_msg)
+            raise Exception(err_msg)
+
+            # return self._evaluate_all_on_test_fallback(candidates)
 
         # 逐个计算指标，同时保存 factor series
         rows = []
         factor_series = {}
-        for expr_str, train_fitness in candidates:
-            if expr_str not in df_r.columns:
-                continue
+        for expr_str, train_fitness in all_exprs:
             factor = df_r[expr_str].dropna()
             if len(factor) == 0:
                 continue
