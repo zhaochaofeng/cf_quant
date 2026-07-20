@@ -18,7 +18,7 @@ class GPConfig:
     cxpb: float = 0.7
     mutpb: float = 0.3
     max_height: int = 8
-    tournsize: int = 3
+    tournsize: int = 3    # 竞赛候选数
 
     # ========== 岛间迁移 ==========
     migration_freq: int = 4  # 每 N 代迁移一次
