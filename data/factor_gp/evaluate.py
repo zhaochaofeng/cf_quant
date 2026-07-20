@@ -389,15 +389,11 @@ class FactorEvaluator:
                     return pos, False, reason
 
             # ---- 规则检查 ----
-            # 规则 1: Max/Min 第二参数必须是 int
-            if name in ("Max", "Min"):
-                snd = tree[child_starts[1]]
-                if not self._node_returns_int(snd):
-                    return pos, False, (
-                        f"Max/Min 第二参数非 int: {self._short(snd)}")
+            # 规则 1 已删除：滚动 Max/Min 的 int 约束由 typed GP [float,int] 保证，
+            # 不再需要运行时语义检查。
 
-            # 规则 2: Sign/Abs 子节点不能是字面常量
-            if name in ("Sign", "Abs"):
+            # 规则 2: 单元素算子子节点不能是字面常量
+            if name in ("Sign", "Abs", "Log", "Not"):
                 child = tree[child_starts[0]]
                 if self._node_is_literal(child):
                     return pos, False, (
@@ -414,24 +410,39 @@ class FactorEvaluator:
                         f"{name} 操作数均为布尔: "
                         f"{self._short(left)}, {self._short(right)}")
 
-            # 规则 4: Corr 前两参数不能是字面常量
-            if name == "Corr":
+            # 规则 4: Not/And/Or 输入必须是 bool 类型
+            if name == "Not":
+                if not self._subtree_is_bool(tree, child_starts[0]):
+                    return pos, False, f"Not 输入非 bool"
+            if name in ("And", "Or"):
+                if not self._subtree_is_bool(tree, child_starts[0]) or not self._subtree_is_bool(tree, child_starts[1]):
+                    return pos, False, f"{name} 输入非 bool"
+
+            # 规则 5: Corr/Cov 前两参数不能是字面常量
+            if name in ("Corr", "Cov"):
                 for i in (0, 1):
                     child = tree[child_starts[i]]
                     if self._node_is_literal(child):
                         return pos, False, (
-                            f"Corr 参数{i + 1}是字面常量: {self._short(child)}")
+                            f"{name} 参数{i + 1}是字面常量: {self._short(child)}")
 
-            # 规则 5: If 第一参数（条件）不能是字面常量
+            # 规则 6: If 第一参数（条件）不能是字面常量
             if name == "If":
                 cond = tree[child_starts[0]]
                 if self._node_is_literal(cond):
                     return pos, False, (
                         f"If 条件是字面常量: {self._short(cond)}")
 
-            # 规则 6: 所有二元算子两个参数不能都是字面常量
-            # Add(1,2)→numpy.float64, Gt(1,2)→numpy.bool_ 标量而非 pd.Series
-            if name in ("Add", "Sub", "Mul", "Div", "Max", "Min", "Gt", "Lt"):
+            # 规则 7: 双常量陷阱（两参数不能都是字面常量）
+            # Power 特殊：左操作数不能是常量，右操作数可以是常量
+            _BOTH_CONST_OPS = {
+                "Add", "Sub", "Mul", "Div", "Greater", "Less",
+                "Gt", "Ge", "Lt", "Le", "Eq", "Ne", "And", "Or",
+            }
+            if name == "Power":
+                if self._node_is_literal(tree[child_starts[0]]):
+                    return pos, False, f"Power 左操作数为字面常量"
+            elif name in _BOTH_CONST_OPS:
                 left = tree[child_starts[0]]
                 right = tree[child_starts[1]]
                 if self._node_is_literal(left) and self._node_is_literal(right):
@@ -461,14 +472,15 @@ class FactorEvaluator:
     def _subtree_is_bool(tree, idx: int) -> bool:
         """递归判断以 tree[idx] 为根的子树是否产出 bool 值。
 
-        仅 Gt/Lt 直接产出 bool；Abs 传透 bool（abs(bool_series) 保持 bool dtype）。
+        Gt/Ge/Lt/Le/Eq/Ne/And/Or/Not 直接产出 bool；
+        Abs 传透 bool（abs(bool_series) 保持 bool dtype）。
         Sign(bool)→int，不做传透。
         """
         from deap import gp
         node = tree[idx]
         if isinstance(node, gp.Terminal):
             return False
-        if node.name in ("Gt", "Lt"):
+        if node.name in ("Gt", "Ge", "Lt", "Le", "Eq", "Ne", "And", "Or", "Not"):
             return True
         if node.name == "Abs":
             return FactorEvaluator._subtree_is_bool(tree, idx + 1)
