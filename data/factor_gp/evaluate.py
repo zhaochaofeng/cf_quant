@@ -425,7 +425,9 @@ class FactorEvaluator:
         """节点输出类型是否为 int（N 终端或 IntCast）。"""
         from deap import gp
         if isinstance(node, gp.Terminal):
+            # 'ret' 是 gp.Terminal 对象类型属性
             return getattr(node, 'ret', None) is int
+        # 'name' 是 gp.Primitive 对象函数名称
         return getattr(node, 'name', None) == "IntCast"
 
     @staticmethod
