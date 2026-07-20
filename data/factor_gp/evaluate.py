@@ -11,6 +11,39 @@ from utils import LoggerFactory
 logger = LoggerFactory.get_logger(__name__)
 
 
+def _calc_fitness_worker(args):
+    """Worker：因子值 → IC → fitness。模块级函数，用于 multiprocessing_wrapper_same。"""
+    (expr_str, factor_values, target_values,
+     icir_weight, complexity_penalty, depth) = args
+
+    common_idx = factor_values.index.intersection(target_values.index)
+    if len(common_idx) == 0:
+        return (expr_str, (0.0,), True)
+
+    pred = factor_values.loc[common_idx]
+    label = target_values.loc[common_idx]
+    pred = pred[np.isfinite(pred)]
+    label = label[np.isfinite(label)]
+    common_idx = pred.index.intersection(label.index)
+    pred = pred.loc[common_idx]
+    label = label.loc[common_idx]
+
+    if len(pred) < 100:
+        return (expr_str, (0.0,), True)
+
+    from qlib.contrib.eva.alpha import calc_ic
+    ic_series, rank_ic_series = calc_ic(pred, label)
+    rank_ic_mean = rank_ic_series.mean()
+    rank_ic_std = rank_ic_series.std()
+    icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
+
+    fitness = abs(rank_ic_mean) + icir_weight * abs(icir) - complexity_penalty * depth
+    if not np.isfinite(fitness):
+        fitness = 0.0
+
+    return (expr_str, (fitness,), False)
+
+
 class FactorEvaluator:
     """因子评估器。
 
@@ -135,14 +168,35 @@ class FactorEvaluator:
                 raise Exception(err_msg)
             logger.info('\n{}\n 表达式计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
 
-        # 逐个计算 fitness
+        # 并行计算 IC
         t = time.time()
-        for ind, expr_str in zip(batch_ind, batch_exprs):
-            self._eval_count += 1
-            fitness = self._compute_fitness(ind, expr_str, df_r)
-            self.cache[expr_str] = fitness
+        if batch_ind:
+            worker_args = []
+            for ind in batch_ind:
+                expr_str = str(ind)
+                factor = df_r[expr_str].dropna()
+                worker_args.append((
+                    expr_str, factor, self.target_train,
+                    self.config.icir_weight,
+                    self.config.complexity_penalty,
+                    ind.height,
+                ))
 
-        logger.info('{}\n IC 计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
+            from utils.multiprocess import multiprocessing_wrapper_same
+            results = multiprocessing_wrapper_same(
+                _calc_fitness_worker,
+                worker_args,
+                n=self.config.n_workers,
+                start_method='fork',
+            )
+
+            for expr_str, fitness, is_invalid in results:
+                if is_invalid:
+                    self.invalid_exprs.add(expr_str)
+                self.cache[expr_str] = fitness
+                self._eval_count += 1
+
+        logger.info('{}\n IC 计算完成(并行)，耗时：{}s'.format('-' * 50, round(time.time() - t)))
 
         # 按原顺序返回
         return [self.cache[str(ind)] for ind in individuals]
