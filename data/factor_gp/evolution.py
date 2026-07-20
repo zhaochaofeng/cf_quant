@@ -32,8 +32,8 @@ class Island:
     logbook: tools.Logbook | None = None
 
     # 运行时统计
-    gen: int = 0
-    best_fitness: float = 0.0
+    gen: int = 0      # 当前代数
+    best_fitness: float = 0.0      # 当前最佳适应度
     invalid_count: int = 0
 
 
@@ -174,7 +174,7 @@ class IslandEvolution:
         pop = island.population
         toolbox = island.toolbox
 
-        # 选择 offspring
+        # 选择 offspring：list[individual]
         offspring = toolbox.select(pop, len(pop))
         offspring = [toolbox.clone(ind) for ind in offspring]
 
@@ -193,7 +193,7 @@ class IslandEvolution:
                 offspring[i], = toolbox.mutate(offspring[i])
                 del offspring[i].fitness.values
 
-        # 评估未计算适应度的个体（批量）
+        # 评估未计算 fitness 的个体（批量）
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
         island.invalid_count = len(invalid_ind)
         if invalid_ind:
