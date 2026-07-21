@@ -241,14 +241,14 @@ class FactorEvaluator:
 
             ic_series, rank_ic_series = calc_ic(pred, label)
             rank_ic_mean = rank_ic_series.mean()
-            rank_ic_std = rank_ic_series.std()
-
-            icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
+            # rank_ic_std = rank_ic_series.std()
+            #
+            # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
 
             depth = individual.height
             fitness = (
                 abs(rank_ic_mean)
-                + self.config.icir_weight * abs(icir)
+                # + self.config.icir_weight * abs(icir)
                 - self.config.complexity_penalty * depth
             )
 
