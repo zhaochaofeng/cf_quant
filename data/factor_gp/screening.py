@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+from utils import DataFrameIO, PickleIO
 from utils import LoggerFactory
 
 logger = LoggerFactory.get_logger(__name__)
@@ -27,7 +28,8 @@ class FactorScreening:
             candidates: [(expr_str, train_fitness), ...]
 
         Returns:
-            (df, factor_series): DataFrame 包含各指标列，factor_series 为 expr→Series，
+            (df, factor_series): df: 表达式的指标
+                                 factor_series：dict. (expr, 表达式Series)，
                                  可直接传给 filter_by_correlation 避免重复计算
         """
         from qlib.data import D
@@ -133,16 +135,19 @@ class FactorScreening:
         if df.empty:
             return df
 
-        # 直接用传入的 factor_series 构建相关性矩阵（复用 evaluate_all_on_test 结果）
+        # 直接用传入的 factor_series 构建相关性矩阵
+        # matrix: 列名为 表达式名
         if factor_series and len(factor_series) >= 2:
-            matrix = pd.DataFrame(factor_series).dropna()
+            matrix = pd.DataFrame(factor_series)
+            DataFrameIO.write(matrix, f'{self.config.output_dir}/factor_matrix.parquet', type='parquet')
         else:
             logger.warning("因子相关性矩阵构建失败或因子太少")
             df["max_corr"] = 0.0
             return df.assign(selected=True)
 
         # 计算相关性矩阵
-        corr_matrix = matrix.corr()
+        corr_matrix = matrix.corr(min_periods=30)
+        PickleIO.write(corr_matrix, f'{self.config.output_dir}/factor_corr_matrix.pkl')
 
         # 按 |RankIC| 降序，确保是副本
         df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
@@ -156,6 +161,7 @@ class FactorScreening:
                 max_corrs.append(0.0)
                 continue
 
+            # 第一个因子
             if not selected_indices:
                 selected_indices.append(i)
                 max_corrs.append(0.0)
@@ -183,7 +189,7 @@ class FactorScreening:
             "低相关筛选 (threshold=%.2f): %d/%d 保留",
             threshold, n_selected, len(df),
         )
-
+        DataFrameIO.write(df, f'{self.config.output_dir}/test_factor_corr.parquet', type='parquet')
         return df
 
     # ================================================================
@@ -191,15 +197,10 @@ class FactorScreening:
     # ================================================================
 
     def generate_report(
-        self, df: pd.DataFrame, output_dir: str = None
+        self, df: pd.DataFrame
     ) -> str:
-        """生成因子报告摘要。
-
-        Returns:
-            报告文本
+        """生成因子报告摘要
         """
-        if output_dir is None:
-            output_dir = self.config.output_dir
 
         selected = df[df.get("selected", True)]
 
@@ -207,9 +208,9 @@ class FactorScreening:
             "=" * 60,
             "GP + LLM 因子挖掘报告",
             "=" * 60,
-            f"样本区间: {self.config.start_date} ~ {self.config.end_date}",
-            f"训练集: ~ {self.config.train_end}",
-            f"测试集: {self.config.train_end} ~ {self.config.end_date}",
+            f"样本区间: [{self.config.start_date}, {self.config.end_date}]",
+            f"训练集: [{self.config.start_date}, {self.config.train_end}]",
+            f"测试集: ({self.config.train_end} ~ {self.config.end_date}]",
             "",
             f"候选因子总数: {len(df)}",
             f"筛选后因子数: {len(selected)}",
@@ -242,41 +243,6 @@ class FactorScreening:
         report = "\n".join(lines)
         logger.info(report)
         return report
-
-    # ================================================================
-    # 辅助方法
-    # ================================================================
-
-    def _evaluate_all_on_test_fallback(
-        self, candidates: list[tuple[str, float]]
-    ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
-        """批量失败时的回退方案：逐条调用 evaluate_test。"""
-        rows = []
-        factor_series = {}
-        for expr_str, train_fitness in candidates:
-            test_result = self.evaluator.evaluate_test(expr_str)
-            if "error" in test_result:
-                continue
-            # evaluate_test 内部已调用 D.features，这里只保存 factor
-            factor_series[expr_str] = test_result.get("factor", pd.Series())
-            depth = self._expr_depth(expr_str)
-            rows.append({
-                "expr": expr_str,
-                "train_fitness": train_fitness,
-                "train_ic": self.evaluator.get_train_ic(expr_str),
-                "test_rank_ic": test_result["rank_ic_mean"],
-                "test_icir": test_result["icir"],
-                "depth": depth,
-                "n_samples": test_result["n_samples"],
-                "ic_decay": self.evaluator.get_train_ic(expr_str)
-                - test_result["rank_ic_mean"],
-            })
-        df = pd.DataFrame(rows)
-        if not df.empty:
-            df["abs_test_rank_ic"] = df["test_rank_ic"].abs()
-            df["abs_train_ic"] = df["train_ic"].abs()
-            df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
-        return df, factor_series
 
     @staticmethod
     def _expr_depth(expr_str: str) -> int:
