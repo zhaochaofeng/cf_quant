@@ -483,6 +483,36 @@ class FactorEvaluator:
                     return pos, False, (
                         f"{name} 的feature_left 或 feature_right必须为 bool: {self._short(left)} 或 {self._short(right)}")
 
+            # 规则10: 除了Not, 单元素算子 featrue 不能为 bool 类型
+            if name in (set(ELEM_OPS) - set(['Not'])):
+                child = tree[child_starts[0]]
+                if self._node_is_bool(child):
+                    return pos, False, (
+                        f"{name} 的feature必须是 bool: {self._short(child)}")
+
+            # 规则11: 元素对算子（Power, Add, Sub, Mul, Div, Greater, Less）的feature_left, feature_right 类型不能为bool
+            if name in ("Power", "Add", "Sub", "Mul", "Div", "Greater", "Less"):
+                left = tree[child_starts[0]]
+                right = tree[child_starts[1]]
+                if self._node_is_bool(left) or self._node_is_bool(right):
+                    return pos, False, (
+                        f"{name} 的feature_left 或 feature_right不能为 bool: {self._short(left)} 或 {self._short(right)}")
+
+            # 规则12: 单元素 Rolling算子 feature 不能为 bool 类型
+            if name in ELEM_ROLLING_OPS:
+                child = tree[child_starts[0]]
+                if self._node_is_bool(child):
+                    return pos, False, (
+                        f"{name} 的feature必须是 bool: {self._short(child)}")
+
+            # 规则13: 元素对 Rolling算子（Corr, Cov）的feature_left, feature_right 不能为 bool 类型
+            if name in PAIR_ROLLING_OPS:
+                left = tree[child_starts[0]]
+                right = tree[child_starts[1]]
+                if self._node_is_bool(left) or self._node_is_bool(right):
+                    return pos, False, (
+                        f"{name} 的feature_left 或 feature_right不能为 bool: {self._short(left)} 或 {self._short(right)}")
+
             return pos, True, "ok"
 
         _, ok, reason = _next_idx(0)
