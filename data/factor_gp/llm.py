@@ -33,28 +33,56 @@ QLIB_OPERATORS_REF = """
 - Abs(x): 绝对值
 - Log(x): 自然对数
 - Sign(x): 符号函数
+- Not(x): 逻辑非（按位取反）
 
 ### 双目算子 (float, float → float)
 - Add(x, y): x + y
 - Sub(x, y): x - y
 - Mul(x, y): x * y
 - Div(x, y): x / y
-- Max(x, y): 取最大值
-- Min(x, y): 取最小值
+- Power(x, y): x 的 y 次幂
+- Greater(x, y): 取 x 和 y 中的较大值
+- Less(x, y): 取 x 和 y 中的较小值
 - Gt(x, y): x > y 则为 1, 否则 0
+- Ge(x, y): x >= y 则为 1, 否则 0
 - Lt(x, y): x < y 则为 1, 否则 0
+- Le(x, y): x <= y 则为 1, 否则 0
+- Eq(x, y): x == y 则为 1, 否则 0
+- Ne(x, y): x != y 则为 1, 否则 0
+- And(x, y): x 与 y 的逻辑与（按位）
+- Or(x, y): x 与 y 的逻辑或（按位）
 
 ### 滚动算子 (float, int → float)
 - Ref(x, d): d 日前的 x 值
 - Mean(x, d): d 日滚动均值
+- Sum(x, d): d 日滚动求和
 - Std(x, d): d 日滚动标准差
-- Delta(x, d): x - Ref(x, d)
+- Var(x, d): d 日滚动方差
+- Skew(x, d): d 日滚动偏度
+- Kurt(x, d): d 日滚动峰度
+- Max(x, d): d 日滚动最大值
+- Min(x, d): d 日滚动最小值
+- IdxMax(x, d): d 日内最大值的索引
+- IdxMin(x, d): d 日内最小值的索引
+- Med(x, d): d 日滚动中位数
+- Mad(x, d): d 日滚动平均绝对偏差
 - Rank(x, d): d 日内 x 的排名百分位
+- Count(x, d): d 日内非 NaN 元素个数
+- Delta(x, d): x - Ref(x, d)
+- Slope(x, d): d 日滚动线性回归斜率
+- Rsquare(x, d): d 日滚动线性回归 R²
+- Resi(x, d): d 日滚动线性回归残差
 - WMA(x, d): d 日加权移动平均
 - EMA(x, d): d 日指数移动平均
 
-### 三元算子
+### 特殊滚动算子
+- Quantile(x, d, q): d 日滚动 q 分位数（q 为 0-1 之间的浮点数，如 0.5 表示中位数）
+
+### 双变量滚动算子 (float, float, int → float)
 - Corr(x, y, d): x 与 y 在 d 日内的滚动相关系数
+- Cov(x, y, d): x 与 y 在 d 日内的滚动协方差
+
+### 三元算子
 - If(cond, a, b): cond > 0 则返回 a, 否则返回 b
 
 ### 可用字段
@@ -83,6 +111,7 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 2. 子表达式应具有明确的金融含义（如：高开阴线、天量异动、隔夜波动率等）
 3. 不要提取过于简单的子表达式（如单独的 $close、Mean($close,20) 等）
 4. 用英文 snake_case 为每个子表达式命名
+5. 因子表达式不要使用 +,-,*,/,<,> 等符号，使用 qlib 中对应的算子表示
 
 ## 参考因子
 {factors}

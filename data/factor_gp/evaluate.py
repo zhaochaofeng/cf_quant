@@ -35,10 +35,11 @@ def _calc_fitness_worker(args):
     from qlib.contrib.eva.alpha import calc_ic
     ic_series, rank_ic_series = calc_ic(pred, label)
     rank_ic_mean = rank_ic_series.mean()
-    rank_ic_std = rank_ic_series.std()
-    icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
+    # rank_ic_std = rank_ic_series.std()
+    # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
 
-    fitness = abs(rank_ic_mean) + icir_weight * abs(icir) - complexity_penalty * depth
+    fitness = abs(rank_ic_mean) - complexity_penalty * depth
+    # fitness = abs(rank_ic_mean) + icir_weight * abs(icir) - complexity_penalty * depth
     if not np.isfinite(fitness):
         fitness = 0.0
 
@@ -58,11 +59,12 @@ class FactorEvaluator:
     - 无效表达式记录到 invalid_exprs，供 LLM 分析
     """
 
-    def __init__(self, instruments, target_train, target_test, config):
+    def __init__(self, instruments, target_train, target_test, config, pset):
         self.instruments = instruments
         self.target_train = target_train
         self.target_test = target_test
         self.config = config
+        self.pset = pset
 
         # 共享缓存
         self.cache: dict[str, tuple] = {}  # expr_str → (fitness_train,)
@@ -337,7 +339,7 @@ class FactorEvaluator:
             return None
 
     # pset 由外部设置（在 primitives.py 构建后注入）
-    pset = None
+    # pset = None
 
     # ================================================================
     # qlib 语义预检（基于 DEAP PrimitiveTree，不调用 D.features）

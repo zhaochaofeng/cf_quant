@@ -64,6 +64,7 @@ class GPLlmPipeline:
             target_train=self._target_train,
             target_test=self._target_test,
             config=self.config,
+            pset=self.registry.pset,
         )
 
         # Phase 1
@@ -161,7 +162,23 @@ class GPLlmPipeline:
             return
 
         # 检查genes 合法性
-        genes = [gene for gene in genes if self.evaluator._passes_qlib_semantic(gene)]
+        # from deap import gp
+        # tmp = []
+        # for alias, expr_str in genes.items():
+        #     try:
+        #         tree = gp.PrimitiveTree.from_string(expr_str, self.registry.pset)
+        #     except:
+        #         print('不合法：{}, 理由: {}'.format(expr_str, '不符合 deap 语法格式'))
+        #         continue
+        #     ok, reason = self.evaluator._check_qlib_semantics(tree)
+        #     if not ok:
+        #         logger.warning("不合法: {}, 理由：{}".format(expr_str, reason))
+        #         continue
+        #     else:
+        #         tmp.append((alias, expr_str))
+
+        genes = dict([(alias, expr) for alias, expr in genes.items() if self.evaluator._passes_qlib_semantic(expr)])
+        # print(genes)
         if not genes:
             logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
             return
