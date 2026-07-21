@@ -239,7 +239,7 @@ class GPLlmPipeline:
         import os
         from datetime import datetime
         from utils import PickleIO
-        PickleIO.write(result, f'{self.config.output_dir}/result.pkl')
+        # PickleIO.write(result, f'{self.config.output_dir}/result.pkl')
 
         screening = FactorScreening(self.evaluator, self.config)
 
