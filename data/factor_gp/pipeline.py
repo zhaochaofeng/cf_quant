@@ -31,7 +31,7 @@ logger = LoggerFactory.get_logger(__name__)
 # import numpy as np
 # np.seterr(all='ignore')
 
-class GPLlamaPipeline:
+class GPLlmPipeline:
     """GP + LLM 因子挖掘主流水线。"""
 
     def __init__(self, config: GPConfig, enable_llm: bool = True):
@@ -94,9 +94,9 @@ class GPLlamaPipeline:
                      self.config.provider_uri, self.config.kernels)
 
         # 屏蔽 qlib 多线程 WARNING
-        for name in ["qlib", "qlib.Max", "qlib.Min"]:
-            logging.getLogger(name).addFilter(
-                lambda r: r.levelno >= logging.ERROR)
+        # for name in ["qlib", "qlib.Max", "qlib.Min"]:
+        #     logging.getLogger(name).addFilter(
+        #         lambda r: r.levelno >= logging.ERROR)
 
         # 获取股票列表
         cfg = D.instruments(market=self.config.market)
@@ -127,7 +127,6 @@ class GPLlamaPipeline:
         if train_len == 0 or test_len == 0:
             raise Exception('train_len == 0 or test_len == 0')
 
-    @time_decorator
     def _build_pset(self):
         """构建 PrimitiveSetTyped。"""
         self.registry.build_pset()
@@ -244,7 +243,6 @@ class GPLlamaPipeline:
 
         # ---- 持久化 ----
         output_dir = self.config.output_dir
-        os.makedirs(output_dir, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         # 因子结果 CSV
@@ -307,7 +305,7 @@ def main():
         seed=args.seed,
     )
 
-    pipeline = GPLlamaPipeline(config, enable_llm=not args.no_llm)
+    pipeline = GPLlmPipeline(config, enable_llm=not args.no_llm)
     df = pipeline.run()
 
     if not df.empty:
