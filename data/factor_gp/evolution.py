@@ -373,6 +373,8 @@ class IslandEvolution:
         for island in self.islands:
             for ind in island.hof:
                 expr_str = str(ind)
+                if "IntCast" in expr_str:
+                    continue
                 fitness = ind.fitness.values[0]
                 if expr_str not in all_exprs or fitness > all_exprs[expr_str]:
                     all_exprs[expr_str] = fitness
