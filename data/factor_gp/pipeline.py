@@ -112,6 +112,7 @@ class GPLlmPipeline:
         target = (df['$close'].groupby('instrument', group_keys=False)
                   .apply(lambda x: x.shift(-2) / x.shift(-1) - 1))
         target.dropna(inplace=True)
+        target.name = 'return'
 
         # train/test 划分
         self._target_train = target[target.index.get_level_values('datetime')
