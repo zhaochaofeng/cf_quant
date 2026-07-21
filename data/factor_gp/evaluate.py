@@ -71,51 +71,6 @@ class FactorEvaluator:
         self.invalid_exprs: set[str] = set()  # 无效表达式
         self._eval_count: int = 0
 
-    # ================================================================
-    # Layer 1: 表达式验证
-    # ================================================================
-
-    def validate(self, expr_str: str) -> tuple[bool, str]:
-        """验证表达式是否可计算且有截面区分度。
-
-        Returns:
-            (is_valid, reason)
-        """
-        # 1. 语法校验：DEAP 能否解析
-        from deap import gp
-        try:
-            tree = gp.PrimitiveTree.from_string(expr_str, self.pset)
-        except Exception as e:
-            return False, f"语法错误: {e}"
-
-        # 2. qlib 语义预检（基于 tree，不调用 D.features）
-        ok, reason = self._check_qlib_semantics(tree)
-        if not ok:
-            return False, f"qlib 语义: {reason}"
-
-        # 3. qlib 能否计算
-        try:
-            df_r = D.features(
-                self.instruments, [expr_str],
-                start_time=self.config.start_date,
-                end_time=self.config.end_date,
-            )
-        except Exception as e:
-            return False, f"qlib 计算失败: {e}"
-
-        # 4. 结果非空且有截面区分度
-        factor = df_r[expr_str].dropna()
-        if len(factor) == 0:
-            return False, "结果为空"
-        if factor.std() < 1e-12:
-            return False, "截面无区分度 (std=0)"
-
-        return True, "ok"
-
-    # ================================================================
-    # Layer 2: 适应度计算
-    # ================================================================
-
     def evaluate(self, individual) -> tuple:
         """计算个体适应度（训练集），返回 DEAP 需要的 tuple。"""
         expr_str = str(individual)
@@ -211,12 +166,11 @@ class FactorEvaluator:
             if df_r is not None:
                 factor = df_r[expr_str].dropna()
             else:
-                with np.errstate(divide="ignore", invalid="ignore"):
-                    df_r = D.features(
-                        self.instruments, [expr_str],
-                        start_time=self.config.start_date,
-                        end_time=self.config.train_end,
-                    )
+                df_r = D.features(
+                    self.instruments, [expr_str],
+                    start_time=self.config.start_date,
+                    end_time=self.config.train_end,
+                )
                 factor = df_r[expr_str].dropna()
 
             if len(factor) == 0:
