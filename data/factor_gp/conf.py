@@ -15,6 +15,7 @@ class GPConfig:
     n_pop: int = 600  # 每岛种群大小（报告：1800/3 岛）
     n_gen: int = 20  # 总进化代数
     n_islands: int = 3  # 岛屿数量
+    n_hof: int = 50  # 每个岛屿筛选表达式数量
     cxpb: float = 0.7
     mutpb: float = 0.3
     max_height: int = 8

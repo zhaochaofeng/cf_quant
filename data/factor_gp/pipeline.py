@@ -286,6 +286,7 @@ def main():
     parser.add_argument('--n-pop', type=int, default=10, help='每岛种群大小')
     parser.add_argument('--n-gen', type=int, default=4, help='进化代数')
     parser.add_argument('--n-islands', type=int, default=3, help='岛屿数量')
+    parser.add_argument('--n-hof', type=int, default=10, help='每个岛屿筛选表达式数量')
     parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
     parser.add_argument('--kernels', type=int, default=1, help='qlib kernels')
     parser.add_argument('--seed', type=int, default=42)
@@ -301,6 +302,7 @@ def main():
         n_pop=args.n_pop,
         n_gen=args.n_gen,
         n_islands=args.n_islands,
+        n_hof=args.n_hof,
         kernels=args.kernels,
         seed=args.seed,
     )
