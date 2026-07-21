@@ -7,6 +7,7 @@ import qlib
 from qlib.data import D
 from qlib.contrib.eva.alpha import calc_ic
 from utils import LoggerFactory
+from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -364,10 +365,10 @@ class FactorEvaluator:
         if len(tree) == 0:
             return True, "ok"
 
-        # 规则 0: 单节点树不能是字面常量（eg. 0.6973914688286109）
+        # 规则 0: 单节点树不能是常量（eg. 0.6973914688286109）
         if len(tree) == 1 and isinstance(tree[0], gp.Terminal):
             if self._node_is_literal(tree[0]):
-                return False, f"表达式为纯字面常量: {tree[0].name}"
+                return False, f"表达式为常量: {tree[0].name}"
 
         def _next_idx(idx):
             """返回 subtree 在 tree[idx] 结束后的下一个索引，同时做规则检查。
@@ -389,66 +390,98 @@ class FactorEvaluator:
                     return pos, False, reason
 
             # ---- 规则检查 ----
-            # 规则 1 已删除：滚动 Max/Min 的 int 约束由 typed GP [float,int] 保证，
-            # 不再需要运行时语义检查。
-
-            # 规则 2: 单元素算子子节点不能是字面常量
-            if name in ("Sign", "Abs", "Log", "Not"):
+            # 规则1: feature 参数不能为常量
+            if name in ELEM_OPS + ELEM_ROLLING_OPS:
                 child = tree[child_starts[0]]
                 if self._node_is_literal(child):
                     return pos, False, (
-                        f"{name} 作用于字面常量: {self._short(child)}")
+                        f"{name} 的feature是常量: {self._short(child)}")
 
-            # 规则 3: 算术算子两个操作数不能都是布尔表达式
-            # Div(bool,bool)→NotImplementedError crash,
-            # Add/Mul/Sub(bool,bool)→无意义布尔运算
-            if name in ("Add", "Sub", "Mul", "Div"):
-                left = tree[child_starts[0]]
-                right = tree[child_starts[1]]
-                if self._subtree_is_bool(tree, child_starts[0]) and self._subtree_is_bool(tree, child_starts[1]):
+            # 规则2: feature_left 参数不能为常量
+            if name in PIRE_OPS + PAIR_ROLLING_OPS:
+                child = tree[child_starts[0]]
+                if self._node_is_literal(child):
                     return pos, False, (
-                        f"{name} 操作数均为布尔: "
-                        f"{self._short(left)}, {self._short(right)}")
+                        f"{name} 的feature_left是常量: {self._short(child)}")
 
-            # 规则 4: Not/And/Or 输入必须是 bool 类型
-            if name == "Not":
-                if not self._subtree_is_bool(tree, child_starts[0]):
-                    return pos, False, f"Not 输入非 bool"
-            if name in ("And", "Or"):
-                if not self._subtree_is_bool(tree, child_starts[0]) or not self._subtree_is_bool(tree, child_starts[1]):
-                    return pos, False, f"{name} 输入非 bool"
+            # 规则3: 除了 Power 算子外，其他算子的 feature_right不能为常量
+            if name in set(PIRE_OPS + PAIR_ROLLING_OPS) - set(['Power']):
+                child = tree[child_starts[1]]
+                if self._node_is_literal(child):
+                    return pos, False, (
+                        f"{name} 的feature_right是常量: {self._short(child)}")
 
-            # 规则 5: Corr/Cov 前两参数不能是字面常量
-            if name in ("Corr", "Cov"):
-                for i in (0, 1):
-                    child = tree[child_starts[i]]
-                    if self._node_is_literal(child):
-                        return pos, False, (
-                            f"{name} 参数{i + 1}是字面常量: {self._short(child)}")
+            # 规则4: Log: 为了保证元素值需要为正。需要配置 Abs 使用
+            if name == "Log":
+                child = tree[child_starts[0]]
+                if child.name != 'Abs':
+                    return pos, False, (
+                        f"{name} 的feature需要为正数(加 Abs): {self._short(child)}")
 
-            # 规则 6: If 第一参数（条件）不能是字面常量
+            # 规则5: Quantile 的 qscore 为常量，取值 [0, 1]
+            # feature 不能为 bool 类型，因为 bool 取值0/1，无法分组
+            if name == "Quantile":
+                feature = tree[child_starts[0]]
+                qscore_node = tree[child_starts[2]]
+                if self._node_is_bool(feature):
+                    return pos, False, (
+                        f"Quantile 的feature不能为布尔类型: {self._short(feature)}")
+                if not self._node_is_literal(qscore_node):
+                    return pos, False, (
+                        f"Quantile 的qscore必须是常量: {self._short(qscore_node)}")
+                qs = float(qscore_node.name)
+                if not (0 <= qs <= 1):
+                    return pos, False, f"Quantile qscore={qs} 不在 [0,1]"
+
+            # 规则6: Rolling算子中，参数N为int类型常量，N>0
+            if name in ELEM_ROLLING_OPS + PAIR_ROLLING_OPS:
+                if name in ELEM_ROLLING_OPS:
+                    child = tree[child_starts[1]]
+                else:
+                    child = tree[child_starts[2]]
+
+                if not self._node_is_literal(child):
+                    return pos, False, (
+                        f"{name} 的参数N必须是常量: {self._short(child)}")
+
+                if not self._node_is_int(child):
+                    return pos, False, (
+                        f"{name} 的参数N必须是整数: {self._short(child)}")
+
+                n = int(child.name)
+                if n <= 0:
+                    return pos, False, f"{name} 的参数N必须>0"
+
+            # 规则7: If 第一参数（条件）不能为常量，元素为bool 类型
+            # feature_left, feature_right 不能为常量
             if name == "If":
                 cond = tree[child_starts[0]]
+                left = tree[child_starts[1]]
+                right = tree[child_starts[2]]
                 if self._node_is_literal(cond):
                     return pos, False, (
-                        f"If 条件是字面常量: {self._short(cond)}")
+                        f"If 条件是常量: {self._short(cond)}")
+                if not self._node_is_bool(cond):
+                    return pos, False, (
+                        f"If 的条件必须是布尔: {self._short(cond)}")
+                if self._node_is_literal(left) or self._node_is_literal(right):
+                    return pos, False, (
+                        f"If 的feature_left 或 feature_right是常量: {self._short(left)} 或 {self._short(right)}")
 
-            # 规则 7: 双常量陷阱（两参数不能都是字面常量）
-            # Power 特殊：左操作数不能是常量，右操作数可以是常量
-            _BOTH_CONST_OPS = {
-                "Add", "Sub", "Mul", "Div", "Greater", "Less",
-                "Gt", "Ge", "Lt", "Le", "Eq", "Ne", "And", "Or",
-            }
-            if name == "Power":
-                if self._node_is_literal(tree[child_starts[0]]):
-                    return pos, False, f"Power 左操作数为字面常量"
-            elif name in _BOTH_CONST_OPS:
+            # 规则8: Not 的feature 必须为 bool 类型
+            if name == 'Not':
+                child = tree[child_starts[0]]
+                if not self._node_is_bool(child):
+                    return pos, False, (
+                        f"Not 的feature 必须为 bool: {self._short(child)}")
+
+            # 规则 9: And,Or 的 feature_left, feature_right 必须为 bool 类型
+            if name in ("And", "Or"):
                 left = tree[child_starts[0]]
                 right = tree[child_starts[1]]
-                if self._node_is_literal(left) and self._node_is_literal(right):
+                if not self._node_is_bool(left) or not self._node_is_bool(right):
                     return pos, False, (
-                        f"{name} 两参数均为字面常量: "
-                        f"{self._short(left)}, {self._short(right)}")
+                        f"{name} 的feature_left 或 feature_right必须为 bool: {self._short(left)} 或 {self._short(right)}")
 
             return pos, True, "ok"
 
@@ -457,7 +490,7 @@ class FactorEvaluator:
 
     @staticmethod
     def _node_is_literal(node) -> bool:
-        """节点是否是字面常量（C 或 N 生成的具体数值）。"""
+        """节点是否是常量（C 或 N 生成的具体数值）。"""
         from deap import gp
         # 排除非叶子节点
         if not isinstance(node, gp.Terminal):
@@ -469,25 +502,18 @@ class FactorEvaluator:
             return False
 
     @staticmethod
-    def _subtree_is_bool(tree, idx: int) -> bool:
-        """递归判断以 tree[idx] 为根的子树是否产出 bool 值。
-
-        Gt/Ge/Lt/Le/Eq/Ne/And/Or/Not 直接产出 bool；
-        Abs 传透 bool（abs(bool_series) 保持 bool dtype）。
-        Sign(bool)→int，不做传透。
+    def _node_is_bool(node) -> bool:
+        """ 节点是否是 bool 类型。
         """
         from deap import gp
-        node = tree[idx]
         if isinstance(node, gp.Terminal):
             return False
         if node.name in ("Gt", "Ge", "Lt", "Le", "Eq", "Ne", "And", "Or", "Not"):
             return True
-        if node.name == "Abs":
-            return FactorEvaluator._subtree_is_bool(tree, idx + 1)
         return False
 
     @staticmethod
-    def _node_returns_int(node) -> bool:
+    def _node_is_int(node) -> bool:
         """节点输出类型是否为 int（N 终端或 IntCast）。"""
         from deap import gp
         if isinstance(node, gp.Terminal):
