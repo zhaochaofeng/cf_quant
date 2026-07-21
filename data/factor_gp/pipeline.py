@@ -82,8 +82,6 @@ class GPLlmPipeline:
     # ================================================================
     # Phase 0: 初始化
     # ================================================================
-
-    @time_decorator
     def _phase0_init(self):
         """qlib 初始化 + 行情数据加载 + train/test 划分。"""
         logger.info("=" * 60)
@@ -136,7 +134,6 @@ class GPLlmPipeline:
     # ================================================================
     # Phase 1: LLM 子表达式基因提取
     # ================================================================
-    @time_decorator
     def _phase1_llm_genes(self):
         """LLM 从初始优质因子提取子表达式基因，注册到 pset。"""
         if not self.enable_llm:
@@ -241,6 +238,8 @@ class GPLlmPipeline:
 
         import os
         from datetime import datetime
+        from utils import PickleIO
+        PickleIO.write(result, f'{self.config.output_dir}/result.pkl')
 
         screening = FactorScreening(self.evaluator, self.config)
 
@@ -252,6 +251,8 @@ class GPLlmPipeline:
         if df.empty:
             logger.warning("无有效候选因子")
             return df
+        DataFrameIO.write(df, f'{self.config.output_dir}/test_eval.csv', type='parquet')
+        PickleIO.write(factor_series, f'{self.config.output_dir}/test_factor.pkl')
 
         # 低相关筛选（复用 factor_series，避免重复 D.features）
         df = screening.filter_by_correlation(df, factor_series=factor_series)
