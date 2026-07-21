@@ -28,8 +28,8 @@ class PrimitiveRegistry:
 
     def __init__(self):
         self.pset: gp.PrimitiveSetTyped | None = None
-        self.sub_expr_genes: dict[str, str] = {}  # alias → qlib_expr
-        self._gene_counter: int = 0
+        self.sub_expr_genes: dict[str, str] = {}  # 子表达式基因. alias → qlib_expr
+        self._gene_counter: int = 0    #  用于记录子表达式基因数量
 
     # ================================================================
     # pset 构建
