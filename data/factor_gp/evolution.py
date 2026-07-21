@@ -77,7 +77,7 @@ class IslandEvolution:
         for i in range(self.config.n_islands):
             island = Island(id=i)
             island.toolbox = self._build_toolbox()
-            island.hof = tools.HallOfFame(5)
+            island.hof = tools.HallOfFame(self.config.n_hof)
             island.stats = tools.Statistics(lambda ind: ind.fitness.values[0])
             island.stats.register("avg", np.nanmean)
             island.stats.register("std", np.nanstd)
