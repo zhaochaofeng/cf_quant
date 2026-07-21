@@ -12,6 +12,8 @@
 
 import random
 from functools import partial
+from .conf import BASE_TERMINALS, EXTRA_TERMINALS
+from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS, OTHER_OPS
 
 from deap import gp
 
@@ -23,39 +25,6 @@ class PrimitiveRegistry:
     - 终端 name = qlib 表达式字符串（嵌入树字符串后 qlib 可直接计算）
     - 保留别名映射用于可读性展示
     """
-
-    # 基础终端（qlib 字段引用）
-    BASE_TERMINALS = [
-        "$close", "$open", "$high", "$low", "$volume", "$amount",
-    ]
-
-    # 可选的扩展终端
-    EXTRA_TERMINALS = [
-        "$change",  # 涨跌幅
-    ]
-
-    # 单元素 算子
-    ELEM_OPS = ["Abs", "Sign", "Log", "Not"]
-
-    # 元素对 算子(15个)
-    PIRE_OPS = ['Power', 'Add', 'Sub', 'Mul', 'Div',
-                'Greater', 'Less', 'Gt', 'Ge', 'Lt',
-                'Le', 'Eq', 'Ne', 'And', 'Or']
-
-    # 单元素 Rolling 算子 (21个)
-    ELEM_ROLLING_OPS = ['Ref', 'Mean', 'Sum', 'Std', 'Var', 'Skew', 'Kurt',
-                        'Max', 'IdxMax', 'Min', 'IdxMin', 'Med', 'Mad',
-                        'Rank', 'Count', 'Delta', 'Slope', 'Rsquare','Resi', 'WMA', 'EMA']
-
-    # 元素对 Rolling 算子
-    PAIR_ROLLING_OPS = [
-        'Corr', 'Cov'
-    ]
-
-    # 其他
-    OTHER_OPS = [
-        "If",
-    ]
 
     def __init__(self):
         self.pset: gp.PrimitiveSetTyped | None = None
@@ -75,9 +44,9 @@ class PrimitiveRegistry:
         pset = gp.PrimitiveSetTyped("MAIN", [], float, 0)
 
         # ---- 终端 ----
-        terminals = list(self.BASE_TERMINALS)
+        terminals = list(BASE_TERMINALS)
         if extra_terminals:
-            terminals.extend(self.EXTRA_TERMINALS)
+            terminals.extend(EXTRA_TERMINALS)
 
         for f in terminals:
             pset.addTerminal(f, ret_type=float, name=f)
@@ -90,27 +59,30 @@ class PrimitiveRegistry:
         _dummy = lambda *a: None
 
         # Element-wise (arity=1)
-        for op in self.ELEM_OPS:
+        for op in ELEM_OPS:
             pset.addPrimitive(_dummy, in_types=[float], ret_type=float, name=op)
 
         # Pair-wise element (arity=2)
-        for op in self.PIRE_OPS:
+        for op in PIRE_OPS:
             pset.addPrimitive(_dummy, in_types=[float, float], ret_type=float, name=op)
 
         # Rolling element (arity=2: float, int)
-        for op in self.ELEM_ROLLING_OPS:
+        for op in (set(ELEM_ROLLING_OPS) - set(['Quantile'])):
             pset.addPrimitive(_dummy, in_types=[float, int], ret_type=float, name=op)
 
         # Quantile (arity=3: float, int, float)
         pset.addPrimitive(_dummy, in_types=[float, int, float], ret_type=float, name="Quantile")
 
         # Pair Rolling (arity=3: float, float, int)
-        for op in self.PAIR_ROLLING_OPS:
+        for op in PAIR_ROLLING_OPS:
             pset.addPrimitive(_dummy, in_types=[float, float, int], ret_type=float, name=op)
 
         # If (arity=3: float, float, float)
-        for op in self.OTHER_OPS:
+        for op in OTHER_OPS:
             pset.addPrimitive(_dummy, in_types=[float, float, float], ret_type=float, name=op)
+
+        # 类型转换：float → int（Rolling 算子动态窗口必须）
+        pset.addPrimitive(_dummy, [float], int, name="IntCast")
 
         self.pset = pset
         return pset

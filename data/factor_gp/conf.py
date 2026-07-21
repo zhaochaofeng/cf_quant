@@ -59,3 +59,38 @@ class EvolutionState:
     cache: dict = field(default_factory=dict)  # expr_str → fitness
     invalid_exprs: set = field(default_factory=set)
     llm_history: list = field(default_factory=list)  # LLM 生成历史
+
+
+# 基础终端（qlib 字段引用）
+BASE_TERMINALS = [
+    "$close", "$open", "$high", "$low", "$volume", "$amount",
+]
+
+# 可选的扩展终端
+EXTRA_TERMINALS = [
+    "$change",  # 涨跌幅
+]
+
+# 单元素 算子（4个）
+ELEM_OPS = ["Abs", "Sign", "Log", "Not"]
+
+# 元素对 算子(15个)
+PIRE_OPS = ['Power', 'Add', 'Sub', 'Mul', 'Div',
+            'Greater', 'Less', 'Gt', 'Ge', 'Lt',
+            'Le', 'Eq', 'Ne', 'And', 'Or']
+
+# 单元素 Rolling 算子 (22个)
+ELEM_ROLLING_OPS = ['Ref', 'Mean', 'Sum', 'Std', 'Var', 'Skew', 'Kurt',
+                    'Max', 'IdxMax', 'Min', 'IdxMin', 'Quantile', 'Med', 'Mad',
+                    'Rank', 'Count', 'Delta', 'Slope', 'Rsquare','Resi', 'WMA', 'EMA']
+
+# 元素对 Rolling 算子（2个）
+PAIR_ROLLING_OPS = [
+    'Corr', 'Cov'
+]
+
+# 其他（1个）
+OTHER_OPS = [
+    "If",
+]
+
