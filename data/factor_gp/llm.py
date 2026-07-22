@@ -201,13 +201,14 @@ class LLMInterface:
         """
         # 构建因子列表文本
         factors_text = "\n".join(
-            f"- {name}: `{expr}`" for name, expr in factor_exprs[:30]
+            f"- {name}: `{expr}`" for name, expr in factor_exprs
         )
 
         prompt = SUB_EXPR_PROMPT_TEMPLATE.format(
             operators_ref=QLIB_OPERATORS_REF,
             factors=factors_text,
         )
+        logger.info('\n{}\n{}'.format('-' * 30, prompt))
 
         response = self._call_llm(prompt)
         genes = self._parse_json_response(response)

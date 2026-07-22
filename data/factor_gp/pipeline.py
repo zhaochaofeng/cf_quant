@@ -135,13 +135,13 @@ class GPLlmPipeline:
     # Phase 1: LLM 子表达式基因提取
     # ================================================================
     def _phase1_llm_genes(self):
-        """LLM 从初始优质因子提取子表达式基因，注册到 pset。"""
+        """LLM 从初始优质因子提取子表达式基因，注册到 pset"""
         if not self.enable_llm:
             logger.info("Phase 1: 跳过（LLM 未启用）")
             return
 
         logger.info("=" * 60)
-        logger.info("Phase 1: LLM 子表达式基因提取")
+        logger.info("Phase 1: LLM 子表达式基因提取 ...")
 
         from data.factor_gp.llm import LLMInterface
         self.llm = LLMInterface()
@@ -154,7 +154,6 @@ class GPLlmPipeline:
 
         # LLM 提取子表达式基因
         genes = self.llm.extract_sub_expr_genes(factor_exprs)
-        logger.info(f'LLM 提取因子 genes: {len(genes)}')
         if not genes:
             return
 
@@ -179,6 +178,9 @@ class GPLlmPipeline:
         if not genes:
             logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
             return
+
+        for alias, expr in genes.items():
+            logger.info('{}: {}'.format(alias, expr))
 
         # 注册到 pset
         self.registry.register_sub_exprs(genes)
