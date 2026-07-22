@@ -253,7 +253,7 @@ class GPLlmPipeline:
         if df.empty:
             logger.warning("无有效候选因子")
             return df
-        DataFrameIO.write(df, f'{self.config.output_dir}/test_eval.csv', type='parquet')
+        DataFrameIO.write(df, f'{self.config.output_dir}/test_eval.parquet', type='parquet')
         PickleIO.write(factor_series, f'{self.config.output_dir}/test_factor.pkl')
 
         # 低相关筛选（复用 factor_series，避免重复 D.features）
