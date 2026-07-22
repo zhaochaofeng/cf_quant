@@ -124,6 +124,19 @@ class FactorEvaluator:
                 raise Exception(err_msg)
             logger.info('\n{}\n qlib 表达式计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
 
+        # 如果因子为NaN占比超过 50% ，则IC 设置为 0.0
+        batch_ind_filtered = []
+        nan_gt_05 = 0
+        for i, expr in enumerate(batch_exprs):
+            df_tmp = df_r[expr]
+            nan_r = df_tmp.isna().sum() / len(df_tmp)
+            if nan_r > 0.5:
+                self.cache[expr] = (0.0,)
+                nan_gt_05 += 1
+            else:
+                batch_ind_filtered.append(batch_ind[i])
+        logger.info('值为NaN占比超过 50% 的因子数: {}/{}'.format(nan_gt_05, len(batch_exprs)))
+
         # 并行计算 IC
         t = time.time()
         if batch_ind:
