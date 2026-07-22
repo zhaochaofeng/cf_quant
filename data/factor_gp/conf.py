@@ -69,17 +69,16 @@ EXTRA_TERMINALS = [
     "$change",  # 涨跌幅
 ]
 
-# 单元素 算子（4个）
-ELEM_OPS = ["Abs", "Sign", "Log", "Not"]
+# 单元素 算子（4个）"Not"
+ELEM_OPS = ["Abs", "Sign", "Log"]
 
-# 元素对 算子(15个)
+# 元素对 算子(15个)  'Gt', 'Ge', 'Lt', 'Le', 'Eq', 'Ne', 'And', 'Or'
 PIRE_OPS = ['Power', 'Add', 'Sub', 'Mul', 'Div',
-            'Greater', 'Less', 'Gt', 'Ge', 'Lt',
-            'Le', 'Eq', 'Ne', 'And', 'Or']
+            'Greater', 'Less']
 
-# 单元素 Rolling 算子 (22个)
+# 单元素 Rolling 算子 (22个) 'IdxMax', 'IdxMin'
 ELEM_ROLLING_OPS = ['Ref', 'Mean', 'Sum', 'Std', 'Var', 'Skew', 'Kurt',
-                    'Max', 'IdxMax', 'Min', 'IdxMin', 'Quantile', 'Med', 'Mad',
+                    'Max',  'Min', 'Quantile', 'Med', 'Mad',
                     'Rank', 'Count', 'Delta', 'Slope', 'Rsquare','Resi', 'WMA', 'EMA']
 
 # 元素对 Rolling 算子（2个）
@@ -87,8 +86,8 @@ PAIR_ROLLING_OPS = [
     'Corr', 'Cov'
 ]
 
-# 其他（1个）
+# 其他（1个） "If",
 OTHER_OPS = [
-    "If",
+
 ]
 

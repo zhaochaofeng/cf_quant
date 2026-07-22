@@ -465,6 +465,17 @@ class FactorEvaluator:
                     return pos, False, (
                         f"{name} 的feature_left 或 feature_right不能为 bool: {self._short(left)} 或 {self._short(right)}")
 
+            # 规则11b: Power 指数必须为字面常数且 ∈ {0.5, 2, 3}（防高次幂爆炸+过拟合）
+            if name == "Power":
+                right = tree[child_starts[1]]
+                if not self._node_is_literal(right):
+                    return pos, False, (
+                        f"Power 指数必须为常量: {self._short(right)}")
+                exp = float(right.name)
+                if exp not in (0.5, 2.0, 3.0):
+                    return pos, False, (
+                        f"Power 指数必须∈{{0.5,2,3}}: {exp}")
+
             # 规则12: 单元素 Rolling算子 feature 不能为 bool 类型
             if name in ELEM_ROLLING_OPS:
                 child = tree[child_starts[0]]
@@ -481,6 +492,10 @@ class FactorEvaluator:
                         f"{name} 的feature_left 或 feature_right不能为 bool: {self._short(left)} 或 {self._short(right)}")
 
             return pos, True, "ok"
+
+
+
+
 
         _, ok, reason = _next_idx(0)
         return ok, reason

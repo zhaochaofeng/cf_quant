@@ -52,7 +52,7 @@ class PrimitiveRegistry:
             pset.addTerminal(f, ret_type=float, name=f)
 
         # 叶子常量
-        pset.addEphemeralConstant("C", partial(random.uniform, -1, 1), ret_type=float)
+        pset.addEphemeralConstant("C", partial(random.uniform, 0, 1), ret_type=float)
         pset.addEphemeralConstant("N", partial(random.randint, 5, 30), ret_type=int)
 
         # ---- 算子 ----
@@ -78,8 +78,9 @@ class PrimitiveRegistry:
             pset.addPrimitive(_dummy, in_types=[float, float, int], ret_type=float, name=op)
 
         # If (arity=3: float, float, float)
-        for op in OTHER_OPS:
-            pset.addPrimitive(_dummy, in_types=[float, float, float], ret_type=float, name=op)
+        if OTHER_OPS:
+            for op in OTHER_OPS:
+                pset.addPrimitive(_dummy, in_types=[float, float, float], ret_type=float, name=op)
 
         # 类型转换：float → int（Rolling 算子动态窗口必须）
         pset.addPrimitive(_dummy, [float], int, name="IntCast")

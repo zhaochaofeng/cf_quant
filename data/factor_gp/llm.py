@@ -26,6 +26,14 @@ logger = LoggerFactory.get_logger(__name__)
 # ================================================================
 
 # qlib 算子参考（供 LLM 理解可用操作）
+#
+# 以下算子已从搜索空间移除（bool/逻辑族：信息损失+过拟合风险，见第12章四方针），
+# 不在 QLIB_OPERATORS_REF 中暴露给 LLM，LLM 不应生成：
+#   单目: Not                （bitwise_not，逻辑非，仅适用 bool）
+#   双目: Gt,Ge,Lt,Le,Eq,Ne  （比较返回 0/1，丢失偏离幅度，压低 IC）
+#         And,Or             （bitwise_and/or，多重布尔叠加=过拟合温床）
+#   滚动: IdxMax,IdxMin      （极值位置索引，经济学含义弱）
+#   三元: If                 （需 bool 条件；纯连续空间改用 Greater/Less/Sign 软条件）
 QLIB_OPERATORS_REF = """
 ## 可用算子
 
@@ -33,7 +41,6 @@ QLIB_OPERATORS_REF = """
 - Abs(x): 绝对值
 - Log(x): 自然对数
 - Sign(x): 符号函数
-- Not(x): 逻辑非（按位取反）
 
 ### 双目算子 (float, float → float)
 - Add(x, y): x + y
@@ -43,14 +50,6 @@ QLIB_OPERATORS_REF = """
 - Power(x, y): x 的 y 次幂
 - Greater(x, y): 取 x 和 y 中的较大值
 - Less(x, y): 取 x 和 y 中的较小值
-- Gt(x, y): x > y 则为 1, 否则 0
-- Ge(x, y): x >= y 则为 1, 否则 0
-- Lt(x, y): x < y 则为 1, 否则 0
-- Le(x, y): x <= y 则为 1, 否则 0
-- Eq(x, y): x == y 则为 1, 否则 0
-- Ne(x, y): x != y 则为 1, 否则 0
-- And(x, y): x 与 y 的逻辑与（按位）
-- Or(x, y): x 与 y 的逻辑或（按位）
 
 ### 滚动算子 (float, int → float)
 - Ref(x, d): d 日前的 x 值
@@ -62,8 +61,6 @@ QLIB_OPERATORS_REF = """
 - Kurt(x, d): d 日滚动峰度
 - Max(x, d): d 日滚动最大值
 - Min(x, d): d 日滚动最小值
-- IdxMax(x, d): d 日内最大值的索引
-- IdxMin(x, d): d 日内最小值的索引
 - Med(x, d): d 日滚动中位数
 - Mad(x, d): d 日滚动平均绝对偏差
 - Rank(x, d): d 日内 x 的排名百分位
@@ -81,9 +78,6 @@ QLIB_OPERATORS_REF = """
 ### 双变量滚动算子 (float, float, int → float)
 - Corr(x, y, d): x 与 y 在 d 日内的滚动相关系数
 - Cov(x, y, d): x 与 y 在 d 日内的滚动协方差
-
-### 三元算子
-- If(cond, a, b): cond > 0 则返回 a, 否则返回 b
 
 ### 可用字段
 - $close: 收盘价
@@ -119,7 +113,7 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 ## 返回格式
 只返回一个 JSON 对象，key 是子表达式名称，value 是 qlib 表达式字符串。
 示例：
-{{"bearish_reversal": "Gt($open/Ref($close,1)-1,0)*Gt($open/$close-1,0)"}}
+{{"bearish_reversal": "Greater($open/Ref($close,1)-1,0)*Greater($open/$close-1,0)"}}
 
 只返回 JSON，不要加其他文字说明。"""
 
