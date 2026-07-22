@@ -38,9 +38,6 @@ class GPConfig:
     corr_threshold: float = 0.70  # 相关性阈值
     hof_size: int = 30  # 最终保留因子数
 
-    # ========== 性能 ==========
-    n_workers: int = 4  # 并行评估 worker 数
-
     # ========== 路径 ==========
     output_dir: str = "data"
 
@@ -49,7 +46,7 @@ class GPConfig:
 
     # ========== qlib ==========
     provider_uri: str = PROVIDER_URI
-    kernels: int = 1
+    kernels: int = 1     # qlib并行数 / 因子fitness计算并行数
 
 
 @dataclass

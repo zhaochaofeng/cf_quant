@@ -155,7 +155,7 @@ class FactorEvaluator:
             results = multiprocessing_wrapper_same(
                 _calc_fitness_worker,
                 worker_args,
-                n=self.config.n_workers,
+                n=self.config.kernels,
                 start_method='fork',
             )
 

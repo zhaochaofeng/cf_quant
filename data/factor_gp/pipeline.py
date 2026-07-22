@@ -9,7 +9,6 @@
 
 import os
 import argparse
-import logging
 import time
 
 import numpy as np
@@ -28,11 +27,9 @@ from utils.dt import time_decorator
 
 logger = LoggerFactory.get_logger(__name__)
 
-# import numpy as np
-# np.seterr(all='ignore')
 
 class GPLlmPipeline:
-    """GP + LLM 因子挖掘主流水线。"""
+    """GP + LLM 因子挖掘主流水线"""
 
     def __init__(self, config: GPConfig, enable_llm: bool = True):
         self.config = config
