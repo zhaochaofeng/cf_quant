@@ -33,8 +33,8 @@ class Island:
 
     # 运行时统计
     gen: int = 0      # 当前代数
-    best_fitness: float = 0.0      # 当前最佳适应度
-    invalid_count: int = 0
+    best_fitness: float = 0.0      # 当前最佳 fitness
+    invalid_count: int = 0   # 本次迭代评估的表达式个数
 
 
 class IslandEvolution:
@@ -65,7 +65,6 @@ class IslandEvolution:
     # ================================================================
     # 岛屿初始化
     # ================================================================
-    @time_decorator
     def setup_islands(self):
         """为每个岛创建独立的 toolbox 和初始种群。
 
@@ -134,13 +133,13 @@ class IslandEvolution:
     # ================================================================
     # 主进化循环
     # ================================================================
-    @time_decorator
     def run(self) -> "EvolutionResult":
-        """主进化循环。"""
+        """主进化循环"""
         logger.info("=" * 60)
         logger.info("开始分岛进化: %d 代", self.config.n_gen)
 
         t_start = time.time()
+        gen_candidates = {}
 
         for gen in range(self.config.n_gen):
             self._gen_start_time = time.time()
@@ -161,14 +160,19 @@ class IslandEvolution:
             if self.llm is not None and gen > 0 and gen % self.config.llm_inject_freq == 0:
                 self._llm_inject(gen)
 
+            # 5. 保存每一代 candidates
+            candi = self.collect_result().candidates
+            gen_candidates['gen_{}'.format(gen+1)] = candi
+
         t_total = time.time() - t_start
 
+        from utils import PickleIO
+        PickleIO.write(gen_candidates, f'{self.config.output_dir}/gen_candidates.pkl')
         logger.info("进化完成! 总耗时: %.1fs, 评估表达式数: %d (含缓存)",
                      t_total, self.evaluator.eval_count)
 
         return self.collect_result()
 
-    @time_decorator
     def _evolve_one_generation(self, island: Island):
         """对单个岛执行一代进化（选择 → 交叉 → 变异 → 评估 → 替换）。"""
         pop = island.population
@@ -295,39 +299,42 @@ class IslandEvolution:
                 seen.add(expr)
                 unique_top.append((expr, fit))
 
+        # 正常表达式
+        valid_list = unique_top[0:100]   # top 100 个
         # 失败案例
         invalid_list = list(self.evaluator.invalid_exprs)[-50:]  # 最近 50 个
 
         logger.info("LLM 注入 (gen %d): 提供 Top-%d 表达式 + %d 失败案例",
-                     gen, len(unique_top), len(invalid_list))
+                     gen+1, len(valid_list), len(invalid_list))
 
         try:
             candidates = self.llm.generate_candidates(
-                top_exprs=unique_top[:10],
+                top_exprs=valid_list,
                 invalid_patterns=invalid_list
             )
-            logger.info(f'LLM 提取因子 candidates: {len(candidates)}')
         except Exception as e:
             logger.warning("LLM 生成失败: %s", e)
             return
 
         candidates = [c for c in candidates if self.evaluator._passes_qlib_semantic(c)]
+        logger.info('valid candidates len: {}'.format(len(candidates)))
 
         if not candidates:
             logger.info("LLM 未生成有效候选")
             return
 
-        # 竞争替换：每个候选 vs 岛内底部个体
-        accepted = 0
-        print('-' * 50)
+        logger.info('\n{} {}'.format('-' * 30, 'pset Primitive'))
         pri_list = self.pset.primitives[float]
         pris = [pri.name for pri in pri_list]
-        print(pris)
+        logger.info(pris)
 
+        logger.info('\n{} {}'.format('-' * 30, 'pset Terminals'))
         ter_list = self.pset.terminals[float]
         ters = [ter.name for ter in ter_list]
-        print(ters)
-        print('-' * 50)
+        logger.info(ters)
+
+        # 竞争替换：每个候选 vs 岛内底部个体
+        accepted = 0
         for expr_str in candidates:
             # 解析为 individual
             try:
@@ -340,8 +347,7 @@ class IslandEvolution:
             ind = creator.Individual(ind)
             ind.fitness.values = self.evaluator.evaluate(ind)
             fitness = ind.fitness.values[0]
-            logger.info('gen: {}, candidate: {}, fitness: {}'.format(
-                gen, expr_str, fitness))
+            logger.info('gen: {}, candidate: {}, fitness: {}'.format(gen, expr_str, fitness))
             if fitness <= 1e-8:
                 continue
 
@@ -359,8 +365,7 @@ class IslandEvolution:
                                  island.id, fitness, expr_str[:80])
                     break  # 一个因子只注入一个岛
 
-        logger.info("LLM 注入结果: %d/%d 候选进入种群",
-                     accepted, len(candidates))
+        logger.info("LLM 注入结果: %d/%d 候选进入种群",accepted, len(candidates))
 
     # ================================================================
     # 结果收集
@@ -401,7 +406,7 @@ class IslandEvolution:
         for island in self.islands:
             if island.hof:
                 parts.append(
-                    f"岛{island.id}: best={island.best_fitness:.4f} "
+                    f"岛{island.id + 1}: best={island.best_fitness:.4f} "
                     f"invalid={island.invalid_count}"
                 )
 

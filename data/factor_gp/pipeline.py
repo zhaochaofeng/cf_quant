@@ -207,7 +207,7 @@ class GPLlmPipeline:
     def _phase2_evolve(self):
         """运行分岛进化。"""
         logger.info("=" * 60)
-        logger.info("Phase 2: 分岛进化")
+        logger.info("Phase 2: 分岛进化 ...")
 
         # 随机种子
         import random
@@ -241,7 +241,7 @@ class GPLlmPipeline:
         import os
         from datetime import datetime
         from utils import PickleIO
-        # PickleIO.write(result, f'{self.config.output_dir}/result.pkl')
+        PickleIO.write(result.candidates, f'{self.config.output_dir}/result_candi.pkl')
 
         screening = FactorScreening(self.evaluator, self.config)
 

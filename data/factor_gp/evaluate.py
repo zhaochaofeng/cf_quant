@@ -112,9 +112,7 @@ class FactorEvaluator:
         if batch_exprs:
             t  = time.time()
             unique_exprs = list(set(batch_exprs))
-            logger.info('\n{}\n exprs len: {}'.format('-'* 50, len(unique_exprs)))
             try:
-                # with np.errstate(divide="ignore", invalid="ignore"):
                 df_r = D.features(
                     self.instruments, unique_exprs,
                     start_time=self.config.start_date,
@@ -124,7 +122,7 @@ class FactorEvaluator:
                 err_msg = "训练集批量 D.features 失败: {}. \n batch_exprs: {}".format(e, batch_exprs)
                 logger.error(err_msg)
                 raise Exception(err_msg)
-            logger.info('\n{}\n 表达式计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
+            logger.info('\n{}\n qlib 表达式计算完成，耗时：{}s'.format('-' * 50, round(time.time() - t)))
 
         # 并行计算 IC
         t = time.time()
