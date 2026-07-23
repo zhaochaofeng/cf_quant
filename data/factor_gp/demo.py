@@ -5,13 +5,10 @@
 2. qlib 评估表达式 → 截面 IC 计算 fitness
 3. DEAP 进化循环 → 产出因子表达式
 """
-import multiprocessing
 
-# multiprocessing.set_start_method("fork", force=True)
-
-import random
-import operator
 import logging
+import operator
+import random
 import time
 from functools import partial
 
@@ -21,7 +18,6 @@ logging.getLogger("qlib").setLevel(logging.ERROR)
 
 import qlib
 from qlib.data import D
-from qlib.constant import REG_CN
 
 from deap import base, creator, gp, tools, algorithms
 
@@ -82,7 +78,8 @@ def main(args):
         pset.addPrimitive(_dummy, in_types=[float], ret_type=float, name=op)
 
     # Pair-wise
-    for op in ["Add", "Sub", "Mul", "Div", "Max", "Min", "Gt", "Lt"]:
+    # 已弃用 bool 算子: Gt, Lt（比较返回 0/1，信息损失+过拟合）
+    for op in ["Add", "Sub", "Mul", "Div", "Max", "Min"]:
         pset.addPrimitive(_dummy, in_types=[float, float], ret_type=float, name=op)
 
     # Rolling (arity=2)
@@ -90,7 +87,8 @@ def main(args):
         pset.addPrimitive(_dummy, in_types=[float, int], ret_type=float, name=op)
 
     pset.addPrimitive(_dummy, in_types=[float, float, int], ret_type=float, name="Corr")
-    pset.addPrimitive(_dummy, in_types=[float, float, float], ret_type=float, name="If")
+    # 已弃用 If（需 bool 条件；纯连续空间改用 Greater/Less/Sign 软条件）
+    # pset.addPrimitive(_dummy, in_types=[float, float, float], ret_type=float, name="If")
 
     # 安全网: float → int 转换。确保 generate() 在 int 位置不崩溃
     # Fix: 理解逻辑
