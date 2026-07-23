@@ -71,6 +71,7 @@ class FactorEvaluator:
 
         # 共享缓存
         self.cache: dict[str, tuple] = {}  # expr_str → (fitness_train,)
+        self.fitness_set = set()              # fitness 重复值
         self.invalid_exprs: set[str] = set()  # 无效表达式
         self._eval_count: int = 0
 
@@ -161,11 +162,14 @@ class FactorEvaluator:
                 n=self.config.kernels,
                 start_method='fork',
             )
-
             for expr_str, fitness, is_invalid in results:
                 if is_invalid:
                     self.invalid_exprs.add(expr_str)
-                self.cache[expr_str] = fitness
+                if fitness[0] in self.fitness_set:
+                    self.cache[expr_str] = (0.0,)
+                else:
+                    self.cache[expr_str] = fitness
+                    self.fitness_set.add(fitness[0])
                 self._eval_count += 1
 
         logger.info('{}\n IC 计算完成(并行)，耗时：{}s'.format('-' * 50, round(time.time() - t)))

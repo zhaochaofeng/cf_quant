@@ -252,6 +252,7 @@ class GPLlmPipeline:
         PickleIO.write(result.candidates, f'{self.config.output_dir}/result_candi.pkl')
 
         screening = FactorScreening(self.evaluator, self.config)
+        logger.info('训练过程中重复的 fitness 值因子个数: {}'.format(len(self.evaluator.fitness_set)))
 
         # 通过 fitness 阈值筛选因子
         candidates = []
