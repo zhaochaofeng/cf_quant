@@ -11,9 +11,10 @@ logger = LoggerFactory.get_logger(__name__)
 class FactorScreening:
     """后处理：测试集评估 → 相关性筛选 → 报告生成。"""
 
-    def __init__(self, evaluator, config):
+    def __init__(self, evaluator, config, pset):
         self.evaluator = evaluator
         self.config = config
+        self.pset = pset
 
     # ================================================================
     # 测试集评估
@@ -84,14 +85,16 @@ class FactorScreening:
             # 保存 factor series（用于相关性计算）
             factor_series[expr_str] = pred
 
-            depth = self._expr_depth(expr_str)
+            # depth = self._expr_depth(expr_str)
+            from deap import gp
+            tree = gp.PrimitiveTree.from_string(expr_str, self.pset)
             rows.append({
                 "expr": expr_str,
                 "train_fitness": train_fitness,
                 "train_ic": self.evaluator.get_train_ic(expr_str),
                 "test_rank_ic": rank_ic.mean(),
                 "test_icir": rank_ic.mean() / rank_ic.std() if rank_ic.std() > 1e-12 else 0.0,
-                "depth": depth,
+                "depth": tree.height,
                 "n_samples": len(pred),
                 "ic_decay": self.evaluator.get_train_ic(expr_str) - rank_ic.mean(),
             })
@@ -244,15 +247,15 @@ class FactorScreening:
         logger.info(report)
         return report
 
-    @staticmethod
-    def _expr_depth(expr_str: str) -> int:
-        """估算表达式嵌套深度。"""
-        depth = 0
-        max_depth = 0
-        for c in expr_str:
-            if c == '(':
-                depth += 1
-                max_depth = max(max_depth, depth)
-            elif c == ')':
-                depth -= 1
-        return max_depth
+    # @staticmethod
+    # def _expr_depth(expr_str: str) -> int:
+    #     """估算表达式嵌套深度。"""
+    #     depth = 0
+    #     max_depth = 0
+    #     for c in expr_str:
+    #         if c == '(':
+    #             depth += 1
+    #             max_depth = max(max_depth, depth)
+    #         elif c == ')':
+    #             depth -= 1
+    #     return max_depth

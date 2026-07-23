@@ -251,7 +251,7 @@ class GPLlmPipeline:
         from utils import PickleIO
         PickleIO.write(result.candidates, f'{self.config.output_dir}/result_candi.pkl')
 
-        screening = FactorScreening(self.evaluator, self.config)
+        screening = FactorScreening(self.evaluator, self.config, self.registry.pset)
         logger.info('训练过程中重复的 fitness 值因子个数: {}'.format(len(self.evaluator.fitness_set)))
 
         # 通过 fitness 阈值筛选因子
@@ -335,7 +335,7 @@ def main():
     parser.add_argument('--n-hof', type=int, default=1000, help='每个岛屿筛选表达式数量')
     parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
     parser.add_argument('--kernels', type=int, default=max(min(os.cpu_count() - 2, 10), 1), help='qlib kernels')
-    parser.add_argument('--fitness_threshold', type=float, default=0.005, help='因子指标阈值')
+    parser.add_argument('--fitness_threshold', type=float, default=0.001, help='因子指标阈值')
     parser.add_argument('--seed', type=int, default=42)
 
     args = parser.parse_args()
