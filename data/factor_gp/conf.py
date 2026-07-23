@@ -37,6 +37,7 @@ class GPConfig:
     # ========== 筛选 ==========
     corr_threshold: float = 0.70  # 相关性阈值
     hof_size: int = 30  # 最终保留因子数
+    fitness_threshold: float = 0.03
 
     # ========== 路径 ==========
     output_dir: str = "data"

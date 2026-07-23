@@ -253,8 +253,18 @@ class GPLlmPipeline:
 
         screening = FactorScreening(self.evaluator, self.config)
 
-        # 限制候选数量（避免测试集评估过慢）
-        candidates = result.candidates[:self.config.hof_size * 10]
+        # 通过 fitness 阈值筛选因子
+        candidates = []
+        fitness_set = set([])  # 相同 fitness 的因子只保留一个
+        for expr,fitness in result.candidates:
+            if fitness in fitness_set:
+                continue
+            else:
+                fitness_set.add(fitness)
+            if fitness >= self.config.fitness_threshold:
+                candidates.append((expr, fitness))
+        logger.info('重复 fitness 值因子个数: {}'.format(len(fitness_set)))
+        logger.info('经过 fitness 筛选后的因子个数: {}'.format(len(candidates)))
 
         # 测试集评估（返回 factor_series 供相关性计算复用）
         df, factor_series = screening.evaluate_all_on_test(candidates)
@@ -318,6 +328,7 @@ def main():
     parser.add_argument('--n-hof', type=int, default=1000, help='每个岛屿筛选表达式数量')
     parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
     parser.add_argument('--kernels', type=int, default=1, help='qlib kernels')
+    parser.add_argument('--fitness_threshold', type=float, default=0.005, help='因子指标阈值')
     parser.add_argument('--seed', type=int, default=42)
 
     args = parser.parse_args()
@@ -333,6 +344,7 @@ def main():
         n_islands=args.n_islands,
         n_hof=args.n_hof,
         kernels=args.kernels,
+        fitness_threshold=args.fitness_threshold,
         seed=args.seed,
     )
 
