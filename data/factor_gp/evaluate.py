@@ -34,6 +34,9 @@ def _calc_fitness_worker(args):
 
     from qlib.contrib.eva.alpha import calc_ic
     ic_series, rank_ic_series = calc_ic(pred, label)
+    nan_r = rank_ic_series.isna().sum() / len(rank_ic_series)
+    if nan_r > 0.5:
+        return (expr_str, (0.0,), True)
     rank_ic_mean = rank_ic_series.mean()
     # rank_ic_std = rank_ic_series.std()
     # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
@@ -207,6 +210,11 @@ class FactorEvaluator:
                 return (0.0,)
 
             ic_series, rank_ic_series = calc_ic(pred, label)
+            nan_r = rank_ic_series.isna().sum() / len(rank_ic_series)
+            if nan_r > 0.5:
+                self.invalid_exprs.add(expr_str)
+                return (0.0,)
+
             rank_ic_mean = rank_ic_series.mean()
             # rank_ic_std = rank_ic_series.std()
             #
