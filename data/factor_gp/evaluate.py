@@ -143,9 +143,9 @@ class FactorEvaluator:
 
         # 并行计算 IC
         t = time.time()
-        if batch_ind:
+        if batch_ind_filtered:
             worker_args = []
-            for ind in batch_ind:
+            for ind in batch_ind_filtered:
                 expr_str = str(ind)
                 factor = df_r[expr_str].dropna()
                 worker_args.append((
@@ -165,11 +165,11 @@ class FactorEvaluator:
             for expr_str, fitness, is_invalid in results:
                 if is_invalid:
                     self.invalid_exprs.add(expr_str)
-                if fitness[0] in self.fitness_set:
+                if fitness in self.fitness_set:
                     self.cache[expr_str] = (0.0,)
                 else:
                     self.cache[expr_str] = fitness
-                    self.fitness_set.add(fitness[0])
+                    self.fitness_set.add(fitness)
                 self._eval_count += 1
 
         logger.info('{}\n IC 计算完成(并行)，耗时：{}s'.format('-' * 50, round(time.time() - t)))

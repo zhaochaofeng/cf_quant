@@ -257,14 +257,20 @@ class GPLlmPipeline:
         # 通过 fitness 阈值筛选因子
         candidates = []
         fitness_set = set([])  # 相同 fitness 的因子只保留一个
+        threshold_count = 0
+        fitness_repeat_count = 0
         for expr,fitness in result.candidates:
             if fitness in fitness_set:
+                fitness_repeat_count += 1
                 continue
-            else:
-                fitness_set.add(fitness)
-            if fitness >= self.config.fitness_threshold:
-                candidates.append((expr, fitness))
-        logger.info('重复 fitness 值因子个数: {}'.format(len(fitness_set)))
+            if fitness < self.config.fitness_threshold:
+                threshold_count += 1
+                continue
+            fitness_set.add(fitness)
+            candidates.append((expr, fitness))
+        logger.info('总因子数：{}'.format(len(result.candidates)))
+        logger.info('fitness 重复值 过滤因子个数: {}'.format(fitness_repeat_count))
+        logger.info('fitness threshold 过滤的因子个数: {}'.format(threshold_count))
         logger.info('经过 fitness 筛选后的因子个数: {}'.format(len(candidates)))
 
         # 测试集评估（返回 factor_series 供相关性计算复用）
