@@ -102,7 +102,7 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 
 ## 要求
 1. 每个子表达式必须是可以独立计算的合法 qlib 表达式
-2. 子表达式应具有明确的金融含义（如：高开阴线、天量异动、隔夜波动率等）
+2. 子表达式应具有明确的金融含义（如：高开阴线、天量异动、隔夜波动率等），并在 desc 字段中用中文简述其金融含义（不超过 30 字）
 3. 不要提取过于简单的子表达式（如单独的 $close、Mean($close,20) 等）
 4. 用英文 snake_case 为每个子表达式命名
 5. 因子表达式不要使用 +,-,*,/,<,> 等符号，使用 qlib 中对应的算子表示
@@ -111,9 +111,11 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 {factors}
 
 ## 返回格式
-只返回一个 JSON 对象，key 是子表达式名称，value 是 qlib 表达式字符串。
+只返回一个 JSON 对象，key 是子表达式名称，value 是一个对象，含 "expr" 和 "desc" 字段。
+- expr: qlib 表达式字符串
+- desc: 该子表达式的中文金融含义说明（不超过 30 字）
 示例：
-{{"bearish_reversal": "Greater($open/Ref($close,1)-1,0)*Greater($open/$close-1,0)"}}
+{{"bearish_reversal": {{"expr": "Greater($open/Ref($close,1)-1,0)*Greater($open/$close-1,0)", "desc": "高开阴线反转：开盘高于前收但收盘低于开盘"}}}}
 
 只返回 JSON，不要加其他文字说明。"""
 
@@ -183,7 +185,7 @@ class LLMInterface:
     def extract_sub_expr_genes(
         self,
         factor_exprs: list[tuple[str, str]],
-    ) -> dict[str, str]:
+    ) -> dict[str, dict]:
         """从初始优质因子中提取子表达式基因。
 
         Args:
@@ -191,7 +193,7 @@ class LLMInterface:
                 例如 [("KMID", "($close-$open)/$open"), ...]
 
         Returns:
-            {"gene_name": "qlib_sub_expr", ...}
+            {"gene_name": {"expr": qlib_sub_expr, "desc": str}, ...}
         """
         # 构建因子列表文本
         factors_text = "\n".join(
@@ -213,14 +215,20 @@ class LLMInterface:
 
         # 验证每个基因是合法 qlib 表达式
         valid_genes = {}
-        for name, expr in genes.items():
-            if not isinstance(expr, str):
+        for name, payload in genes.items():
+            # 兼容旧格式（裸字符串）与新格式（{expr, desc}）
+            if isinstance(payload, str):
+                expr, desc = payload, ""
+            elif isinstance(payload, dict):
+                expr = payload.get("expr", "")
+                desc = payload.get("desc", "")
+            else:
                 continue
-            if len(expr) < 3:
+            if not isinstance(expr, str) or len(expr) < 3:
                 continue
             # 检查不包含非法字符
             if re.search(r'[^{}"]', expr) and not re.search(r'[{}]', expr):
-                valid_genes[name] = expr
+                valid_genes[name] = {"expr": expr, "desc": desc}
 
         logger.info("LLM 提取了 %d 个子表达式基因（%d 有效）",
                      len(genes), len(valid_genes))

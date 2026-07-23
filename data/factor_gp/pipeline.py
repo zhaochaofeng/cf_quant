@@ -150,28 +150,39 @@ class GPLlmPipeline:
             return
 
         # LLM 提取子表达式基因
-        genes = self.llm.extract_sub_expr_genes(factor_exprs)
-        if not genes:
+        genes_ori = self.llm.extract_sub_expr_genes(factor_exprs)
+        if not genes_ori:
             return
 
-        # 检查genes 合法性
-        # from deap import gp
-        # tmp = []
-        # for alias, expr_str in genes.items():
-        #     try:
-        #         tree = gp.PrimitiveTree.from_string(expr_str, self.registry.pset)
-        #     except:
-        #         print('不合法：{}, 理由: {}'.format(expr_str, '不符合 deap 语法格式'))
-        #         continue
-        #     ok, reason = self.evaluator._check_qlib_semantics(tree)
-        #     if not ok:
-        #         logger.warning("不合法: {}, 理由：{}".format(expr_str, reason))
-        #         continue
-        #     else:
-        #         tmp.append((alias, expr_str))
+        # 保存含经济学描述的基因到本地便于查看（须在下面转换前保存，否则 desc 丢失）
+        from utils import PickleIO
+        PickleIO.write(genes_ori, f'{self.config.output_dir}/llm_genes.pkl')
 
-        genes = dict([(alias, expr) for alias, expr in genes.items() if self.evaluator._passes_qlib_semantic(expr)])
+        # 检查genes 合法性
+        from deap import gp
+        genes = {}
+        for alias, payload in genes_ori.items():
+            expr_str = payload["expr"]
+            try:
+                tree = gp.PrimitiveTree.from_string(expr_str, self.registry.pset)
+            except:
+                logger.info('不合法：{}, 理由: {}'.format(expr_str, '不符合 deap 语法格式'))
+                continue
+            ok, reason = self.evaluator._check_qlib_semantics(tree)
+            if not ok:
+                logger.info("不合法: {}, 理由：{}".format(expr_str, reason))
+                continue
+            else:
+                genes[alias]= expr_str
+
+        # genes = {
+        #     alias: payload["expr"]
+        #     for alias, payload in genes.items()
+        #     if isinstance(payload, dict)
+        #     and self.evaluator._passes_qlib_semantic(payload["expr"])
+        # }
         # print(genes)
+
         if not genes:
             logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
             return
@@ -243,7 +254,7 @@ class GPLlmPipeline:
         screening = FactorScreening(self.evaluator, self.config)
 
         # 限制候选数量（避免测试集评估过慢）
-        candidates = result.candidates[:self.config.hof_size * 3]
+        candidates = result.candidates[:self.config.hof_size * 10]
 
         # 测试集评估（返回 factor_series 供相关性计算复用）
         df, factor_series = screening.evaluate_all_on_test(candidates)
