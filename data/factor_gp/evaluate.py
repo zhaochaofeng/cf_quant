@@ -379,8 +379,10 @@ class FactorEvaluator:
                     return pos, False, (
                         f"{name} 的feature_left是常量: {self._short(child)}")
 
-            # 规则3: 除了 Power, Sub (如 Sub(Div($close, Ref($close, 1)), 1)) 算子外，其他算子的 feature_right 不能为常量
-            if name in set(PIRE_OPS + PAIR_ROLLING_OPS) - set(['Power', 'Sub']):
+            # 规则3: 除了 Power,
+            # Sub (如 Sub(Div($close, Ref($close, 1)), 1)),
+            # Add(如 Add(Sub($high, $low), 1e-12)) 算子外，其他算子的 feature_right 不能为常量
+            if name in set(PIRE_OPS + PAIR_ROLLING_OPS) - set(['Power', 'Sub', 'Add']):
                 child = tree[child_starts[1]]
                 if self._node_is_literal(child):
                     return pos, False, (
