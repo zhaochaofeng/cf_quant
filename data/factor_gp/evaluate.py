@@ -8,6 +8,7 @@ from qlib.data import D
 from qlib.contrib.eva.alpha import calc_ic
 from utils import LoggerFactory
 from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS
+from deap import gp
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -45,7 +46,7 @@ def _calc_fitness_worker(args):
     if not np.isfinite(fitness):
         fitness = 0.0
 
-    print('{}\t{}\t{}\t{}\t{}'.format(expr_str, rank_ic_mean, complexity_penalty, depth, fitness))
+    # print('{}\t{}\t{}\t{}\t{}'.format(expr_str, rank_ic_mean, complexity_penalty, depth, fitness))
     return (expr_str, (fitness,), False)
 
 
@@ -82,7 +83,7 @@ class FactorEvaluator:
             return self.cache[expr_str]
 
         self._eval_count += 1
-        fitness = self._compute_fitness(individual, expr_str)
+        fitness = self._compute_fitness(expr_str)
         self.cache[expr_str] = fitness
         return fitness
 
@@ -148,11 +149,13 @@ class FactorEvaluator:
             for ind in batch_ind_filtered:
                 expr_str = str(ind)
                 factor = df_r[expr_str].dropna()
+                # 重新解析表达式计算树深度。防止 因子基因作为叶子节点时树深度计算错误（偏小）
+                depth = gp.PrimitiveTree.from_string(expr_str, self.pset).height
                 worker_args.append((
                     expr_str, factor, self.target_train,
                     self.config.icir_weight,
                     self.config.complexity_penalty,
-                    ind.height,
+                    depth,
                 ))
 
             from utils.multiprocess import multiprocessing_wrapper_same
@@ -177,7 +180,7 @@ class FactorEvaluator:
         # 按原顺序返回
         return [self.cache[str(ind)] for ind in individuals]
 
-    def _compute_fitness(self, individual, expr_str: str,
+    def _compute_fitness(self, expr_str: str,
                          df_r: pd.DataFrame | None = None) -> tuple:
         """从因子值计算适应度。df_r 为 None 时自行调用 D.features。"""
         try:
@@ -224,7 +227,7 @@ class FactorEvaluator:
             #
             # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
 
-            depth = individual.height
+            depth = gp.PrimitiveTree.from_string(expr_str, self.pset).height
             fitness = abs(rank_ic_mean) - self.config.complexity_penalty * depth
                 # + self.config.icir_weight * abs(icir)
 
