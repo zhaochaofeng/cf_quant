@@ -278,6 +278,9 @@ class GPLlmPipeline:
         if df.empty:
             logger.warning("无有效候选因子")
             return df
+        # 附加经济学含义描述
+        if result.economic_descs:
+            df["economic_desc"] = df["expr"].map(result.economic_descs)
         DataFrameIO.write(df, f'{self.config.output_dir}/test_eval.parquet', type='parquet')
         PickleIO.write(factor_series, f'{self.config.output_dir}/test_factor.pkl')
 
@@ -337,6 +340,7 @@ def main():
     parser.add_argument('--kernels', type=int, default=max(min(os.cpu_count() - 2, 10), 1), help='qlib kernels')
     parser.add_argument('--fitness_threshold', type=float, default=0.001, help='因子指标阈值')
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--no-economic-check', action='store_true', help='禁用经济学含义过滤')
 
     args = parser.parse_args()
     logger.info(f'args: {args}')
@@ -353,6 +357,7 @@ def main():
         kernels=args.kernels,
         fitness_threshold=args.fitness_threshold,
         seed=args.seed,
+        enable_economic_check=not args.no_economic_check,
     )
 
     pipeline = GPLlmPipeline(config, enable_llm=not args.no_llm)

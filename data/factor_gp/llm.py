@@ -119,6 +119,31 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 
 只返回 JSON，不要加其他文字说明。"""
 
+ECONOMIC_CHECK_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长判断量价因子的经济学含义。
+
+{operators_ref}
+
+## 任务
+判断以下每个因子表达式是否具有可解释的经济学含义。
+
+## 判断标准
+1. 量纲一致性：加减运算两侧应具有相同量纲（如价格+价格、收益率+收益率），价格+成交量属于量纲不匹配
+2. 金融逻辑可解释性：因子应能对应某种市场行为或经济逻辑（如动量、反转、量价背离、波动率聚集等）
+3. 非平凡构造：如 Corr($close,$high,10) 构造上近乎完全相关，无信息增量
+4. 只拒"明显无意义"的表达式，边界情形放行
+
+## 待评估表达式
+{exprs}
+
+## 返回格式
+只返回一个 JSON 数组，每个元素对应一个表达式：
+{{"id": 0, "meaningful": true, "desc": "收盘价动量：过去N日价格变化趋势"}}
+- id: 表达式编号（从0开始）
+- meaningful: 是否具有经济学含义（true/false）
+- desc: 中文经济学含义说明（不超过30字），若无意义则简述原因
+
+只返回 JSON 数组，不要加其他文字说明。"""
+
 GENERATE_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长设计量价选股因子。
 
 {operators_ref}
@@ -338,6 +363,54 @@ class LLMInterface:
 用中文回答，控制在 200 字以内。"""
 
         return self._call_llm(prompt)
+
+    # ================================================================
+    # 经济学含义批量评估
+    # ================================================================
+
+    def assess_economic_meaning(self, exprs: list[str]) -> list[dict]:
+        """批量评估表达式的经济学含义。
+
+        Args:
+            exprs: qlib 表达式字符串列表
+
+        Returns:
+            [{"id": int, "meaningful": bool, "desc": str}, ...]
+        """
+        exprs_text = "\n".join(f"{i}. `{expr}`" for i, expr in enumerate(exprs))
+
+        prompt = ECONOMIC_CHECK_PROMPT_TEMPLATE.format(
+            operators_ref=QLIB_OPERATORS_REF,
+            exprs=exprs_text,
+        )
+        logger.info('\n{}\n{}'.format('-' * 30, prompt))
+
+        response = self._call_llm(prompt)
+        data = self._parse_json_response(response)
+
+        if not data:
+            logger.warning("LLM 经济检查返回无效 JSON")
+            return []
+
+        # 兼容返回数组或 {"results": [...]} 包装
+        if isinstance(data, dict):
+            results = data.get("results", [])
+        elif isinstance(data, list):
+            results = data
+        else:
+            return []
+
+        valid = []
+        for item in results:
+            if isinstance(item, dict) and "id" in item:
+                valid.append({
+                    "id": item["id"],
+                    "meaningful": item.get("meaningful", True),
+                    "desc": item.get("desc", ""),
+                })
+
+        logger.info("LLM 经济检查: %d 表达式 → %d 有效评估", len(exprs), len(valid))
+        return valid
 
     # ================================================================
     # 内部方法

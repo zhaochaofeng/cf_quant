@@ -35,6 +35,7 @@ class Island:
     gen: int = 0      # 当前代数
     best_fitness: float = 0.0      # 当前最佳 fitness
     invalid_count: int = 0   # 本次迭代评估的表达式个数
+    economic_descs: dict = field(default_factory=dict)  # expr_str → 经济学含义描述
 
 
 class IslandEvolution:
@@ -151,6 +152,13 @@ class IslandEvolution:
 
             # 2. 打印代际统计
             self._log_generation(gen)
+
+            # 2.5 LLM 经济学含义过滤
+            if (self.llm is not None
+                    and self.config.enable_economic_check
+                    and gen > 0
+                    and (gen + 1) % self.config.llm_check_freq == 0):
+                self._llm_economic_filter(gen)
 
             # 3. 岛间迁移
             if gen > 0 and gen % self.config.migration_freq == 0:
@@ -370,12 +378,102 @@ class IslandEvolution:
         logger.info("LLM 注入结果: %d/%d 候选进入种群",accepted, len(candidates))
 
     # ================================================================
+    # LLM 经济学含义过滤
+    # ================================================================
+
+    def _llm_economic_filter(self, gen: int):
+        """LLM 经济学含义过滤：批量评估种群表达式，淘汰无意义个体。"""
+        # 1. 收集所有岛的去重表达式（population + hof）
+        # 注意：HoF 中的历史最佳可能已被进化替换出 population，
+        # 若只扫描 population 会遗漏这些表达式，导致最终候选缺少经济学描述。
+        all_exprs = set()
+        for island in self.islands:
+            for ind in island.population:
+                all_exprs.add(str(ind))
+            for ind in island.hof:
+                all_exprs.add(str(ind))
+        expr_list = sorted(all_exprs)
+
+        if not expr_list:
+            return
+
+        logger.info("LLM 经济检查 (gen %d): %d 个唯一表达式", gen + 1, len(expr_list))
+
+        # 2. 批量调用 LLM 评估
+        try:
+            results = self.llm.assess_economic_meaning(expr_list)
+        except Exception as e:
+            logger.warning("LLM 经济检查失败: %s", e)
+            return
+
+        if not results:
+            logger.info("LLM 经济检查未返回有效结果，跳过")
+            return
+
+        # 3. 建立 expr → (meaningful, desc) 映射
+        expr_verdict = {}  # expr_str → (meaningful: bool, desc: str)
+        for item in results:
+            idx = item.get("id")
+            if idx is None or not isinstance(idx, int) or idx >= len(expr_list):
+                continue
+            expr_str = expr_list[idx]
+            meaningful = item.get("meaningful", True)
+            desc = item.get("desc", "")
+            expr_verdict[expr_str] = (meaningful, desc)
+
+        # 4. 各岛执行过滤 + 存储描述
+        total_removed = 0
+        for island in self.islands:
+            new_pop = []
+            removed = 0
+            for ind in island.population:
+                expr_str = str(ind)
+                verdict = expr_verdict.get(expr_str)
+                if verdict is None:
+                    new_pop.append(ind)
+                    continue
+                meaningful, desc = verdict
+                if desc:
+                    island.economic_descs[expr_str] = desc
+                if meaningful:
+                    new_pop.append(ind)
+                else:
+                    removed += 1
+                    self.evaluator.invalid_exprs.add(expr_str)
+                    logger.debug("经济过滤淘汰 [岛%d]: %s", island.id, expr_str[:80])
+
+            # 补充新个体维持种群大小
+            if removed > 0:
+                offspring = [island.toolbox.clone(ind) for ind in
+                             island.toolbox.population(n=removed)]
+                fitnesses = self.evaluator.evaluate_batch(offspring)
+                for ind, fit in zip(offspring, fitnesses):
+                    ind.fitness.values = fit
+                new_pop.extend(offspring)
+
+            island.population = new_pop
+            island.hof.update(island.population)
+            total_removed += removed
+
+            # 存储 HoF 中表达式的经济学描述（HoF 个体可能不在 population 中）
+            for ind in island.hof:
+                expr_str = str(ind)
+                if expr_str not in island.economic_descs:
+                    verdict = expr_verdict.get(expr_str)
+                    if verdict is not None and verdict[1]:
+                        island.economic_descs[expr_str] = verdict[1]
+
+        logger.info("LLM 经济检查完成 (gen %d): 淘汰 %d 个体, 补充 %d 新个体",
+                     gen + 1, total_removed, total_removed)
+
+    # ================================================================
     # 结果收集
     # ================================================================
 
     def collect_result(self) -> "EvolutionResult":
         """收集所有岛屿的候选因子。"""
         all_exprs = {}  # expr_str → best fitness
+        economic_descs = {}  # expr_str → 经济学含义描述
 
         for island in self.islands:
             for ind in island.hof:
@@ -385,6 +483,9 @@ class IslandEvolution:
                 fitness = ind.fitness.values[0]
                 if expr_str not in all_exprs or fitness > all_exprs[expr_str]:
                     all_exprs[expr_str] = fitness
+                # 收集经济学描述（各岛可能不同，取非空值）
+                if expr_str not in economic_descs and island.economic_descs.get(expr_str):
+                    economic_descs[expr_str] = island.economic_descs[expr_str]
 
         # 按 fitness 降序
         candidates = sorted(all_exprs.items(), key=lambda x: x[1], reverse=True)
@@ -395,6 +496,7 @@ class IslandEvolution:
             total_evals=self.evaluator.eval_count,
             cache_size=len(self.evaluator.cache),
             logbooks=[isl.logbook for isl in self.islands],
+            economic_descs=economic_descs,
         )
 
     # ================================================================
@@ -425,3 +527,4 @@ class EvolutionResult:
     total_evals: int
     cache_size: int
     logbooks: list
+    economic_descs: dict = field(default_factory=dict)  # expr_str → 经济学含义描述

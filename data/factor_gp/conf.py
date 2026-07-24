@@ -28,6 +28,8 @@ class GPConfig:
     # ========== LLM 注入 ==========
     llm_inject_freq: int = 3  # 每 N 代 LLM 生成一次
     llm_inject_n: int = 5  # 每次每岛生成数
+    enable_economic_check: bool = True  # 开关：是否启用 LLM 经济学含义检查
+    llm_check_freq: int = 3  # 每 N 代执行一次经济学含义检查
     # LLM API 配置（model/base_url/api_key）从 config.yaml llm_deepseek 读取
 
     # ========== 适应度 ==========
