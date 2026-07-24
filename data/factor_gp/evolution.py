@@ -157,7 +157,7 @@ class IslandEvolution:
                 self._migrate()
 
             # 4. LLM 注入
-            if self.llm is not None and gen > 0 and gen % self.config.llm_inject_freq == 0:
+            if self.llm is not None and gen > 0 and (gen+1) % self.config.llm_inject_freq == 0:
                 self._llm_inject(gen)
 
             # 5. 保存每一代 candidates
@@ -300,7 +300,9 @@ class IslandEvolution:
                 unique_top.append((expr, fit))
 
         # 正常表达式
-        valid_list = unique_top[0:100]   # top 100 个
+        unique_top = sorted(unique_top, key=lambda x: abs(x[1]), reverse=True)
+        unique_top = [(expr, fitness) for expr, fitness in unique_top if abs(fitness)>0.0001]
+        valid_list = unique_top[0:50]   # top 50 个
         # 失败案例
         invalid_list = list(self.evaluator.invalid_exprs)[-50:]  # 最近 50 个
 

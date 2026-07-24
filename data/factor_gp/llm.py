@@ -256,7 +256,7 @@ class LLMInterface:
         # 构建 Top 因子文本
         top_text = "\n".join(
             f"{i+1}. fitness={fitness:.4f} | `{expr[:120]}`"
-            for i, (expr, fitness) in enumerate(top_exprs[:10])
+            for i, (expr, fitness) in enumerate(top_exprs)
         )
         if not top_text:
             top_text = "（暂无）"
@@ -264,7 +264,7 @@ class LLMInterface:
         # 构建失败案例文本
         if invalid_patterns:
             invalid_text = "\n".join(
-                f"- `{expr[:100]}`" for expr in invalid_patterns[:10]
+                f"- `{expr[:100]}`" for expr in invalid_patterns
             )
         else:
             invalid_text = "（暂无）"
