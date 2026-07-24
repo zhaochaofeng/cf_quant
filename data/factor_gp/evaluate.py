@@ -40,12 +40,12 @@ def _calc_fitness_worker(args):
     rank_ic_mean = rank_ic_series.mean()
     # rank_ic_std = rank_ic_series.std()
     # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
-
     fitness = abs(rank_ic_mean) - complexity_penalty * depth
     # fitness = abs(rank_ic_mean) + icir_weight * abs(icir) - complexity_penalty * depth
     if not np.isfinite(fitness):
         fitness = 0.0
 
+    print('{}\t{}\t{}\t{}\t{}'.format(expr_str, rank_ic_mean, complexity_penalty, depth, fitness))
     return (expr_str, (fitness,), False)
 
 
@@ -225,11 +225,8 @@ class FactorEvaluator:
             # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
 
             depth = individual.height
-            fitness = (
-                abs(rank_ic_mean)
+            fitness = abs(rank_ic_mean) - self.config.complexity_penalty * depth
                 # + self.config.icir_weight * abs(icir)
-                - self.config.complexity_penalty * depth
-            )
 
             if not np.isfinite(fitness):
                 fitness = 0.0
