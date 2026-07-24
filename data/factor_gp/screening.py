@@ -88,15 +88,29 @@ class FactorScreening:
             # depth = self._expr_depth(expr_str)
             from deap import gp
             tree = gp.PrimitiveTree.from_string(expr_str, self.pset)
+
+            # 测试集 4 指标
+            test_ic_mean = ic.mean()
+            test_ic_std = ic.std()
+            test_ric_std = rank_ic.std()
+
+            # 训练集 4 指标（从 evaluator 缓存获取）
+            train_metrics = self.evaluator.get_train_ic_metrics(expr_str)
+
             rows.append({
                 "expr": expr_str,
                 "train_fitness": train_fitness,
-                "train_ic": self.evaluator.get_train_ic(expr_str),
-                "test_rank_ic": rank_ic.mean(),
-                "test_icir": rank_ic.mean() / rank_ic.std() if rank_ic.std() > 1e-12 else 0.0,
+                "train_ic": train_metrics["ic"],
+                "train_icir": train_metrics["icir"],
+                "train_ric": train_metrics["ric"],
+                "train_ricir": train_metrics["ricir"],
+                "test_ic": test_ic_mean,
+                "test_icir": test_ic_mean / test_ic_std if test_ic_std > 1e-12 else 0.0,
+                "test_ric": rank_ic.mean(),
+                "test_ricir": rank_ic.mean() / test_ric_std if test_ric_std > 1e-12 else 0.0,
                 "depth": tree.height,
                 "n_samples": len(pred),
-                "ic_decay": self.evaluator.get_train_ic(expr_str) - rank_ic.mean(),
+                "ic_decay": train_metrics["ric"] - rank_ic.mean(),
             })
 
         df = pd.DataFrame(rows)
@@ -104,13 +118,13 @@ class FactorScreening:
             logger.warning("无有效候选因子")
             return df, factor_series
 
-        df["abs_test_rank_ic"] = df["test_rank_ic"].abs()
-        df["abs_train_ic"] = df["train_ic"].abs()
-        df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
+        df["abs_test_ric"] = df["test_ric"].abs()
+        df["abs_train_ric"] = df["train_ric"].abs()
+        df = df.sort_values("abs_test_ric", ascending=False).reset_index(drop=True)
 
         logger.info(
             "测试集评估: %d 个候选, |RankIC| mean=%.4f, max=%.4f",
-            len(df), df["abs_test_rank_ic"].mean(), df["abs_test_rank_ic"].max(),
+            len(df), df["abs_test_ric"].mean(), df["abs_test_ric"].max(),
         )
         return df, factor_series
 
@@ -153,7 +167,7 @@ class FactorScreening:
         PickleIO.write(corr_matrix, f'{self.config.output_dir}/factor_corr_matrix.pkl')
 
         # 按 |RankIC| 降序，确保是副本
-        df = df.sort_values("abs_test_rank_ic", ascending=False).reset_index(drop=True)
+        df = df.sort_values("abs_test_ric", ascending=False).reset_index(drop=True)
 
         selected_indices = []
         max_corrs = []
@@ -220,10 +234,11 @@ class FactorScreening:
             f"相关性阈值: {self.config.corr_threshold}",
             "",
             "--- 全量候选统计 ---",
-            f"测试集 |RankIC| 均值: {df['abs_test_rank_ic'].mean():.4f}",
-            f"测试集 |RankIC| 中位数: {df['abs_test_rank_ic'].median():.4f}",
-            f"测试集 |RankIC| 最大值: {df['abs_test_rank_ic'].max():.4f}",
-            f"测试集 ICIR 均值: {df['test_icir'].mean():.4f}",
+            f"训练集 RIC 均值: {df['train_ric'].mean():.4f}",
+            f"训练集 RICIR 均值: {df['train_ricir'].mean():.4f}",
+            f"测试集 |RIC| 均值: {df['abs_test_ric'].mean():.4f}",
+            f"测试集 |RIC| 最大值: {df['abs_test_ric'].max():.4f}",
+            f"测试集 RICIR 均值: {df['test_ricir'].mean():.4f}",
             "",
             "--- Top-10 因子 ---",
         ]
@@ -233,8 +248,9 @@ class FactorScreening:
             # 截断过长表达式
             display_expr = expr_str if len(expr_str) <= 100 else expr_str[:97] + "..."
             lines.append(
-                f"  [{i}] |RankIC|={row['abs_test_rank_ic']:.4f} "
-                f"ICIR={row['test_icir']:.4f} "
+                f"  [{i}] test_ric={row['test_ric']:.4f} "
+                f"test_ricir={row['test_ricir']:.4f} "
+                f"train_ricir={row['train_ricir']:.4f} "
                 f"depth={row['depth']} "
                 f"max_corr={row.get('max_corr', 0):.2f}"
             )

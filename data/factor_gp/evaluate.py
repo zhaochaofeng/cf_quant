@@ -18,9 +18,11 @@ def _calc_fitness_worker(args):
     (expr_str, factor_values, target_values,
      icir_weight, complexity_penalty, depth) = args
 
+    _nan_metrics = {"ic": np.nan, "icir": np.nan, "ric": np.nan, "ricir": np.nan}
+
     common_idx = factor_values.index.intersection(target_values.index)
     if len(common_idx) == 0:
-        return (expr_str, (0.0,), True)
+        return (expr_str, (0.0,), True, _nan_metrics)
 
     pred = factor_values.loc[common_idx]
     label = target_values.loc[common_idx]
@@ -31,23 +33,29 @@ def _calc_fitness_worker(args):
     label = label.loc[common_idx]
 
     if len(pred) < 100:
-        return (expr_str, (0.0,), True)
+        return (expr_str, (0.0,), True, _nan_metrics)
 
     from qlib.contrib.eva.alpha import calc_ic
     ic_series, rank_ic_series = calc_ic(pred, label)
     nan_r = rank_ic_series.isna().sum() / len(rank_ic_series)
     if nan_r > 0.5:
-        return (expr_str, (0.0,), True)
+        return (expr_str, (0.0,), True, _nan_metrics)
     rank_ic_mean = rank_ic_series.mean()
-    # rank_ic_std = rank_ic_series.std()
-    # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
     fitness = abs(rank_ic_mean) - complexity_penalty * depth
-    # fitness = abs(rank_ic_mean) + icir_weight * abs(icir) - complexity_penalty * depth
     if not np.isfinite(fitness):
         fitness = 0.0
 
-    # print('{}\t{}\t{}\t{}\t{}'.format(expr_str, rank_ic_mean, complexity_penalty, depth, fitness))
-    return (expr_str, (fitness,), False)
+    # IC 指标缓存
+    ic_mean = ic_series.mean()
+    ic_std = ic_series.std()
+    ric_std = rank_ic_series.std()
+    ic_metrics = {
+        "ic": ic_mean,
+        "icir": ic_mean / ic_std if ic_std > 1e-12 else 0.0,
+        "ric": rank_ic_mean,
+        "ricir": rank_ic_mean / ric_std if ric_std > 1e-12 else 0.0,
+    }
+    return (expr_str, (fitness,), False, ic_metrics)
 
 
 class FactorEvaluator:
@@ -73,6 +81,7 @@ class FactorEvaluator:
         # 共享缓存
         self.cache: dict[str, tuple] = {}  # expr_str → (fitness_train,)
         self.fitness_set = set()              # fitness 重复值
+        self.ic_cache: dict[str, dict] = {}   # expr_str → {"ic","icir","ric","ricir"}
         self.invalid_exprs: set[str] = set()  # 无效表达式
         self._eval_count: int = 0
 
@@ -165,7 +174,7 @@ class FactorEvaluator:
                 n=self.config.kernels,
                 start_method='fork',
             )
-            for expr_str, fitness, is_invalid in results:
+            for expr_str, fitness, is_invalid, ic_metrics in results:
                 if is_invalid:
                     self.invalid_exprs.add(expr_str)
                 if fitness in self.fitness_set:
@@ -173,6 +182,7 @@ class FactorEvaluator:
                 else:
                     self.cache[expr_str] = fitness
                     self.fitness_set.add(fitness)
+                self.ic_cache[expr_str] = ic_metrics
                 self._eval_count += 1
 
         logger.info('{}\n IC 计算完成(并行)，耗时：{}s'.format('-' * 50, round(time.time() - t)))
@@ -223,9 +233,6 @@ class FactorEvaluator:
                 return (0.0,)
 
             rank_ic_mean = rank_ic_series.mean()
-            # rank_ic_std = rank_ic_series.std()
-            #
-            # icir = rank_ic_mean / rank_ic_std if rank_ic_std > 1e-12 else 0.0
 
             depth = gp.PrimitiveTree.from_string(expr_str, self.pset).height
             fitness = abs(rank_ic_mean) - self.config.complexity_penalty * depth
@@ -234,6 +241,16 @@ class FactorEvaluator:
             if not np.isfinite(fitness):
                 fitness = 0.0
 
+            # 缓存 IC 指标
+            ic_mean = ic_series.mean()
+            ic_std = ic_series.std()
+            ric_std = rank_ic_series.std()
+            self.ic_cache[expr_str] = {
+                "ic": ic_mean,
+                "icir": ic_mean / ic_std if ic_std > 1e-12 else 0.0,
+                "ric": rank_ic_mean,
+                "ricir": rank_ic_mean / ric_std if ric_std > 1e-12 else 0.0,
+            }
             return (fitness,)
 
         except Exception:
@@ -306,6 +323,11 @@ class FactorEvaluator:
         if individual is not None:
             return self.evaluate(individual)[0]
         return 0.0
+
+    def get_train_ic_metrics(self, expr_str: str) -> dict:
+        """获取训练集 IC/RIC 指标，缺失时返回 NaN。"""
+        _nan = {"ic": np.nan, "icir": np.nan, "ric": np.nan, "ricir": np.nan}
+        return self.ic_cache.get(expr_str, _nan)
 
     def _parse_expr(self, expr_str: str):
         """将表达式字符串解析为 DEAP individual"""
