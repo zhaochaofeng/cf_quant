@@ -182,9 +182,6 @@ class GPLlmPipeline:
             logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
             return
 
-        for alias, expr in genes.items():
-            logger.info('{}: {}'.format(alias, expr))
-
         # 注册到 pset
         self.registry.register_sub_exprs(genes)
         self.llm.set_gene_aliases(self.registry.get_gene_aliases())
@@ -254,19 +251,26 @@ class GPLlmPipeline:
         fitness_set = set([])  # 相同 fitness 的因子只保留一个
         threshold_count = 0
         fitness_repeat_count = 0
-        for expr,fitness in result.candidates:
+
+        for expr, fitness in result.candidates:
             if fitness in fitness_set:
                 fitness_repeat_count += 1
                 continue
-            if fitness < self.config.fitness_threshold:
+            # if fitness < self.config.fitness_threshold:
+            #     threshold_count += 1
+            #     continue
+            fitness_set.add(fitness)
+
+            train_metrics = self.evaluator.get_train_ic_metrics(expr)
+            ric = train_metrics['ric']
+            if abs(ric) < self.config.ric_threshold:
                 threshold_count += 1
                 continue
-            fitness_set.add(fitness)
             candidates.append((expr, fitness))
         logger.info('总因子数：{}'.format(len(result.candidates)))
         logger.info('fitness 重复值 过滤因子个数: {}'.format(fitness_repeat_count))
-        logger.info('fitness threshold 过滤的因子个数: {}'.format(threshold_count))
-        logger.info('经过 fitness 筛选后的因子个数: {}'.format(len(candidates)))
+        logger.info('ric threshold 过滤的因子个数: {}'.format(threshold_count))
+        logger.info('经过筛选后的因子个数: {}'.format(len(candidates)))
 
         # 测试集评估（返回 factor_series 供相关性计算复用）
         df, factor_series = screening.evaluate_all_on_test(candidates)
@@ -333,7 +337,7 @@ def main():
     parser.add_argument('--n-hof', type=int, default=1000, help='每个岛屿筛选表达式数量')
     parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
     parser.add_argument('--kernels', type=int, default=max(min(os.cpu_count() - 2, 10), 1), help='qlib kernels')
-    parser.add_argument('--fitness_threshold', type=float, default=0.001, help='因子指标阈值')
+    parser.add_argument('--ric-threshold', type=float, default=0.001, help='因子指标阈值')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--no-economic-check', action='store_true', help='禁用经济学含义过滤')
     parser.add_argument('--checkpoint-freq', type=int, default=2, help='每隔 N 代保存 checkpoint，0=禁用')
@@ -352,7 +356,7 @@ def main():
         n_islands=args.n_islands,
         n_hof=args.n_hof,
         kernels=args.kernels,
-        fitness_threshold=args.fitness_threshold,
+        ric_threshold=args.ric_threshold,
         seed=args.seed,
         enable_economic_check=not args.no_economic_check,
         checkpoint_freq=args.checkpoint_freq,

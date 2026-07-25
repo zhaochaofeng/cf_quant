@@ -548,6 +548,7 @@ class IslandEvolution:
             for ind in island.population:
                 expr_str = str(ind)
                 verdict = expr_verdict.get(expr_str)
+                # 没有经济学描述的因子保留，仅删除 meaningful=False 的因子
                 if verdict is None:
                     new_pop.append(ind)
                     continue
