@@ -338,6 +338,7 @@ def main():
     parser.add_argument('--no-llm', action='store_true', help='禁用 LLM')
     parser.add_argument('--kernels', type=int, default=max(min(os.cpu_count() - 2, 10), 1), help='qlib kernels')
     parser.add_argument('--ric-threshold', type=float, default=0.001, help='因子指标阈值')
+    parser.add_argument('--complexity_penalty', type=float, default=0.001, help='表达式深度惩罚系数')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--no-economic-check', action='store_true', help='禁用经济学含义过滤')
     parser.add_argument('--checkpoint-freq', type=int, default=2, help='每隔 N 代保存 checkpoint，0=禁用')
@@ -357,6 +358,7 @@ def main():
         n_hof=args.n_hof,
         kernels=args.kernels,
         ric_threshold=args.ric_threshold,
+        complexity_penalty=args.complexity_penalty,
         seed=args.seed,
         enable_economic_check=not args.no_economic_check,
         checkpoint_freq=args.checkpoint_freq,
