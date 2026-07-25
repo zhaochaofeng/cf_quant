@@ -8,6 +8,9 @@
 """
 
 import operator
+import os
+import pickle
+import random
 import time
 from dataclasses import dataclass, field
 
@@ -47,8 +50,7 @@ class IslandEvolution:
         pset = registry.build_pset()
 
         engine = IslandEvolution(pset, evaluator, config)
-        engine.setup_islands()
-        result = engine.run()
+        result = engine.run()  # setup_islands() + 断点逻辑由 run() 内部处理
     """
 
     def __init__(self, pset, evaluator, config, llm_interface=None):
@@ -132,17 +134,122 @@ class IslandEvolution:
         return toolbox
 
     # ================================================================
+    # Checkpoint
+    # ================================================================
+
+    def _save_checkpoint(self, gen: int):
+        """保存当前进化状态到文件。
+
+        DEAP 官方模式：pickle population + hof + logbook + random state。
+        toolbox 和 stats 因为包含 lambda/bound method 不序列化，resume 时重建。
+        """
+        path = os.path.join(self.config.output_dir,
+                            f"checkpoint_gen_{gen + 1}.pkl")
+
+        cp = {
+            "generation": gen + 1,
+            "config_seed": self.config.seed,
+            "config_n_islands": self.config.n_islands,
+            "config_n_pop": self.config.n_pop,
+            "islands": [{
+                "population": isl.population,
+                "hof": isl.hof,
+                "logbook": isl.logbook,
+                "gen": isl.gen,
+                "best_fitness": isl.best_fitness,
+                "economic_descs": isl.economic_descs,
+            } for isl in self.islands],
+            "evaluator": {
+                "cache": self.evaluator.cache,
+                "fitness_set": self.evaluator.fitness_set,
+                "invalid_exprs": self.evaluator.invalid_exprs,
+                "ic_cache": getattr(self.evaluator, "ic_cache", {}),
+                "eval_count": self.evaluator._eval_count,
+            },
+            "random_state": random.getstate(),
+            "np_random_state": np.random.get_state(),
+        }
+        with open(path, "wb") as f:
+            pickle.dump(cp, f)
+        logger.info("Checkpoint 已保存: gen=%d → %s", gen + 1, path)
+
+    def _load_checkpoint(self, path: str) -> int:
+        """从 checkpoint 文件恢复进化状态，返回已完成代数。"""
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Checkpoint 文件不存在: {path}")
+
+        with open(path, "rb") as f:
+            cp = pickle.load(f)
+
+        # 验证核心配置一致性
+        for key in ["config_seed", "config_n_islands"]:
+            stored = cp.get(key)
+            current = getattr(self.config, key.replace("config_", ""))
+            if stored != current:
+                logger.warning(
+                    "Checkpoint %s=%s != config %s=%s，恢复结果可能不一致",
+                    key, stored, key.replace("config_", ""), current,
+                )
+
+        start_gen = cp["generation"]
+        logger.info("加载 Checkpoint: gen=%d, file=%s", start_gen, path)
+
+        # 1. 确保 creator 类存在（pickle 反序列化需要）
+        self._setup_creator()
+
+        # 2. 恢复随机状态
+        random.setstate(cp["random_state"])
+        np.random.set_state(cp["np_random_state"])
+
+        # 3. 恢复 evaluator 缓存
+        ev = cp["evaluator"]
+        self.evaluator.cache = ev["cache"]
+        self.evaluator.fitness_set = ev["fitness_set"]
+        self.evaluator.invalid_exprs = ev["invalid_exprs"]
+        if hasattr(self.evaluator, "ic_cache"):
+            self.evaluator.ic_cache = ev.get("ic_cache", {})
+        self.evaluator._eval_count = ev["eval_count"]
+
+        # 4. 重建岛屿（toolbox + stats 重建，其余从 checkpoint 加载）
+        self.islands = []
+        for i, isl_data in enumerate(cp["islands"]):
+            island = Island(id=i)
+            island.toolbox = self._build_toolbox()
+            island.stats = tools.Statistics(lambda ind: ind.fitness.values[0])
+            island.stats.register("avg", np.nanmean)
+            island.stats.register("std", np.nanstd)
+            island.stats.register("max", np.nanmax)
+            island.population = isl_data["population"]
+            island.hof = isl_data["hof"]
+            island.logbook = isl_data["logbook"]
+            island.gen = isl_data["gen"]
+            island.best_fitness = isl_data["best_fitness"]
+            island.economic_descs = isl_data.get("economic_descs", {})
+            self.islands.append(island)
+
+        logger.info("Checkpoint 恢复完成: %d islands, evaluator cache=%d",
+                     len(self.islands), len(self.evaluator.cache))
+        return start_gen
+
+    # ================================================================
     # 主进化循环
     # ================================================================
     def run(self) -> "EvolutionResult":
         """主进化循环"""
+        # 断点恢复分支
+        if self.config.resume_from:
+            start_gen = self._load_checkpoint(self.config.resume_from)
+        else:
+            self.setup_islands()
+            start_gen = 0
+
         logger.info("=" * 60)
-        logger.info("开始分岛进化: %d 代", self.config.n_gen)
+        logger.info("分岛进化: gen=[%d, %d]", start_gen+1, self.config.n_gen)
 
         t_start = time.time()
         gen_candidates = {}
 
-        for gen in range(self.config.n_gen):
+        for gen in range(start_gen, self.config.n_gen):
             self._gen_start_time = time.time()
 
             # 1. 各岛独立进化一代
@@ -171,6 +278,14 @@ class IslandEvolution:
             # 5. 保存每一代 candidates
             candi = self.collect_result().candidates
             gen_candidates['gen_{}'.format(gen+1)] = candi
+
+            # 6. Checkpoint 保存
+            if self.config.checkpoint_freq > 0 and (gen + 1) % self.config.checkpoint_freq == 0:
+                self._save_checkpoint(gen)
+
+        # 最终 checkpoint
+        if self.config.checkpoint_freq > 0:
+            self._save_checkpoint(self.config.n_gen - 1)
 
         # 6. 最终经济学描述补全（覆盖进化后期新进入 HoF 但未经检查的表达式）
         if self.llm is not None and self.config.enable_economic_check:

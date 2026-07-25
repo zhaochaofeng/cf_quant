@@ -89,11 +89,6 @@ class GPLlmPipeline:
         logger.info("qlib 初始化完成: %s, kernels=%d",
                      self.config.provider_uri, self.config.kernels)
 
-        # 屏蔽 qlib 多线程 WARNING
-        # for name in ["qlib", "qlib.Max", "qlib.Min"]:
-        #     logging.getLogger(name).addFilter(
-        #         lambda r: r.levelno >= logging.ERROR)
-
         # 获取股票列表
         cfg = D.instruments(market=self.config.market)
         self._instruments = D.list_instruments(
@@ -217,10 +212,11 @@ class GPLlmPipeline:
         logger.info("=" * 60)
         logger.info("Phase 2: 分岛进化 ...")
 
-        # 随机种子
-        import random
-        random.seed(self.config.seed)
-        np.random.seed(self.config.seed)
+        # 随机种子（resume 时由 _load_checkpoint 恢复，不重新设置）
+        if not self.config.resume_from:
+            import random
+            random.seed(self.config.seed)
+            np.random.seed(self.config.seed)
 
         # 启动进化
         engine = IslandEvolution(
@@ -229,7 +225,6 @@ class GPLlmPipeline:
             config=self.config,
             llm_interface=self.llm,
         )
-        engine.setup_islands()
         result = engine.run()
 
         # 暂存基因别名（Phase 3 报告可用）
@@ -341,6 +336,8 @@ def main():
     parser.add_argument('--fitness_threshold', type=float, default=0.001, help='因子指标阈值')
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--no-economic-check', action='store_true', help='禁用经济学含义过滤')
+    parser.add_argument('--checkpoint-freq', type=int, default=2, help='每隔 N 代保存 checkpoint，0=禁用')
+    parser.add_argument('--resume-from', type=str, default='', help='从指定 checkpoint 文件恢复训练')
 
     args = parser.parse_args()
     logger.info(f'args: {args}')
@@ -358,6 +355,8 @@ def main():
         fitness_threshold=args.fitness_threshold,
         seed=args.seed,
         enable_economic_check=not args.no_economic_check,
+        checkpoint_freq=args.checkpoint_freq,
+        resume_from=args.resume_from,
     )
 
     pipeline = GPLlmPipeline(config, enable_llm=not args.no_llm)

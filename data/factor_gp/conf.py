@@ -1,6 +1,6 @@
 """GP + LLM 因子挖掘 — 全局配置"""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from config import PROVIDER_URI
 
 @dataclass
@@ -46,19 +46,13 @@ class GPConfig:
     # ========== 随机种子 ==========
     seed: int = 42
 
+    # ========== 断点续训 ==========
+    checkpoint_freq: int = 5          # 每隔 N 代保存 checkpoint, 0 = 禁用
+    resume_from: str = ""             # 断点文件路径, 空 = 从头训练
+
     # ========== qlib ==========
     provider_uri: str = PROVIDER_URI
     kernels: int = 1     # qlib并行数 / 因子fitness计算并行数
-
-
-@dataclass
-class EvolutionState:
-    """进化过程中需要持久化的状态，支持断点恢复"""
-
-    generation: int = 0
-    cache: dict = field(default_factory=dict)  # expr_str → fitness
-    invalid_exprs: set = field(default_factory=set)
-    llm_history: list = field(default_factory=list)  # LLM 生成历史
 
 
 # 基础终端（qlib 字段引用）
