@@ -69,6 +69,8 @@ class LoggerFactory:
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
 
+        logger.propagate = False  # 阻止向 root logger 传播（避免 Prefect 等库的 root handler 导致重复输出）
+
         cls._loggers[name] = logger
         return logger
 
