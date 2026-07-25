@@ -149,7 +149,7 @@ class FactorEvaluator:
                 nan_gt_05 += 1
             else:
                 batch_ind_filtered.append(batch_ind[i])
-        logger.info('值为NaN占比超过 50% 的因子数: {}/{}'.format(nan_gt_05, len(batch_exprs)))
+        logger.info('\n值为NaN占比超过 50% 的因子数: {}/{}'.format(nan_gt_05, len(batch_exprs)))
 
         # 并行计算 IC
         t = time.time()
@@ -185,7 +185,7 @@ class FactorEvaluator:
                 self.ic_cache[expr_str] = ic_metrics
                 self._eval_count += 1
 
-        logger.info('{}\n IC 计算完成(并行)，耗时：{}s'.format('-' * 50, round(time.time() - t)))
+        logger.info('\n{}\n IC 计算完成(并行)，耗时：{}s'.format('-' * 50, round(time.time() - t)))
 
         # 按原顺序返回
         return [self.cache[str(ind)] for ind in individuals]
