@@ -172,6 +172,10 @@ class IslandEvolution:
             candi = self.collect_result().candidates
             gen_candidates['gen_{}'.format(gen+1)] = candi
 
+        # 6. 最终经济学描述补全（覆盖进化后期新进入 HoF 但未经检查的表达式）
+        if self.llm is not None and self.config.enable_economic_check:
+            self._fill_missing_descs()
+
         t_total = time.time() - t_start
 
         from utils import PickleIO
@@ -465,6 +469,54 @@ class IslandEvolution:
 
         logger.info("LLM 经济检查完成 (gen %d): 淘汰 %d 个体, 补充 %d 新个体",
                      gen + 1, total_removed, total_removed)
+
+    def _fill_missing_descs(self):
+        """最终补全：为 HoF 中缺少经济学描述的表达式调用 LLM 获取 desc。
+
+        进化过程中，经济检查仅在特定代触发（llm_check_freq），
+        后期新进入 HoF 的表达式或 LLM 注入的候选可能从未被检查。
+        此方法在进化结束后一次性补全，确保最终候选都有经济学解释。
+        """
+        # 收集所有 HoF 中缺少 desc 的表达式
+        missing = set()
+        for island in self.islands:
+            for ind in island.hof:
+                expr_str = str(ind)
+                if "IntCast" in expr_str:
+                    continue
+                if expr_str not in island.economic_descs:
+                    missing.add(expr_str)
+
+        if not missing:
+            return
+
+        expr_list = sorted(missing)
+        logger.info("经济学描述补全: %d 个候选缺少描述", len(expr_list))
+
+        try:
+            results = self.llm.assess_economic_meaning(expr_list)
+        except Exception as e:
+            logger.warning("LLM 描述补全失败: %s", e)
+            return
+
+        if not results:
+            return
+
+        # 存储 desc 到对应岛
+        for item in results:
+            idx = item.get("id")
+            desc = item.get("desc", "")
+            if idx is None or idx >= len(expr_list) or not desc:
+                continue
+            expr_str = expr_list[idx]
+            for island in self.islands:
+                for ind in island.hof:
+                    if str(ind) == expr_str and expr_str not in island.economic_descs:
+                        island.economic_descs[expr_str] = desc
+
+        filled = sum(1 for island in self.islands
+                     for expr in missing if expr in island.economic_descs)
+        logger.info("经济学描述补全完成: %d/%d 个表达式获得描述", filled, len(missing))
 
     # ================================================================
     # 结果收集
