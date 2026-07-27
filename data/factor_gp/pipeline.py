@@ -22,7 +22,7 @@ from data.factor_gp.primitives import PrimitiveRegistry
 from data.factor_gp.screening import FactorScreening
 from utils.io_utils import DataFrameIO
 from utils.logger import LoggerFactory
-from utils.qlib import init_qlib
+from utils import init_qlib
 from utils.dt import time_decorator
 
 logger = LoggerFactory.get_logger(__name__)
