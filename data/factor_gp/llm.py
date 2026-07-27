@@ -93,29 +93,50 @@ QLIB_OPERATORS_REF = """
 - 运算符名称大小写敏感，首字母大写
 """
 
-SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量价因子中提取可复用的子表达式。
+SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量价因子中提取可复用的子表达式（"因子基因"）。
 
 {operators_ref}
 
 ## 任务
-分析以下优质量价因子表达式，提取其中可复用的子表达式（"因子基因"）。
+分析以下优质量价因子表达式，提取可复用的子表达式基因。基因是 GP 搜索空间的叶子节点，GP 用 34 个算子在其上组合搜索完整因子。
 
-## 要求
-1. 每个子表达式必须是可以独立计算的合法 qlib 表达式
-2. 子表达式应具有明确的金融含义（如：高开阴线、天量异动、隔夜波动率等），并在 desc 字段中用中文简述其金融含义（不超过 30 字）
-3. 不要提取过于简单的子表达式（如单独的 $close、Mean($close,20) 等）
-4. 用英文 snake_case 为每个子表达式命名
-5. 因子表达式不要使用 +,-,*,/,<,> 等符号，使用 qlib 中对应的算子表示
+## 基因设计原则
+1. 粒度适中：基因应刻画某类具体交易行为或量价结构，介于"单一字段/单一均值"与"完整选股因子"之间——作为组合构件有价值，但未必能单独选股。
+2. 金融含义明确：每个基因必须对应可解释的市场行为，并在 desc 用中文简述（不超过 30 字）。
+3. 语法必须用 DEAP 前缀格式：算子用 Add, Sub, Mul, Div, Greater, Less, Power, Ref, EMA, Std, Corr, Cov 等名称，**严禁使用 +, -, *, /, <, > 等中缀符号**（解析器无法识别）。
+4. 量纲一致：加减两侧需同量纲（价格±价格、收益率±收益率），禁止 Add($close, $volume) 这类量纲不匹配。
+5. 算子参数约束：Greater/Less 两参数都必须是表达式（不能是常量）；Power 指数必须是浮点字面量 0.5、2.0 或 3.0 之一（写整数 2 会被类型检查拒绝）；滚动窗口参数必须是 int 常量（建议 5-20）；除法分母可加 1e-12 防零除。
+6. 去冗余：确保基因之间信息有差异，避免重复提取语义相近的子表达式。
+7. 英文 snake_case 命名。
+
+## 建议覆盖的基因类别（尽量兼顾多类，勿集中在单一类）
+- 收益率类：日收益、隔夜收益、日内收益、收益波动
+- 量能变化类：超额放量、量比、天量异动（可用 Power 对超额部分非线性放大）
+- K线形态类：实体比例、上下影线、高开阴线
+- 价格位置类：收盘在区间位置、近期高低点相对位置
+- 波动率类：滚动标准差、隔夜/日内波动比、振幅
+- 路径效率类：净变动/累计波动、路径平滑度
+- 量价协同类：收益与放量相关性、量价协方差、量价背离
+
+## 反例（不要提取）
+- 过简：Div($close, $open)、Sub($high, $low)、Mean($close, 20) 单独使用
+- 量纲不匹配：Add($close, $volume)
+- 近乎恒等：Corr($close, $high, 10)
+- 完整因子：基因是构件，不是可直接选股的成品
+
+## 参考基因示例（均为合法 DEAP 前缀格式）
+- Div(Sub($close, $open), Add(Sub($high, $low), 1e-12)) —— K线实体占全日振幅比例
+- Power(Div($volume, EMA($volume, 20)), 2.0) —— 量比平方：非线性放大极端放量
+- Div(Std(Div($open, Ref($close, 1)), 20), Add(Std(Div($close, $open), 20), 1e-12)) —— 隔夜/日内波动比
 
 ## 参考因子
 {factors}
 
 ## 返回格式
-只返回一个 JSON 对象，key 是子表达式名称，value 是一个对象，含 "expr" 和 "desc" 字段。
-- expr: qlib 表达式字符串
-- desc: 该子表达式的中文金融含义说明（不超过 30 字）
-示例：
-{{"bearish_reversal": {{"expr": "Greater($open/Ref($close,1)-1,0)*Greater($open/$close-1,0)", "desc": "高开阴线反转：开盘高于前收但收盘低于开盘"}}}}
+只返回一个 JSON 对象，key 是子表达式名称，value 是 {{"expr": ..., "desc": ...}}。
+- expr: DEAP 前缀格式的 qlib 表达式
+- desc: 中文金融含义（不超过 30 字）
+建议提取 {n_target} 个左右、覆盖上述多类别的基因。
 
 只返回 JSON，不要加其他文字说明。"""
 
@@ -210,16 +231,22 @@ class LLMInterface:
     def extract_sub_expr_genes(
         self,
         factor_exprs: list[tuple[str, str]],
+        n_target: int = None,
     ) -> dict[str, dict]:
         """从初始优质因子中提取子表达式基因。
 
         Args:
             factor_exprs: [(name, qlib_expr), ...]
                 例如 [("KMID", "($close-$open)/$open"), ...]
+            n_target: 期望提取的基因数量，写入提示词引导 LLM 产出规模。
+                默认 2 * len(factor_exprs)（参考报告：29 因子→68 基因≈2.3/因子）。
 
         Returns:
             {"gene_name": {"expr": qlib_sub_expr, "desc": str}, ...}
         """
+        if n_target is None:
+            n_target = 2 * len(factor_exprs)
+
         # 构建因子列表文本
         factors_text = "\n".join(
             f"- {name}: `{expr}`" for name, expr in factor_exprs
@@ -228,6 +255,7 @@ class LLMInterface:
         prompt = SUB_EXPR_PROMPT_TEMPLATE.format(
             operators_ref=QLIB_OPERATORS_REF,
             factors=factors_text,
+            n_target=n_target,
         )
         logger.info('\n{}\n{}'.format('-' * 30, prompt))
 
@@ -421,7 +449,7 @@ class LLMInterface:
         if system is None:
             system = "你是一位专业的量化金融研究员，擅长量价因子设计。回复简洁准确。"
 
-        for attempt in range(3):
+        for attempt in range(2):
             try:
                 response = self.client.chat.completions.create(
                     model=self.model,
