@@ -59,7 +59,7 @@ class DataFrameIO:
     """
 
     @staticmethod
-    def write(df: pd.DataFrame, path: PathLike, type: str = 'parquet') -> str:
+    def write(df: pd.DataFrame, path: PathLike, type: str = 'parquet', index=False, **kwargs) -> str:
         """保存 DataFrame 到 csv 或 parquet 文件。
 
         Args:
@@ -80,14 +80,14 @@ class DataFrameIO:
         path.parent.mkdir(parents=True, exist_ok=True)
 
         if type == 'csv':
-            df.to_csv(path, encoding='utf-8')
+            df.to_csv(path, encoding='utf-8', index=index, **kwargs)
         else:
-            df.to_parquet(path)
+            df.to_parquet(path, **kwargs)
 
         return str(path)
 
     @staticmethod
-    def read(path: PathLike, type: str = 'parquet') -> 'pd.DataFrame | None':
+    def read(path: PathLike, type: str = 'parquet', **kwargs) -> 'pd.DataFrame | None':
         """从 csv 或 parquet 文件加载 DataFrame。
 
         Args:
@@ -110,7 +110,7 @@ class DataFrameIO:
         if type == 'csv':
             return pd.read_csv(path, encoding='utf-8')
         else:
-            return pd.read_parquet(path)
+            return pd.read_parquet(path, **kwargs)
 
     @staticmethod
     def update(df: pd.DataFrame, path: PathLike, type: str = 'parquet') -> str:
