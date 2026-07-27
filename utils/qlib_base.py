@@ -20,18 +20,19 @@ def init_qlib(provider_uri=PROVIDER_URI, custom_ops=None):
         custom_ops=custom_ops,
     )
 
-'''
-def get_instruments(market='all', start_time=None, end_time=None, filter_pipe=None) -> list:
-    """ 获取股票列表 """
 
+def get_instruments(market='all', start_time=None, end_time=None, filter_pipe=None, as_list=False) -> list:
+    """ 获取股票列表 """
     if start_time is None or end_time is None:
         start_time = end_time = datetime.now().strftime('%Y-%m-%d')
-        logger.warning(f'start_time 和 end_time 为空，使用默认值: {start_time}')
+        logger.warning(f'start_time 或 end_time 为空，使用默认值: {start_time}')
     config = D.instruments(market=market, filter_pipe=filter_pipe)
     instruments = D.list_instruments(
-        config, start_time=start_time, end_time=end_time, as_list=True
+        config, start_time=start_time, end_time=end_time, as_list=as_list
     )
+    return instruments
 
+'''
 def get_universe(date: str, exclude_suspended: bool = True, exclude_ipo_lt_1y: bool = True) -> list:
     """获取 A 股股票集合，可选排除停牌和次新股
 
