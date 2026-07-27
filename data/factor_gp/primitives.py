@@ -44,12 +44,12 @@ class PrimitiveRegistry:
         pset = gp.PrimitiveSetTyped("MAIN", [], float, 0)
 
         # ---- 终端 ----
-        terminals = list(BASE_TERMINALS)
-        if extra_terminals:
-            terminals.extend(EXTRA_TERMINALS)
-
-        for f in terminals:
-            pset.addTerminal(f, ret_type=float, name=f)
+        # terminals = list(BASE_TERMINALS)
+        # if extra_terminals:
+        #     terminals.extend(EXTRA_TERMINALS)
+        #
+        # for f in terminals:
+        #     pset.addTerminal(f, ret_type=float, name=f)
 
         # 叶子常量
         pset.addEphemeralConstant("C", partial(random.uniform, 0, 1), ret_type=float)
