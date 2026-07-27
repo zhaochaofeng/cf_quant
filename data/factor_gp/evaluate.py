@@ -73,7 +73,7 @@ class FactorEvaluator:
     - 无效表达式记录到 invalid_exprs，供 LLM 分析
     """
 
-    def __init__(self, instruments, target_train, target_test, config, pset):
+    def __init__(self, instruments=None, target_train=None, target_test=None, config=None, pset=None):
         self.instruments = instruments
         self.target_train = target_train
         self.target_test = target_test

@@ -128,16 +128,14 @@ class GPLlmPipeline:
     # ================================================================
     def _phase1_llm_genes(self):
         """LLM 从初始优质因子提取子表达式基因，注册到 pset"""
-        if not self.enable_llm:
-            logger.info("Phase 1: 跳过（LLM 未启用）")
-            return
-
         logger.info("=" * 60)
         logger.info("Phase 1: LLM 子表达式基因提取 ...")
 
+        # FIXME: 后续可以删除
         from data.factor_gp.llm import LLMInterface
         self.llm = LLMInterface()
 
+        '''
         # 加载 Alpha158 因子作为种子
         factor_exprs = self._load_alpha158()
         if not factor_exprs:
@@ -181,6 +179,16 @@ class GPLlmPipeline:
         if not genes:
             logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
             return
+        '''
+
+        genes_df = DataFrameIO.read('./factor_genes.csv', type='csv')
+        if genes_df.empty:
+            raise Exception('未找到因子基因文件')
+
+        genes_df.drop(columns=['desc'], inplace=True)
+        genes = {}
+        for i, row in genes_df.iterrows():
+            genes[row['name']] = row['expr']
 
         # 注册到 pset
         self.registry.register_sub_exprs(genes)
