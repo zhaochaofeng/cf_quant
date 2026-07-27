@@ -1,14 +1,16 @@
 """因子适应度评估：语法校验 → qlib 计算 → IC/ICIR → fitness"""
 
+import platform
+
 import numpy as np
 import pandas as pd
-
-import qlib
-from qlib.data import D
-from qlib.contrib.eva.alpha import calc_ic
-from utils import LoggerFactory
-from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS
 from deap import gp
+from qlib.contrib.eva.alpha import calc_ic
+from qlib.data import D
+
+from utils import LoggerFactory
+from utils.multiprocess import multiprocessing_wrapper_same
+from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -167,12 +169,18 @@ class FactorEvaluator:
                     depth,
                 ))
 
-            from utils.multiprocess import multiprocessing_wrapper_same
+            # start_method = 'fork' 可能出现死锁
+            if platform.system() == 'Linux':
+                start_method = 'forkserver'
+            elif platform.system() == 'Darwin':
+                start_method = 'spawn'
+            else:
+                start_method = None
             results = multiprocessing_wrapper_same(
                 _calc_fitness_worker,
                 worker_args,
                 n=self.config.kernels,
-                start_method='fork',
+                start_method=start_method,
             )
             for expr_str, fitness, is_invalid, ic_metrics in results:
                 if is_invalid:
