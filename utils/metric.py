@@ -5,7 +5,7 @@ import pandas as pd
 from qlib.contrib.eva.alpha import calc_ic
 
 
-def ic(pred: pd.Series, label: pd.Series, date_col="datetime", dropna=False)-> (pd.Series, pd.Series):
+def ic_ric(pred: pd.Series, label: pd.Series, date_col="datetime", dropna=False)-> (pd.Series, pd.Series):
     """ 计算IC, RIC"""
     return calc_ic(pred, label, date_col=date_col, dropna=dropna)
 
