@@ -37,7 +37,7 @@ from .io_utils import PickleIO, DataFrameIO, overwrite
 from .trans import calculate_excess_returns, excess_ret, get_ret
 
 # 回测工具
-from .backtest import RollingPortAnaRecord
+from .backtest import RollingPortAnaRecord, backtest_factor
 
 # 并行计算
 from .multiprocess import multiprocessing_wrapper, multiprocessing_wrapper_same
