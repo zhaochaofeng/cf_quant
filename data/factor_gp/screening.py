@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from utils import DataFrameIO, PickleIO
 from utils import LoggerFactory
+from utils import ic_ric
+
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -79,8 +81,7 @@ class FactorScreening:
             if len(pred) < 100:
                 continue
 
-            from qlib.contrib.eva.alpha import calc_ic
-            ic, rank_ic = calc_ic(pred, label)
+            ic, rank_ic = ic_ric(pred, label)
 
             # 保存 factor series（用于相关性计算）
             factor_series[expr_str] = pred
