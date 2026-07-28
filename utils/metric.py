@@ -3,11 +3,6 @@
 """
 import pandas as pd
 from qlib.contrib.eva.alpha import calc_ic
-import qlib
-from qlib.data import D
-from qlib.contrib.evaluate import backtest_daily
-from qlib.contrib.evaluate import risk_analysis
-from qlib.contrib.strategy import TopkDropoutStrategy
 
 
 def ic_ric(pred: pd.Series, label: pd.Series, date_col="datetime", dropna=False)-> (pd.Series, pd.Series):

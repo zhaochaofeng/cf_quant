@@ -3,7 +3,9 @@ import warnings
 from pprint import pprint
 
 import pandas as pd
-
+from qlib.data import D
+from qlib.contrib.evaluate import backtest_daily
+from qlib.contrib.strategy import TopkDropoutStrategy
 from qlib.backtest import backtest as normal_backtest
 from qlib.contrib.evaluate import indicator_analysis
 from qlib.contrib.evaluate import risk_analysis
@@ -166,7 +168,6 @@ def backtest_factor(expr: str, start_date, end_date, market='csi300'):
         start_time=start_date,
         end_time=end_date,
     )
-    # 索引 <datetime, instrument>
     pred_score = pred_score.iloc[:, 0]
     backtest_daily_base(pred_score, start_date, end_date)
 
