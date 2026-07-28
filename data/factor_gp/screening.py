@@ -87,7 +87,7 @@ class FactorScreening:
 
             # depth = self._expr_depth(expr_str)
             from deap import gp
-            tree = gp.PrimitiveTree.from_string(expr_str, self.pset)
+            tree = gp.PrimitiveTree.from_string(expr_str, self.evaluator.pset)
 
             # 测试集 4 指标
             test_ic_mean = ic.mean()

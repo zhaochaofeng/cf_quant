@@ -35,7 +35,7 @@ def loop(args):
     llm = LLMInterface()
     registry = PrimitiveRegistry()
     registry.build_pset()
-    evaluator = FactorEvaluator(pset=registry.pset)
+    evaluator = FactorEvaluator(pset=registry.pset_check)
 
     # 加载 Alpha158 因子作为种子
     factor_exprs = _load_alpha158()
@@ -61,7 +61,7 @@ def loop(args):
             if expr in set(dic['expr']):
                 continue
             try:
-                tree = gp.PrimitiveTree.from_string(expr, registry.pset)
+                tree = gp.PrimitiveTree.from_string(expr, registry.pset_check)
             except:
                 logger.info('不合法：{}, 理由: {}'.format(expr, '不符合 deap 语法格式'))
                 continue
@@ -83,7 +83,7 @@ def main():
     parser.add_argument('--input', type=str, default=None, help="已经存在的因子基因文件路径")
     parser.add_argument('--output', type=str, default='./out_genes.csv',help="因子基因文件路径")
     parser.add_argument('--n-loop', type=int, default=1, help="循环次数")
-    parser.add_argument('--n-target', type=int, default=70, help="目标因子数量")
+    parser.add_argument('--n-target', type=int, default=100, help="目标因子数量")
     args = parser.parse_args()
     logger.info('args: {}'.format(args))
 

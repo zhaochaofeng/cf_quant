@@ -61,7 +61,7 @@ class GPLlmPipeline:
             target_train=self._target_train,
             target_test=self._target_test,
             config=self.config,
-            pset=self.registry.pset,
+            pset=self.registry.pset_check,
         )
 
         # Phase 1

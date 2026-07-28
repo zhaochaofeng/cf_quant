@@ -9,13 +9,14 @@
 - 子表达式基因作为终端注册（不是算子），避免 DEAP 强类型系统的 arity 匹配问题
 - 子表达式基因的终端名称即为 qlib 表达式字符串，嵌入树字符串后 qlib 可直接计算
 """
-
+import copy
 import random
 from functools import partial
-from .conf import BASE_TERMINALS, EXTRA_TERMINALS
-from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS, OTHER_OPS
 
 from deap import gp
+
+from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS, OTHER_OPS
+from .conf import BASE_TERMINALS
 
 
 class PrimitiveRegistry:
@@ -28,6 +29,7 @@ class PrimitiveRegistry:
 
     def __init__(self):
         self.pset: gp.PrimitiveSetTyped | None = None
+        self.pset_check: gp.PrimitiveSetTyped | None = None  # 注册量价数据，用于检验表达式语法
         self.sub_expr_genes: dict[str, str] = {}  # 子表达式基因. alias → qlib_expr
         self._gene_counter: int = 0    #  用于记录子表达式基因数量
 
@@ -86,6 +88,13 @@ class PrimitiveRegistry:
         pset.addPrimitive(_dummy, [float], int, name="IntCast")
 
         self.pset = pset
+
+        self.pset_check = copy.deepcopy(pset)
+        # 注册量价数据
+        terminals = list(BASE_TERMINALS)
+        for f in terminals:
+            self.pset_check.addTerminal(f, ret_type=float, name=f)
+
         return pset
 
     # ================================================================

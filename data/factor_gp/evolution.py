@@ -60,7 +60,7 @@ class IslandEvolution:
         self.llm = llm_interface
 
         # 将 pset 注入 evaluator（用于 validate 中的表达式解析）
-        evaluator.pset = pset
+        # evaluator.pset = pset
 
         self.islands: list[Island] = []
         self._gen_start_time: float = 0.0
@@ -468,7 +468,7 @@ class IslandEvolution:
             # 解析为 individual
             try:
                 logger.info('expr_str: {}'.format(expr_str))
-                ind = gp.PrimitiveTree.from_string(expr_str, self.pset)
+                ind = gp.PrimitiveTree.from_string(expr_str, self.evaluator.pset)
             except Exception as e:
                 # continue
                 raise Exception("Invalid expression: {}, e: {}".format(expr_str, e))
