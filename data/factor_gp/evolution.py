@@ -622,7 +622,8 @@ class IslandEvolution:
         for item in results:
             idx = item.get("id")
             desc = item.get("desc", "")
-            if idx is None or idx >= len(expr_list) or not desc:
+            meaningful = item.get("meaningful", False)  # 严格因子经济含义
+            if idx is None or idx >= len(expr_list) or not desc or not meaningful:
                 continue
             expr_str = expr_list[idx]
             for island in self.islands:
