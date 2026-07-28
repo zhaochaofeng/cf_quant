@@ -24,16 +24,16 @@ class FactorScreening:
 
     def evaluate_all_on_test(
         self, candidates: list[tuple[str, float]]
-    ) -> tuple[pd.DataFrame, dict[str, pd.Series]]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """对所有候选因子计算测试集指标（批量 D.features）。
 
         Args:
             candidates: [(expr_str, train_fitness), ...]
 
         Returns:
-            (df, factor_series): df: 表达式的指标
-                                 factor_series：dict. (expr, 表达式Series)，
-                                 可直接传给 filter_by_correlation 避免重复计算
+            (df, corr_matrix): df: 表达式的指标；
+                               corr_matrix: 测试集因子相关性矩阵，
+                               可直接传给 filter_by_correlation 避免重复计算
         """
         from qlib.data import D
 
@@ -43,7 +43,7 @@ class FactorScreening:
             if expr not in self.evaluator.invalid_exprs
         ]
         if not valid_candidates:
-            return pd.DataFrame(), {}
+            return pd.DataFrame(), pd.DataFrame()
 
         all_exprs = list(set(expr for expr, _ in valid_candidates))
 
@@ -58,35 +58,26 @@ class FactorScreening:
             logger.error(err_msg)
             raise Exception(err_msg)
 
-        # 逐个计算指标，同时保存 factor series
+        # 对齐到 target_test.index (NaN-free)，inf -> NaN；释放原始批量结果以省内存
+        # df_t = df_r.reindex(self.evaluator.target_test.index)
+        df_r.replace([np.inf, -np.inf], np.nan, inplace=True)
+        # del df_r
+
+        # 逐个计算指标（pred 直接从对齐后的 df_t 取，不再额外缓存）
         rows = []
-        factor_series = {}
+        valid_cols = []
         for expr_str, train_fitness in valid_candidates:
-            factor = df_r[expr_str].dropna()
-            if len(factor) == 0:
+            if expr_str not in df_r.columns:
                 continue
-
-            common_idx = factor.index.intersection(self.evaluator.target_test.index)
-            if len(common_idx) == 0:
-                continue
-
-            pred = factor.loc[common_idx]
-            label = self.evaluator.target_test.loc[common_idx]
-            pred = pred[np.isfinite(pred)]
-            label = label[np.isfinite(label)]
-            common_idx = pred.index.intersection(label.index)
-            pred = pred.loc[common_idx]
-            label = label.loc[common_idx]
-
+            pred = df_r[expr_str].dropna()
             if len(pred) < 100:
                 continue
-
+            common_idx = pred.index.intersection(self.evaluator.target_test.index)
+            pred = pred.loc[common_idx]
+            label = self.evaluator.target_test.loc[common_idx]
             ic, rank_ic = ic_ric(pred, label)
+            valid_cols.append(expr_str)
 
-            # 保存 factor series（用于相关性计算）
-            factor_series[expr_str] = pred
-
-            # depth = self._expr_depth(expr_str)
             from deap import gp
             tree = gp.PrimitiveTree.from_string(expr_str, self.evaluator.pset)
 
@@ -117,7 +108,11 @@ class FactorScreening:
         df = pd.DataFrame(rows)
         if df.empty:
             logger.warning("无有效候选因子")
-            return df, factor_series
+            return df, pd.DataFrame()
+
+        # 相关性矩阵直接从对齐后的 df_t 计算（避免 factor_series + matrix 双重拷贝）
+        corr_matrix = (df_r[valid_cols].corr(min_periods=30)
+                       if len(valid_cols) >= 2 else pd.DataFrame())
 
         df["abs_test_ric"] = df["test_ric"].abs()
         df["abs_train_ric"] = df["train_ric"].abs()
@@ -127,7 +122,7 @@ class FactorScreening:
             "测试集评估: %d 个候选, |RankIC| mean=%.4f, max=%.4f",
             len(df), df["abs_test_ric"].mean(), df["abs_test_ric"].max(),
         )
-        return df, factor_series
+        return df, corr_matrix
 
     # ================================================================
     # 低相关筛选
@@ -135,14 +130,14 @@ class FactorScreening:
 
     def filter_by_correlation(
         self, df: pd.DataFrame, threshold: float = None,
-        factor_series: dict[str, pd.Series] = None,
+        corr_matrix: pd.DataFrame = None,
     ) -> pd.DataFrame:
         """贪心低相关筛选。
 
         Args:
             df: 因子指标 DataFrame
             threshold: 相关性阈值
-            factor_series: expr→Series 映射，由 evaluate_all_on_test 返回，避免重复 D.features
+            corr_matrix: 测试集因子相关性矩阵，由 evaluate_all_on_test 返回，避免重复计算
 
         Returns:
             筛选后的 DataFrame（新增 max_corr, selected 列）
@@ -153,18 +148,11 @@ class FactorScreening:
         if df.empty:
             return df
 
-        # 直接用传入的 factor_series 构建相关性矩阵
-        # matrix: 列名为 表达式名
-        if factor_series and len(factor_series) >= 2:
-            matrix = pd.DataFrame(factor_series)
-            DataFrameIO.write(matrix, f'{self.config.output_dir}/factor_matrix.parquet', type='parquet')
-        else:
-            logger.warning("因子相关性矩阵构建失败或因子太少")
+        if corr_matrix is None or len(corr_matrix) < 2:
+            logger.warning("因子相关性矩阵缺失或因子太少")
             df["max_corr"] = 0.0
             return df.assign(selected=True)
 
-        # 计算相关性矩阵
-        corr_matrix = matrix.corr(min_periods=30)
         PickleIO.write(corr_matrix, f'{self.config.output_dir}/factor_corr_matrix.pkl')
 
         # 按 |RankIC| 降序，确保是副本

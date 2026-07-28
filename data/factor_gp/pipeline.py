@@ -280,8 +280,8 @@ class GPLlmPipeline:
         logger.info('ric threshold 过滤的因子个数: {}'.format(threshold_count))
         logger.info('经过筛选后的因子个数: {}'.format(len(candidates)))
 
-        # 测试集评估（返回 factor_series 供相关性计算复用）
-        df, factor_series = screening.evaluate_all_on_test(candidates)
+        # 测试集评估（返回 corr_matrix 供相关性计算复用）
+        df, corr_matrix = screening.evaluate_all_on_test(candidates)
         if df.empty:
             logger.warning("无有效候选因子")
             return df
@@ -289,10 +289,10 @@ class GPLlmPipeline:
         if result.economic_descs:
             df["economic_desc"] = df["expr"].map(result.economic_descs)
         DataFrameIO.write(df, f'{self.config.output_dir}/test_eval.parquet', type='parquet')
-        PickleIO.write(factor_series, f'{self.config.output_dir}/test_factor.pkl')
+        PickleIO.write(corr_matrix, f'{self.config.output_dir}/test_corr_matrix.pkl')
 
-        # 低相关筛选（复用 factor_series，避免重复 D.features）
-        df = screening.filter_by_correlation(df, factor_series=factor_series)
+        # 低相关筛选（复用 corr_matrix，避免重复计算）
+        df = screening.filter_by_correlation(df, corr_matrix=corr_matrix)
 
         # 生成报告
         report = screening.generate_report(df)
