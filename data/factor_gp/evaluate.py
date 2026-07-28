@@ -153,11 +153,11 @@ class FactorEvaluator:
                 nan_gt_05 += 1
             elif factor.std() < 0.01:
                 self.cache[expr] = (0.0,)
+                logger.warning(f'std le 0.01: {expr}')
                 std_less += 1
             else:
                 batch_ind_filtered.append(batch_ind[i])
-        logger.info('\n值为NaN占比超过 50% 的因子数: {}/{}'
-                    'std 小于0.01的因子数: {}/{}'.format(
+        logger.info('\n值为NaN占比超过 50% 的因子数: {}/{}, std 小于0.01的因子数: {}/{}'.format(
             nan_gt_05, len(batch_exprs), std_less, len(batch_exprs)))
 
         # 并行计算 IC
