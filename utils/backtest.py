@@ -121,4 +121,55 @@ class RollingPortAnaRecord(PortAnaRecord):
         return artifact_objects
 
 
+def backtest_daily_base(score: pd.Series, start_date, end_date):
+    """ 日频回测
+        score: 预测序列。索引 <datetime, instrument>
+    """
+    # 索引必须是 <datetime, instrument>
+    if score.index.names[0] == 'instrument':
+        score = score.swaplevel()
+    if score.index.names != ['datetime', 'instrument']:
+        raise ValueError(f"score 索引必须为 <datetime, instrument>，当前为 {score.index.names}")
+
+    # 策略配置
+    STRATEGY_CONFIG = {
+        "topk": 50,
+        "n_drop": 5,
+        "signal": score,
+    }
+    strategy_obj = TopkDropoutStrategy(**STRATEGY_CONFIG)
+    report_normal, positions_normal = backtest_daily(
+        start_time=start_date, end_time=end_date, strategy=strategy_obj
+    )
+    analysis = dict()
+    # default frequency will be daily (i.e. "day")
+    analysis["excess_return_without_cost"] = risk_analysis(report_normal["return"] - report_normal["bench"])
+    analysis["excess_return_with_cost"] = risk_analysis(
+        report_normal["return"] - report_normal["bench"] - report_normal["cost"])
+
+    analysis_df = pd.concat(analysis)
+    print(analysis_df)
+
+
+def backtest_factor(expr: str, start_date, end_date, market='csi300'):
+    """ 因子表达式回测
+        如：
+            expr = 'EMA((Div(Sub($high, $low), $close)), 5)'
+            start_date = '2022-12-31'
+            end_date='2026-05-11'
+            backtest_factor(expr, start_date, end_date)
+    """
+    config = D.instruments(market=market)
+    instruments = D.list_instruments(config, start_time=start_date, end_time=end_date)
+    pred_score = D.features(
+        instruments, [expr],
+        start_time=start_date,
+        end_time=end_date,
+    )
+    # 索引 <datetime, instrument>
+    pred_score = pred_score.iloc[:, 0]
+    backtest_daily_base(pred_score, start_date, end_date)
+
+
+
 
