@@ -9,6 +9,26 @@ def ic_ric(pred: pd.Series, label: pd.Series, date_col="datetime", dropna=False)
     """ 计算IC, RIC"""
     return calc_ic(pred, label, date_col=date_col, dropna=dropna)
 
+def ic_ric_period(pred: pd.Series, label: pd.Series, period="year", dropna=False) -> (pd.Series, pd.Series):
+    """ 指定计算周期计算IC, RIC
+        period: 计算周期。day, month, year
+    """
+    ic, ric = ic_ric(pred, label, dropna=dropna)
+    df = pd.DataFrame({"ic": ic, "ric": ric})
+
+    # df = pd.DataFrame({"pred": pred, "label": label})
+    if period == "year":
+        df['year'] = df.index.get_level_values('datetime').year
+    elif period == "month":
+        df['month'] = df.index.get_level_values('datetime').month
+    elif period == "day":
+        df['day'] = df.index.get_level_values('datetime').day
+    else:
+        raise ValueError("period must be day, month, year")
+    ic = df.groupby(period, group_keys=False)['ic'].mean()
+    ric = df.groupby(period, group_keys=False)['ric'].mean()
+    return ic, ric
+
 
 def group_return(factor: pd.Series, close: pd.Series, n: int = 10, k: int=1):
     """ 计算分组收益 """

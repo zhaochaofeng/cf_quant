@@ -28,7 +28,7 @@ from .qlib_base import init_qlib, get_instruments
 from .preprocess import winsorize, standardize, neutralize, fillna
 
 # 评价指标
-from .metric import ic_ric
+from .metric import ic_ric, ic_ric_period
 
 # IO 工具
 from .io_utils import PickleIO, DataFrameIO, overwrite
