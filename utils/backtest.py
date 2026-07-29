@@ -169,7 +169,7 @@ def backtest_daily_base(score: pd.Series, start_date, end_date):
     analysis_df = pd.concat(analysis)
     print(analysis_df)
 
-    return analysis_df
+    return report_normal, positions_normal
 
 
 def backtest_factor(expr: str, start_date, end_date, market='csi300'):
@@ -189,8 +189,8 @@ def backtest_factor(expr: str, start_date, end_date, market='csi300'):
     )
     pred_score = pred_score.iloc[:, 0]
     pred_score.name = 'score'
-    analysis_df = backtest_daily_base(pred_score, start_date, end_date)
-    return analysis_df
+    report_normal, positions_normal = backtest_daily_base(pred_score, start_date, end_date)
+    return report_normal, positions_normal
 
 
 
