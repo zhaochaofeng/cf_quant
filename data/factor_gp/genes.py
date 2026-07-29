@@ -128,6 +128,7 @@ def loop(args):
         _log_stats(dic, registry.pset_check, tag=f"loop{i+1}")
 
     df = pd.DataFrame(dic)
+    df.sort_values(by=['desc'], ascending=False, inplace=True)
     DataFrameIO.write(df, args.output, type='csv', index=False)
 
 def main():
