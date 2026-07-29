@@ -591,3 +591,53 @@ class FactorEvaluator:
         if isinstance(node, gp.Terminal):
             return node.name
         return f"{node.name}(...)"
+
+    @staticmethod
+    def classify_gene_complexity(expr_str: str, pset) -> str:
+        """解析表达式树，返回 'simple' 或 'compound'。
+
+        simple: 仅使用 1 个价量字段 + 树深度 ≤ 2 + 最多 1 个滚动算子
+        compound: 其余（多字段组合、嵌套算子、多滚动算子等）
+        """
+        try:
+            tree = gp.PrimitiveTree.from_string(expr_str, pset)
+        except Exception:
+            return "simple"
+
+        if len(tree) == 0:
+            return "simple"
+
+        # 收集字段终端
+        fields = set()
+        rolling_ops = 0
+        max_depth = 0
+
+        def _walk(idx, depth):
+            nonlocal rolling_ops, max_depth
+            node = tree[idx]
+            max_depth = max(max_depth, depth)
+            if isinstance(node, gp.Terminal):
+                name = node.name
+                if name.startswith("$"):
+                    fields.add(name)
+                return idx + 1
+
+            arity = node.arity
+            pos = idx + 1
+            for _ in range(arity):
+                pos = _walk(pos, depth + 1)
+
+            # 滚动算子计数
+            if node.name in {'Ref', 'Mean', 'Sum', 'Std', 'Var', 'Skew', 'Kurt',
+                             'Max', 'Min', 'Quantile', 'Med', 'Mad', 'Rank', 'Count',
+                             'Delta', 'Slope', 'Rsquare', 'Resi', 'WMA', 'EMA',
+                             'Corr', 'Cov'}:
+                rolling_ops += 1
+
+            return pos
+
+        _walk(0, 0)
+
+        if len(fields) <= 1 and max_depth <= 2 and rolling_ops <= 1:
+            return "simple"
+        return "compound"

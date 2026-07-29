@@ -24,6 +24,43 @@ def _load_alpha158() -> list[tuple[str, str]]:
         return []
 
 
+def _build_gap_hint(dic: dict, pset) -> str:
+    """从已有基因统计复合比例，生成 LLM 缺口提示。"""
+    n = len(dic['name'])
+    if n == 0:
+        return ""
+
+    compound = 0
+    for expr in dic['expr']:
+        if FactorEvaluator.classify_gene_complexity(expr, pset) == 'compound':
+            compound += 1
+    ratio = compound / n
+
+    hints = [f"当前已有 {n} 个基因，其中复合基因{compound}个（{ratio:.0%}），简单基因{n-compound}个（{1-ratio:.0%}）。"]
+    if ratio < 0.4:
+        hints.append("复合基因严重不足，本轮请重点生成包含多字段组合或嵌套算子的复合结构基因。")
+    elif ratio < 0.5:
+        hints.append("复合基因仍不足（目标≥50%），请优先生成复合结构基因。")
+    return " ".join(hints)
+
+
+def _log_stats(dic: dict, pset, tag: str = ""):
+    """输出基因统计摘要。"""
+    n = len(dic['name'])
+    if n == 0:
+        logger.info(f"[{tag}] 基因池为空")
+        return
+
+    compound = sum(1 for e in dic['expr']
+                   if FactorEvaluator.classify_gene_complexity(e, pset) == 'compound')
+    roles = pd.Series(dic['role']).value_counts().to_dict()
+
+    logger.info(f"[{tag}] 总计 {n} 个基因 | "
+                f"复合 {compound}（{compound/n:.0%}）| "
+                f"简单 {n-compound}（{(n-compound)/n:.0%}）| "
+                f"role: {roles}")
+
+
 def loop(args):
     if args.input is not None and Path(args.input).exists():
         df = DataFrameIO.read(args.input, type='csv')
@@ -43,15 +80,25 @@ def loop(args):
         logger.warning("未加载到 Alpha158 因子，跳过基因提取")
         return
 
+    # 输出已有基因统计
+    if len(dic['name']) > 0:
+        _log_stats(dic, registry.pset_check, tag="input")
+
     for i in range(args.n_loop):
         logger.info('\n{}\nLoop: {}...'.format('-' * 50, i+1))
+        # 基于当前基因池构建缺口提示
+        gap_hint = _build_gap_hint(dic, registry.pset_check)
+        if gap_hint:
+            logger.info(f'gap_hint: {gap_hint}')
+
         # LLM 提取子表达式基因
         genes_ori = llm.extract_sub_expr_genes(
-            factor_exprs, n_target=args.n_target)
+            factor_exprs, n_target=args.n_target, gap_hint=gap_hint)
         if not genes_ori:
             return
         logger.info(f'genes_ori len: {len(genes_ori)}')
 
+        new_cnt = 0
         for name, payload in genes_ori.items():
             expr = payload['expr']
             desc = payload['desc']
@@ -75,7 +122,10 @@ def loop(args):
             dic['expr'].append(expr)
             dic['desc'].append(desc)
             dic['role'].append(role)
-        logger.info(f'dic len: {len(dic["name"])}')
+            new_cnt += 1
+
+        logger.info(f'本轮新增 {new_cnt} 个，累计 {len(dic["name"])} 个')
+        _log_stats(dic, registry.pset_check, tag=f"loop{i+1}")
 
     df = pd.DataFrame(dic)
     DataFrameIO.write(df, args.output, type='csv', index=False)
