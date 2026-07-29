@@ -118,6 +118,11 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 - 路径效率类：净变动/累计波动、路径平滑度
 - 量价协同类：收益与放量相关性、量价协方差、量价背离
 
+## 基因功能维度（每个基因按在组合中的角色标注）
+- state_detection：状态识别型——判断市场处于什么环境中（如在不在高位、波动是大是小、是否放量），通常作 GP 组合的"条件开关"或环境调制项
+- response_intensity：响应强度型——衡量特定行为发生时的激烈程度（如涨跌幅度、放量程度、影线长度），通常作 GP 组合的"乘数"或"惩罚项"
+每个基因需在 role 字段中标注所属功能维度，确保两类基因在搜索中均衡覆盖。
+
 ## 反例（不要提取）
 - 过简：Div($close, $open)、Sub($high, $low)、Mean($close, 20) 单独使用
 - 量纲不匹配：Add($close, $volume)
@@ -133,9 +138,17 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 {factors}
 
 ## 返回格式
-只返回一个 JSON 对象，key 是子表达式名称，value 是 {{"expr": ..., "desc": ...}}。
+只返回一个 JSON 对象，key 是子表达式名称，value 是 {{"expr": ..., "desc": ..., "role": ...}}。
 - expr: DEAP 前缀格式的 qlib 表达式
-- desc: 中文金融含义（不超过 30 字）
+- desc: 中文金融含义。包含因子所在类别、金融逻辑描述及所刻画的市场行为，不超过 80 字
+- role: 基因功能维度，取值 "state_detection"（状态识别型）或 "response_intensity"（响应强度型）
+
+示例：
+{{
+  "bearish_reversal_flag": {{"expr": "Mul(Greater(Sub(Div($open, Ref($close, 1)), 1), 0), Greater(Sub(Div($open, $close), 1), 0))", "desc": "K线形态类-高开阴线：高开幅度与日内跌幅的乘积，反映隔夜情绪或开盘冲动被日内卖压主导后的短期反转压力", "role": "state_detection"}},
+  "volume_surge_squared": {{"expr": "Power(Greater(Sub(Div($volume, EMA($volume, 20)), 1), 0), 2.0)", "desc": "量能变化类-超额放量平方：仅对超出均量的部分做非线性放大，捕捉极端放量背后的交易拥挤与情绪集中释放", "role": "response_intensity"}}
+}}
+
 建议提取 {n_target} 个左右、覆盖上述多类别的基因。
 
 只返回 JSON，不要加其他文字说明。"""
@@ -242,7 +255,7 @@ class LLMInterface:
                 默认 2 * len(factor_exprs)（参考报告：29 因子→68 基因≈2.3/因子）。
 
         Returns:
-            {"gene_name": {"expr": qlib_sub_expr, "desc": str}, ...}
+            {"gene_name": {"expr": qlib_sub_expr, "desc": str, "role": str}, ...}
         """
         if n_target is None:
             n_target = 2 * len(factor_exprs)
@@ -271,17 +284,18 @@ class LLMInterface:
         for name, payload in genes.items():
             # 兼容旧格式（裸字符串）与新格式（{expr, desc}）
             if isinstance(payload, str):
-                expr, desc = payload, ""
+                expr, desc, role = payload, "", ""
             elif isinstance(payload, dict):
                 expr = payload.get("expr", "")
                 desc = payload.get("desc", "")
+                role = payload.get("role", "")
             else:
                 continue
             if not isinstance(expr, str) or len(expr) < 3:
                 continue
             # 检查不包含非法字符
             if re.search(r'[^{}"]', expr) and not re.search(r'[{}]', expr):
-                valid_genes[name] = {"expr": expr, "desc": desc}
+                valid_genes[name] = {"expr": expr, "desc": desc, "role": role}
 
         logger.info("LLM 提取了 %d 个子表达式基因（%d 有效）",
                      len(genes), len(valid_genes))

@@ -29,7 +29,7 @@ def loop(args):
         df = DataFrameIO.read(args.input, type='csv')
         dic = df.to_dict(orient='list')
     else:
-        dic = {'name': [], 'expr': [], 'desc': []}
+        dic = {'name': [], 'expr': [], 'desc': [], 'role': []}
     logger.info(f'历史 dic len: {len(dic["name"])}')
 
     llm = LLMInterface()
@@ -55,8 +55,9 @@ def loop(args):
         for name, payload in genes_ori.items():
             expr = payload['expr']
             desc = payload['desc']
-            if expr == "" or desc == "":
-                logger.warning(f'name: {name}, expr: {expr}, desc: {desc}')
+            role = payload['role']
+            if expr == "" or desc == "" or role == "":
+                logger.warning(f'some fields is None. name: {name}, expr: {expr}, desc: {desc}, role: {role}')
                 continue
             if expr in set(dic['expr']):
                 continue
@@ -73,6 +74,7 @@ def loop(args):
             dic['name'].append(name)
             dic['expr'].append(expr)
             dic['desc'].append(desc)
+            dic['role'].append(role)
         logger.info(f'dic len: {len(dic["name"])}')
 
     df = pd.DataFrame(dic)
