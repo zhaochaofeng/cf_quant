@@ -126,6 +126,19 @@ class RollingPortAnaRecord(PortAnaRecord):
 def backtest_daily_base(score: pd.Series, start_date, end_date):
     """ 日频回测
         score: 预测序列。索引 <datetime, instrument>
+
+        返回：
+                                                        risk
+        excess_return_without_cost mean               0.001582
+                                   std                0.016143
+                                   annualized_return  0.376603
+                                   information_ratio  1.512202
+                                   max_drawdown      -0.244292
+        excess_return_with_cost    mean               0.001420
+                                   std                0.016143
+                                   annualized_return  0.338061
+                                   information_ratio  1.357436
+                                   max_drawdown      -0.268841
     """
     # 索引必须是 <datetime, instrument>
     if score.index.names[0] == 'instrument':
@@ -141,7 +154,11 @@ def backtest_daily_base(score: pd.Series, start_date, end_date):
     }
     strategy_obj = TopkDropoutStrategy(**STRATEGY_CONFIG)
     report_normal, positions_normal = backtest_daily(
-        start_time=start_date, end_time=end_date, strategy=strategy_obj
+        start_time=start_date,
+        end_time=end_date,
+        strategy=strategy_obj,
+        account=100000000.0,
+        benchmark='SH000300',
     )
     analysis = dict()
     # default frequency will be daily (i.e. "day")
@@ -151,6 +168,8 @@ def backtest_daily_base(score: pd.Series, start_date, end_date):
 
     analysis_df = pd.concat(analysis)
     print(analysis_df)
+
+    return analysis_df
 
 
 def backtest_factor(expr: str, start_date, end_date, market='csi300'):
@@ -169,8 +188,7 @@ def backtest_factor(expr: str, start_date, end_date, market='csi300'):
         end_time=end_date,
     )
     pred_score = pred_score.iloc[:, 0]
-    backtest_daily_base(pred_score, start_date, end_date)
-
-
+    analysis_df = backtest_daily_base(pred_score, start_date, end_date)
+    return analysis_df
 
 
