@@ -188,7 +188,9 @@ def backtest_factor(expr: str, start_date, end_date, market='csi300'):
         end_time=end_date,
     )
     pred_score = pred_score.iloc[:, 0]
+    pred_score.name = 'score'
     analysis_df = backtest_daily_base(pred_score, start_date, end_date)
     return analysis_df
+
 
 
