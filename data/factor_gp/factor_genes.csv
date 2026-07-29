@@ -1,58 +1,91 @@
-name,expr,desc
-solid_shadow_ratio,"Div(Sub($close, $open), Add(Sub($high, $low), 1e-12))",K线实体占全日振幅比例
-upper_shadow_ratio,"Div(Sub($high, Greater($open, $close)), Add(Sub($high, $low), 1e-12))",上影线占全日振幅比例
-lower_shadow_ratio,"Div(Sub(Less($open, $close), $low), Add(Sub($high, $low), 1e-12))",下影线占全日振幅比例
-center_of_gravity_ratio,"Div(Sub(Add($close, $close), Add($high, $low)), Add(Sub($high, $low), 1e-12))",收盘相对全日高低中点位置比率
-daily_return_ratio,"Div($close, Ref($close, 1))",日收盘收益率（相对前收）
-overnight_return_ratio,"Div($open, Ref($close, 1))",隔夜跳空收益率
-intraday_return_ratio,"Div($close, $open)",日内收益率（收开比）
-ret_vol_10d,"Std(Div($close, Ref($close, 1)), 10)",10日收益率波动率
-ret_vol_20d,"Std(Div($close, Ref($close, 1)), 20)",20日收益率波动率
-ret_vol_5d,"Std(Div($close, Ref($close, 1)), 5)",5日收益率波动率
-volume_ratio_20,"Div($volume, Mean($volume, 20))",20日平均量比
-volume_ratio_ema20,"Div($volume, EMA($volume, 20))",EMA量比（20日）
-vol_ratio_squared_20,"Power(Div($volume, EMA($volume, 20)), 2.0)",量比平方，放大极端放量
-vol_cv_20,"Div(Std($volume, 20), Add(Mean($volume, 20), 1e-12))",成交量变异系数（20日）
-amplitude_ratio,"Div(Sub($high, $low), $close)",日内振幅与收盘价比值
-rsv_20,"Div(Sub($close, Min($low, 20)), Add(Sub(Max($high, 20), Min($low, 20)), 1e-12))",20日未成熟随机值（收盘位置）
-bb_position,"Div(Sub($close, Mean($close, 20)), Std($close, 20))",布林带位置（距均线标准差距）
-price_momentum_20,"Div($close, Ref($close, 20))",20日价格动量
-efficiency_ratio_20,"Div(Sub($close, Ref($close, 20)), Sum(Abs(Sub($close, Ref($close, 1))), 20))",20日路径效率（净变动/总波动）
-ret_skew_20,"Skew(Div($close, Ref($close, 1)), 20)",20日收益率偏度
-ret_kurt_20,"Kurt(Div($close, Ref($close, 1)), 20)",20日收益率峰度
-cov_ret_volchg_20,"Cov(Div($close, Ref($close, 1)), Sub($volume, Ref($volume, 1)), 20)",收益率与成交量变动20日协方差
-macd_dif,"Sub(EMA($close, 12), EMA($close, 26))",MACD快慢线差值
-macd_signal,"EMA(Sub(EMA($close, 12), EMA($close, 26)), 9)",MACD信号线
-volume_osc,"Div(Sub($volume, Mean($volume, 20)), Std($volume, 20))",成交量标准化偏离（20日）
-open_gap_ratio,"Div(Sub($open, Ref($close, 1)), Ref($close, 1))",开盘跳空幅度
-high_close_ratio,"Div($high, $close)",最高价相对收盘价比值
-low_close_ratio,"Div($low, $close)",最低价相对收盘价比值
-intraday_abs_ret,"Abs(Div(Sub($close, $open), $open))",日内涨跌幅绝对值（实体强度）
-price_cv_20,"Div(Std($close, 20), Mean($close, 20))",20日收盘价变异系数
-rsv_10,"Div(Sub($close, Min($low, 10)), Add(Sub(Max($high, 10), Min($low, 10)), 1e-12))",10日未成熟随机值
-vwap_price,"Div($amount, Add($volume, 1e-12))",日内均价（成交额/量）
-vwap_ratio,"Div($close, Div($amount, Add($volume, 1e-12)))",收盘价与日内均价比值
-overnight_vol_10,"Std(Div($open, Ref($close, 1)), 10)",10日隔夜收益率波动
-intra_vol_10,"Std(Div($close, $open), 10)",10日日内收益率波动
-on_oi_vol_ratio_10,"Div(Std(Div($open, Ref($close, 1)), 10), Add(Std(Div($close, $open), 10), 1e-12))",10日隔夜/日内波动比
-intra_ret_skew_20,"Skew(Div($close, $open), 20)",20日日内收益率偏度
-price_volume_trend_20,"Sum(Mul(Div(Sub($close, Ref($close, 1)), Ref($close, 1)), $volume), 20)",20日量价趋势（收益率*成交量累加）
-mfi_sum_20,"Sum(Mul($volume, Div(Sub(Add($close, $close), Add($high, $low)), Add(Sub($high, $low), 1e-12))), 20)",20日累计简易资金流指标
-volume_momentum_20,"Div($volume, Ref($volume, 20))",20日成交量动量
-ret_vol_ratio_20_10,"Div(Std(Div($close, Ref($close, 1)), 20), Add(Std(Div($close, Ref($close, 1)), 10), 1e-12))",长短期收益率波动比
-atr_14,"Mean(Greater(Sub($high, $low), Greater(Abs(Sub($high, Ref($close, 1))), Abs(Sub($low, Ref($close, 1))))), 14)",14日平均真实波幅
-price_channel_width_20,"Div(Sub(Max($high, 20), Min($low, 20)), $close)",20日价格通道宽度
-volume_price_corr_10,"Corr($volume, Div($close, Ref($close, 1)), 10)",成交量与收益率10日相关性
-delta_close_10,"Delta($close, 10)",10日收盘价变动
-rank_close_10,"Rank($close, 10)",10日收盘价排名百分位
-ema_divergence_20,"Div($close, EMA($close, 20))",收盘价相对EMA20偏离度
-slope_close_20,"Slope($close, 20)",20日线性回归斜率
-rsquare_close_20,"Rsquare($close, 20)",20日线性拟合优度
-resi_std_20,"Div(Resi($close, 20), Std($close, 20))",20日标准化残差
-volume_skew_20,"Skew($volume, 20)",20日成交量偏度
-volume_kurt_20,"Kurt($volume, 20)",20日成交量峰度
-turnover_proxy,"Div($volume, Add($close, 1e-12))",换手率代理变量（量/收盘）
-ema_ret_12,"EMA(Div($close, Ref($close, 1)), 12)",12日指数移动平均收益率
-volume_ratio_5,"Div($volume, Mean($volume, 5))",5日平均量比
-high_vol_20,"Div(Std($high, 20), $close)",20日最高价波动率
-low_vol_20,"Div(Std($low, 20), $close)",20日最低价波动率
+name,expr,desc,role
+price_skew_60,"Skew($close, 60)",收益率类-60日偏度：长期收益不对称性，负偏度暗示尾部风险,state_detection
+price_kurt_60,"Kurt($close, 60)",收益率类-60日峰度：长期极端值密度，高值预示黑天鹅风险,state_detection
+delta_close_5,"Delta($close, 5)",收益率类-5日价格变动：短期净涨跌幅度，刻画短线动量,response_intensity
+price_skew_20,"Skew($close, 20)",收益率类-20日偏度：近期收益不对称性，正偏度暗示爆发性上涨,state_detection
+delta_close_20,"Delta($close, 20)",收益率类-20日价格变动：中期累计收益，趋势跟随策略基础,response_intensity
+price_kurt_20,"Kurt($close, 20)",收益率类-20日峰度：收益分布的尖峰厚尾程度，识别异常波动聚集,state_detection
+resi_close_60,"Resi($close, 60)",路径效率类-60日残差：长期不规则波动大小，与趋势分离度,response_intensity
+rsquare_close_60,"Rsquare($close, 60)",路径效率类-60日R²：长期趋势一致性，高值指示稳定单边市,state_detection
+resi_close_20,"Resi($close, 20)",路径效率类-20日残差：近期价格相对趋势线的偏离波动幅度,response_intensity
+rsquare_close_20,"Rsquare($close, 20)",路径效率类-20日R²：价格走势的线性趋势拟合度，描述趋势秩序,state_detection
+std_volume_60,"Std($volume, 60)",量能变化类-60日量波动：长期量能分布宽度，高波动或题材股,state_detection
+mean_volume_60,"Mean($volume, 60)",量能变化类-60日均量：长期平均成交量，代表股票流动性中枢,state_detection
+std_volume_5,"Std($volume, 5)",量能变化类-5日量波动：短期成交量变异程度，捕捉异动信号,response_intensity
+delta_volume_5,"Delta($volume, 5)",量能变化类-5日量变动：相较5日前量差的绝对水平,response_intensity
+sum_volume_5,"Sum($volume, 5)",量能变化类-5日累计成交量：短期活跃筹码总量，衡量短线关注度,response_intensity
+mean_volume_5,"Mean($volume, 5)",量能变化类-5日均量：短期量能均值，衡量最近交投热情,state_detection
+std_volume_20,"Std($volume, 20)",量能变化类-20日量波动：中期量能稳定性，低波动平量蓄势,state_detection
+delta_volume_20,"Delta($volume, 20)",量能变化类-20日量变动：中期量能增减趋势，反映资金流入流出,response_intensity
+sum_volume_20,"Sum($volume, 20)",量能变化类-20日累计成交量：中期换手规模，判断主力资金介入深度,response_intensity
+mean_volume_20,"Mean($volume, 20)",量能变化类-20日均量：中期日均成交，常规流动性水平的基准,state_detection
+high_max_60,"Max($high, 60)",价格位置类-60日最高价：长期压力位，识别大级别顶部区域,state_detection
+low_min_60,"Min($low, 60)",价格位置类-60日最低价：长期底部基准，估值修复起涨点参考,state_detection
+med_close_60,"Med($close, 60)",价格位置类-60日中位数：长期中间价位，反映长线持仓成本,state_detection
+ema_close_60,"EMA($close, 60)",价格位置类-60日指数均线：长周期指数平均，反映长线持仓重心,state_detection
+slope_close_60,"Slope($close, 60)",价格位置类-60日斜率：长期趋势速度，正值强化持股信心,state_detection
+rank_close_60,"Rank($close, 60)",价格位置类-60日排名百分位：长期相对位置，判定历史高位/低位,state_detection
+price_ma_60,"Mean($close, 60)",价格位置类-60日均价：长期价格中枢，判断长期牛熊格局,state_detection
+high_max_5,"Max($high, 5)",价格位置类-5日最高价：短期阻力位，判断突破与回踩的关键锚点,state_detection
+low_min_5,"Min($low, 5)",价格位置类-5日最低价：短期支撑位，检测短期回调低点,state_detection
+price_ma_5,"Mean($close, 5)",价格位置类-5日均价：短期价格中枢，衡量短期趋势方向与支撑压力,state_detection
+high_max_20,"Max($high, 20)",价格位置类-20日最高价：中期箱体上沿，衡量上行空间与强度,state_detection
+low_min_20,"Min($low, 20)",价格位置类-20日最低价：中期箱体下沿，判断下行支撑有效性,state_detection
+med_close_20,"Med($close, 20)",价格位置类-20日中位数：去噪价格中枢，替代均值对抗异常值,state_detection
+ema_close_20,"EMA($close, 20)",价格位置类-20日指数均线：近期权重更高的动态成本，反应灵敏,state_detection
+rank_close_20,"Rank($close, 20)",价格位置类-20日排名百分比：当前收盘在20日内位置，0~1跨度,state_detection
+price_ma_20,"Mean($close, 20)",价格位置类-20日均价：中期价格中枢，反映中期趋势和筹码成本,state_detection
+wma_close_20,"WMA($close, 20)",价格位置类-20日加权均线：线性加权均价，突显近期价格主导性,state_detection
+quantile_close_up_20,"Quantile($close, 20, 0.8)",价格位置类-20日80%分位：中期偏高价位基准，用于判断高位,state_detection
+quantile_close_dn_20,"Quantile($close, 20, 0.2)",价格位置类-20日20%分位：中期偏低价格水平，衡量超跌状态,state_detection
+price_std_60,"Std($close, 60)",波动率类-60日波动：长期波动率，反映资产长期风险特征,state_detection
+price_std_5,"Std($close, 5)",波动率类-5日波动：短期价格波动水平，刻画近期市场活跃度,response_intensity
+price_std_20,"Std($close, 20)",波动率类-20日波动：中期波动率，常规市况下的价格波动环境,response_intensity
+
+doji_indicator,"Power(Abs(Div(Sub($close, $open), Add(Sub($high, $low), 1e-12))), 2.0)",K线形态类-十字星度：实体/振幅的平方，极小值代表多空平衡点,state_detection
+high_to_open_gap,"Div(Sub($high, Greater($open, $close)), Add($open, 1e-12))",K线形态类-上影线与开盘比：日内冲高回落幅度，情绪逆转信号,response_intensity
+close_to_open_ratio,"Div($close, Add($open, 1e-12))",K线形态类-收盘/开盘：日内多空博弈结果，阳线>1阴线<1,response_intensity
+high_to_close_ratio,"Div($high, Add($close, 1e-12))",K线形态类-高点/收盘：上影线相对强度，数值大暗示卖压,state_detection
+low_to_close_ratio,"Div($low, Add($close, 1e-12))",K线形态类-低点/收盘：下影线相对强度，数值小买盘强,state_detection
+bearish_reversal_flag,"Mul(Greater(Sub(Div($open, Ref($close, 1)), 1), 0) ,Greater(Sub(Div($open, $close), 1), 0))",K线形态类-高开阴线：高开幅度与日内跌幅的乘积，反映隔夜情绪或开盘冲动被日内卖压主导后的短期反转压力,state_detection
+candle_amplitude,"Div(Sub($high, $low), Add($open, 1e-12))",K线形态类-振幅：全日价格波动区间，反映多空分歧烈度,response_intensity
+candle_body_to_range,"Div(Sub($close, $open), Add(Sub($high, $low), 1e-12))",K线形态类-实体与振幅比：多空优势清晰度，接近±1表长阳/长阴,response_intensity
+candle_upper_shadow_ratio,"Div(Sub($high, Greater($open, $close)), Add(Sub($high, $low), 1e-12))",K线形态类-上影占比：上方卖压强度，长上影暗示高位抛压重,state_detection
+candle_lower_shadow_ratio,"Div(Sub(Less($open, $close), $low), Add(Sub($high, $low), 1e-12))",K线形态类-下影占比：下方承接力度，长下影代表低位买盘涌现,state_detection
+candle_shadow_asymmetry,"Div(Sub(Sub($high, Greater($open, $close)), Sub(Less($open, $close), $low)), Add(Sub($high, $low), 1e-12))",K线形态类-影线不对称：上影减下影再归一化，正为卖压大,state_detection
+
+volume_trend_strength_20,"Div(Slope($volume, 20), Add(Mean($volume, 20), 1e-12))",量能变化类-成交量趋势斜率：标准化量能方向，正为放量增温,response_intensity
+cumulative_volume_momentum_5,"Div(Sum($volume, 5), Add(Sum(Ref($volume, 5), 5), 1e-12))",量能变化类-5日累计量比：近5日总量相较前5日总量，量能加速率,response_intensity
+volume_shock_ratio,"Div(Std($volume, 5), Add(Mean($volume, 20), 1e-12))",量能变化类-短期量冲击：5日量波动除以中期均量，量能异动度,response_intensity
+volume_ratio_20,"Div($volume, Add(EMA($volume, 20), 1e-12))",量能变化类-量比20：相对20日指数均量的倍数，识别放量/缩量,response_intensity
+volume_zscore_20,"Div(Sub($volume, Mean($volume, 20)), Add(Std($volume, 20), 1e-12))",量能变化类-标准化成交量：相对20日均量的偏离，Z值方式衡量异常放量,response_intensity
+volume_surge_squared,"Power(Greater(Sub(Div($volume, EMA($volume, 20)), 1), 0), 2.0)",量能变化类-超额放量平方：仅对超出均量的部分做非线性放大，捕捉极端放量背后的交易拥挤、资金冲击与情绪集中释放,response_intensity
+
+price_close_to_weighted_close_20,"Div($close, Add(WMA($close, 20), 1e-12))",价格位置类-相对加权均价：当前收盘与近期加权成本的偏离度,state_detection
+close_price_to_5d_high,"Div($close, Add(Max($high, 5), 1e-12))",价格位置类-收盘/5日最高：短期强势度，接近1为短期新高突破,state_detection
+close_price_to_20d_low,"Div($close, Add(Min($low, 20), 1e-12))",价格位置类-收盘/20日最低：超跌反弹识别，数值高脱离底部,state_detection
+rsv_20,"Div(Sub($close, Min($low, 20)), Add(Sub(Max($high, 20), Min($low, 20)), 1e-12))",价格位置类-20日RSV：收盘在20日最高-最低区间内的位置，类似随机指标K值,state_detection
+bb_position_20,"Div(Sub($close, Mean($close, 20)), Add(Std($close, 20), 1e-12))",价格位置类-布林带20位置：收盘偏离均线的标准差倍数，辨识超买超卖,state_detection
+distance_from_high_20,"Div(Sub($close, Max($high, 20)), Add(Sub(Max($high, 20), Min($low, 20)), 1e-12))",价格位置类-距20日高距离：标准化后衡量回调深度，识别强势回踩,state_detection
+
+intraday_volatility_ratio,"Div(Std(Div($close, Add($open, 1e-12)), 20), Add(Mean(Div($close, Add($open, 1e-12)), 20), 1e-12))",波动率类-日内收益变异系数：日内收益稳定性，高值表示反复无常,response_intensity
+high_low_bandwidth_20,"Div(Sub(Max($high, 20), Min($low, 20)), Add(Mean($close, 20), 1e-12))",波动率类-20日通道宽度：近期高低点跨度相对均价，辨识横向震荡,state_detection
+price_to_average_range,"Div(Sub($high, $low), Add(Mean(Sub($high, $low), 20), 1e-12))",波动率类-振幅相对均幅：今日振幅与20日平均振幅之比，探测大波动日,response_intensity
+atr_20,"Mean(Sub($high, $low), 20)",波动率类-20日平均振幅：真实波动幅度均值，衡量常规波动成本,response_intensity
+short_term_vol_ratio,"Div(Std($close, 5), Add(Std($close, 20), 1e-12))",波动率类-短期波动加速：5日/20日波动率比值，探测波动爆发点,response_intensity
+overnight_intraday_vol_ratio,"Div(Std(Sub(Div($open, Ref($close, 1)), 1), 20), Add(Std(Sub(Div($close, $open), 1), 20), 1e-12))",波动率类-隔夜/日内波动比：比值高说明价格波动主要由隔夜信息冲击驱动，比值低说明主要由盘中交易博弈驱动，帮助识别波动来源,state_detection
+price_crash_amplitude,"Div(Sub(Less($open, $close), $low), Add($open, 1e-12))",波动率类-下影线深度：盘中最低相对开盘跌幅，买盘承接力,response_intensity
+
+path_efficiency_20,"Div(Sub($close, Ref($close, 20)), Add(Sum(Abs(Div(Sub($close, Ref($close, 1)), Add(Ref($close, 1), 1e-12))), 20), 1e-12))",路径效率类-20日效率系数：净变动/累计日内收益绝对值，趋势流畅度,state_detection
+residual_volatility_ratio_20,"Div(Resi($close, 20), Add(Std($close, 20), 1e-12))",路径效率类-残差波动占比：线性趋势外不规则波动比例，秩序混乱度,state_detection
+
+volume_price_trend_divergence,"Sub(Slope($close, 20), Div(Slope($volume, 20), Add(Mean($volume, 20), 1e-12)))",量价协同类-量价趋势背离：价格斜率减去标准化成交量斜率，顶底信号,state_detection
+return_volume_corr_20,"Corr(Div(Sub($close, Ref($close, 1)), Add(Ref($close, 1), 1e-12)), Div(Sub($volume, Ref($volume, 1)), Add(Ref($volume, 1), 1e-12)), 20)",量价协同类-收益率与量变化率相关性：涨跌幅与放量程度同步性,state_detection
+volume_price_consistency_20,"Mean(Mul(Div(Sub($close, Ref($close, 1)), Add(Abs(Sub($close, Ref($close, 1))), 1e-12)), Div(Sub($volume, Ref($volume, 1)), Add(Ref($volume, 1), 1e-12))), 20)",量价协同类-量价同向度：收益符号×量变率均值，大于0示上涨增量、下跌缩量,state_detection
+vwap_20,"Div(Sum(Mul($close, $volume), 20), Add(Sum($volume, 20), 1e-12))",量价协同类-20日成交量加权均价：成本重心，衡量主力持仓成本,state_detection
+price_to_vwap_deviation,"Div(Sub($close, Div(Sum(Mul($close, $volume), 20), Add(Sum($volume, 20), 1e-12))), Add($close, 1e-12))",量价协同类-收盘相对VWAP偏离：价格在成本重心上方或下方的程度,state_detection
+amount_explosion,"Div($amount, Add(EMA($amount, 20), 1e-12))",量价协同类-成交额比：大资金活跃度，量能和价格乘积的异常放大,response_intensity
+
+gap_open_ratio,"Div($open, Add(Ref($close, 1), 1e-12))",收益率类-开盘跳空比：隔夜信息冲击程度，一跳空往往形成缺口,response_intensity
+intraday_reversal,"Sub(Div(Sub($close, $open), Add($open, 1e-12)), Div(Sub(Ref($close, 1), $open), Add(Ref($close, 1), 1e-12)))",收益率类-日内反转：实体幅度与前日振幅比较，衡量盘中多空逆转力度,response_intensity
+
