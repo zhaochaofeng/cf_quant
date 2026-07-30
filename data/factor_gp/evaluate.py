@@ -552,10 +552,6 @@ class FactorEvaluator:
 
             return pos, True, "ok"
 
-
-
-
-
         _, ok, reason = _next_idx(0)
         return ok, reason
 
