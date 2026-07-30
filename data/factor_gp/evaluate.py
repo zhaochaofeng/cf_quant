@@ -544,6 +544,12 @@ class FactorEvaluator:
                     return pos, False, (
                         f"{name} 的feature_left 或 feature_right不能为 bool: {self._short(left)} 或 {self._short(right)}")
 
+            # 规则14: Ref 参数N>0，否则出现未来数据问题
+            if name == 'Ref':
+                N = int(tree[child_starts[1]].name)
+                if N <= 0:
+                    return pos, False, f"Ref 参数N必须>0"
+
             return pos, True, "ok"
 
 
