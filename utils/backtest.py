@@ -162,6 +162,7 @@ def backtest_daily_base(score: pd.Series, start_date, end_date):
     )
     analysis = dict()
     # default frequency will be daily (i.e. "day")
+    analysis["benchmark_return"] = risk_analysis(report_normal["bench"])
     analysis["excess_return_without_cost"] = risk_analysis(report_normal["return"] - report_normal["bench"])
     analysis["excess_return_with_cost"] = risk_analysis(
         report_normal["return"] - report_normal["bench"] - report_normal["cost"])
