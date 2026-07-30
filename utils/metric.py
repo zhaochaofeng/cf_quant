@@ -36,6 +36,8 @@ def group_return(factor: pd.Series, close: pd.Series, n: int = 10, k: int=1):
         n: 分组数
         k: 收益率计算日频跨度
     """
+    factor = factor.dropna()
+    close = close.dropna()
     com_idx = factor.index.intersection(close.index)
     factor = factor.loc[com_idx]
     close = close.loc[com_idx]
@@ -44,9 +46,8 @@ def group_return(factor: pd.Series, close: pd.Series, n: int = 10, k: int=1):
 
     ret = close.groupby('instrument', group_keys=False).apply(lambda x: x.shift(-k-1) / x.shift(-1) - 1)
     ret.name = 'ret'
-    labels = pd.qcut(factor, n, labels=False, duplicates='drop')
+    # labels = pd.qcut(factor, n, labels=False, duplicates='drop')
+    labels = factor.groupby('datetime', group_keys=False).apply(lambda f:pd.qcut(f, n, labels=False, duplicates='drop'))
     # 返回年化收益率
     return ret.groupby(labels).mean() * 252
-
-
 
