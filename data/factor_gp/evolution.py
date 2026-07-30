@@ -530,12 +530,13 @@ class IslandEvolution:
             return
 
         # 3. 建立 expr → (meaningful, desc) 映射
+        # 用 LLM 返回的 expr 字段直接匹配表达式字符串
+        expr_set = set(expr_list)
         expr_verdict = {}  # expr_str → (meaningful: bool, desc: str)
         for item in results:
-            idx = item.get("id")
-            if idx is None or not isinstance(idx, int) or idx >= len(expr_list):
+            expr_str = item.get("expr")
+            if not expr_str or expr_str not in expr_set:
                 continue
-            expr_str = expr_list[idx]
             meaningful = item.get("meaningful", True)
             desc = item.get("desc", "")
             expr_verdict[expr_str] = (meaningful, desc)
@@ -619,13 +620,13 @@ class IslandEvolution:
             return
 
         # 存储 desc 到对应岛
+        # 用 LLM 返回的 expr 字段直接匹配表达式字符串
         for item in results:
-            idx = item.get("id")
+            expr_str = item.get("expr")
             desc = item.get("desc", "")
             meaningful = item.get("meaningful", False)  # 严格因子经济含义
-            if idx is None or idx >= len(expr_list) or not desc or not meaningful:
+            if not expr_str or expr_str not in missing or not desc or not meaningful:
                 continue
-            expr_str = expr_list[idx]
             for island in self.islands:
                 for ind in island.hof:
                     if str(ind) == expr_str and expr_str not in island.economic_descs:
@@ -633,6 +634,7 @@ class IslandEvolution:
 
         filled = sum(1 for island in self.islands
                      for expr in missing if expr in island.economic_descs)
+        # filled 是所有岛屿填充经济描述的因子总数，如果岛屿间有重复因子，则 filled > len(missing)
         logger.info("经济学描述补全完成: %d/%d 个表达式获得描述", filled, len(missing))
 
     # ================================================================

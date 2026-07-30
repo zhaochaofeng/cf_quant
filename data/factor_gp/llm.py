@@ -181,17 +181,17 @@ ECONOMIC_CHECK_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长�
 1. 量纲一致性：加减运算两侧应具有相同量纲（如价格+价格、收益率+收益率），价格+成交量属于量纲不匹配
 2. 金融逻辑可解释性：因子应能对应某种市场行为或经济逻辑（如动量、反转、量价背离、波动率聚集等）
 3. 非平凡构造：如 Corr($close,$high,10) 构造上近乎完全相关，无信息增量
-4. 只拒"明显无意义"的表达式，边界情形放行
+4. 表达式必须存在明显经济含义，边界情况视为无经济含义
 
 ## 待评估表达式
 {exprs}
 
 ## 返回格式
 只返回一个 JSON 数组，每个元素对应一个表达式：
-{{"id": 0, "meaningful": true, "desc": "收盘价动量：过去N日价格变化趋势"}}
-- id: 表达式编号（从0开始）
+{{"expr": "Corr($close, Ref($close, 10), 20)", "meaningful": true, "desc": "收盘价动量：过去N日价格变化趋势"}}
+- expr: 表达式原文，必须与上方"待评估表达式"中的字符串完全一致
 - meaningful: 是否具有经济学含义（true/false）
-- desc: 中文经济学含义说明（不超过30字），若无意义则简述原因
+- desc: 中文经济学含义说明。包含因子金融逻辑描述及所刻画的市场行为，若无意义则简述原因（不超过 80 字）
 
 只返回 JSON 数组，不要加其他文字说明。"""
 
@@ -467,9 +467,9 @@ class LLMInterface:
 
         valid = []
         for item in results:
-            if isinstance(item, dict) and "id" in item:
+            if isinstance(item, dict) and "expr" in item:
                 valid.append({
-                    "id": item["id"],
+                    "expr": item["expr"],
                     "meaningful": item.get("meaningful", True),
                     "desc": item.get("desc", ""),
                 })
