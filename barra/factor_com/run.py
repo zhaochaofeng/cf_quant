@@ -16,6 +16,7 @@ from prefect import flow
 from prefect.logging import get_run_logger
 
 from utils import init_qlib
+from utils import overwrite
 from utils import dt, get_trade_cal_inter, is_trade_day, email_send_message_flow
 from utils import DataFrameIO
 from barra.factor_com.data_loader import DataLoader
@@ -31,6 +32,7 @@ def run_cne6(calc_date: str,
         n_jobs: int = 4,
         extend_start: int = 6
         ):
+    print('run_cne6 ...')
     start_date = dt.subtract_months(calc_date, history_months)
     end_date = calc_date
     print(f'start_date: {start_date}, calc_date: {end_date}')
@@ -51,6 +53,7 @@ def run_alpha_expr(
         history_months: int = 24,
         output: str = 'data',
         ):
+    print('run_alpha_expr ...')
     start_date = dt.subtract_months(calc_date, history_months)
     end_date = calc_date
     print(f'start_date: {start_date}, calc_date: {end_date}')
@@ -81,12 +84,13 @@ def flow(now_date: str=''):
 
     try:
         n_jobs = max(min(10, os.cpu_count() - 2), 1)
+        output = f'data/{now_date}'
         init_qlib(kernels=n_jobs)
         # CNE6 因子
         run_cne6(
             calc_date=now_date,
             history_months=36,
-            output=f'data/{now_date}',
+            output=output,
             n_jobs=n_jobs,
             extend_start=6
         )
@@ -94,8 +98,14 @@ def flow(now_date: str=''):
         run_alpha_expr(
             calc_date=now_date,
             history_months=36,
-            output=f'data/{now_date}'
+            output=output
         )
+
+        # 更新 latest 目录
+        print('update latest ...')
+        path_dst = output.rsplit('/', 1)[0] + '/latest'
+        overwrite(output, path_dst, keep_src=True)
+
     except Exception as e:
         err_msg = 'factors_exposure_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
         logger.error(err_msg)
