@@ -11,13 +11,14 @@ from datetime import datetime
 logger = LoggerFactory.get_logger(__name__)
 
 
-def init_qlib(provider_uri=PROVIDER_URI, custom_ops=None):
+def init_qlib(provider_uri=PROVIDER_URI, custom_ops=None, **kwargs):
     """初始化qlib """
     if custom_ops is None:
         custom_ops = [PTTM]
     qlib.init(
         provider_uri=provider_uri,
         custom_ops=custom_ops,
+        **kwargs
     )
 
 
