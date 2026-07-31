@@ -76,8 +76,8 @@ def loop(args):
     evaluator = FactorEvaluator(pset=registry.pset_check)
 
     # 加载 Alpha158 因子作为种子
-    factor_exprs = _load_alpha158()
-    if not factor_exprs:
+    template_factors = _load_alpha158()
+    if not template_factors:
         logger.warning("未加载到 Alpha158 因子，跳过基因提取")
         return
 
@@ -94,7 +94,10 @@ def loop(args):
 
         # LLM 提取子表达式基因
         genes_ori = llm.extract_sub_expr_genes(
-            factor_exprs, n_target=args.n_target, gap_hint=gap_hint)
+            template_factors=template_factors,
+            exist_genes=dic['expr'],
+            n_target=args.n_target,
+            gap_hint=gap_hint)
         if not genes_ori:
             return
         logger.info(f'genes_ori len: {len(genes_ori)}')

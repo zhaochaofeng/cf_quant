@@ -106,7 +106,7 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 3. 语法必须用 DEAP 前缀格式：算子用 Add, Sub, Mul, Div, Greater, Less, Power, Ref, EMA, Std, Corr, Cov 等名称，**严禁使用 +, -, *, /, <, > 等中缀符号**（解析器无法识别）。
 4. 量纲一致：加减两侧需同量纲（价格±价格、收益率±收益率），禁止 Add($close, $volume) 这类量纲不匹配。
 5. 算子参数约束：Greater/Less 两参数都必须是表达式（不能是常量）；Power 指数必须是浮点字面量 0.5、2.0 或 3.0 之一（写整数 2 会被类型检查拒绝）；滚动窗口参数必须是 int 常量（建议 5-20）；除法分母可加 1e-12 防零除。
-6. 去冗余：确保基因之间信息有差异，避免重复提取语义相近的子表达式。
+6. 去冗余：确保基因之间信息有差异，避免重复提取语义相近的子表达式，避免生成与已经存在的基因重复的基因
 7. 英文 snake_case 命名。
 
 ## 基因复杂度要求（重要）
@@ -153,6 +153,9 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 
 ## 参考因子
 {factors}
+
+## 已经存在的基因
+{genes}
 
 ## 返回格式
 只返回一个 JSON 对象，key 是子表达式名称，value 是 {{"expr": ..., "desc": ..., "role": ...}}。
@@ -277,15 +280,17 @@ class LLMInterface:
 
     def extract_sub_expr_genes(
         self,
-        factor_exprs: list[tuple[str, str]],
-        n_target: int = None,
+        template_factors: list[tuple[str, str]],
+        exist_genes: list[str],
+        n_target: int = 50,
         gap_hint: str = "",
     ) -> dict[str, dict]:
         """从初始优质因子中提取子表达式基因。
 
         Args:
-            factor_exprs: [(name, qlib_expr), ...]
+            template_factors:  模版因子. [(name, qlib_expr), ...]
                 例如 [("KMID", "($close-$open)/$open"), ...]
+            exist_genes: 已有基因列表，避免生成相同基因
             n_target: 期望提取的基因数量，写入提示词引导 LLM 产出规模。
                 默认 2 * len(factor_exprs)（参考报告：29 因子→68 基因≈2.3/因子）。
             gap_hint: 从已有基因统计的缺口提示，非空时注入 prompt 引导 LLM 补齐。
@@ -293,13 +298,13 @@ class LLMInterface:
         Returns:
             {"gene_name": {"expr": qlib_sub_expr, "desc": str, "role": str}, ...}
         """
-        if n_target is None:
-            n_target = 2 * len(factor_exprs)
 
-        # 构建因子列表文本
+        # 构建模版因子列表文本
         factors_text = "\n".join(
-            f"- {name}: `{expr}`" for name, expr in factor_exprs
+            f"- {name}: `{expr}`" for name, expr in template_factors
         )
+        # 已有基因文本
+        genes_text = "\n".join(f"- `{gene}`" for gene in exist_genes)
 
         # 缺口提示：非空时追加换行，空时为空字符串
         hint = f"\n## 补充要求\n{gap_hint}" if gap_hint else ""
@@ -307,6 +312,7 @@ class LLMInterface:
         prompt = SUB_EXPR_PROMPT_TEMPLATE.format(
             operators_ref=QLIB_OPERATORS_REF,
             factors=factors_text,
+            genes=genes_text,
             n_target=n_target,
             gap_hint=hint,
         )
