@@ -88,16 +88,15 @@ def loop(args):
     for i in range(args.n_loop):
         logger.info('\n{}\nLoop: {}...'.format('-' * 50, i+1))
         # 基于当前基因池构建缺口提示
-        gap_hint = _build_gap_hint(dic, registry.pset_check)
-        if gap_hint:
-            logger.info(f'gap_hint: {gap_hint}')
+        # gap_hint = _build_gap_hint(dic, registry.pset_check)
+        # if gap_hint:
+        #     logger.info(f'gap_hint: {gap_hint}')
 
         # LLM 提取子表达式基因
         genes_ori = llm.extract_sub_expr_genes(
             template_factors=template_factors,
             exist_genes=dic['expr'],
-            n_target=args.n_target,
-            gap_hint=gap_hint)
+            n_target=args.n_target)
         if not genes_ori:
             return
         logger.info(f'genes_ori len: {len(genes_ori)}')

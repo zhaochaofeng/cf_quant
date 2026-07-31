@@ -98,29 +98,21 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 {operators_ref}
 
 ## 任务
-分析以下优质量价因子表达式，提取可复用的子表达式基因。基因是 GP 搜索空间的叶子节点，GP 用 34 个算子在其上组合搜索完整因子。
+分析以下优质量价因子表达式，提取可复用的子表达式基因。基因是 GP 搜索空间的叶子节点，GP 用算子在基因上组合搜索完整因子。
 
 ## 基因设计原则
-1. 粒度适中：基因应刻画某类具体交易行为或量价结构，介于"单一字段/单一均值"与"完整选股因子"之间——作为组合构件有价值，但未必能单独选股。
-2. 金融含义明确：每个基因必须对应可解释的市场行为，并在 desc 用中文简述（不超过 30 字）。
-3. 语法必须用 DEAP 前缀格式：算子用 Add, Sub, Mul, Div, Greater, Less, Power, Ref, EMA, Std, Corr, Cov 等名称，**严禁使用 +, -, *, /, <, > 等中缀符号**（解析器无法识别）。
-4. 量纲一致：加减两侧需同量纲（价格±价格、收益率±收益率），禁止 Add($close, $volume) 这类量纲不匹配。
-5. 算子参数约束：Greater/Less 两参数都必须是表达式（不能是常量）；Power 指数必须是浮点字面量 0.5、2.0 或 3.0 之一（写整数 2 会被类型检查拒绝）；滚动窗口参数必须是 int 常量（建议 5-20）；除法分母可加 1e-12 防零除。
-6. 去冗余：确保基因之间信息有差异，避免重复提取语义相近的子表达式，避免生成与已经存在的基因重复的基因
-7. 英文 snake_case 命名。
-
-## 基因复杂度要求（重要）
-基因分为简单基因和复合基因两类，**复合基因占比应 ≥ 50%**。
-
-**简单基因**（占比 ≤ 50%）：单算子 + 单字段 + 单窗口。结构简单但金融含义明确——每个基因对应一个独立的量价判断，如价格相对均线偏离、近期波动水平、量能异常程度、趋势效率等。GP 在简单基因之上进行算子组合，构建跨周期、跨字段的复杂逻辑。
-- 示例：Mean($close, 20) 衡量价格相对 20 日均线的偏离（而非"20 日价格均值"）；Std($volume, 5) 衡量近期成交量波动水平；Rank($close, 60) 衡量长期价格相对排名
-- 规则：每个算子+字段组合最多保留 3 个代表性窗口，不同窗口对应不同的行为周期（短期情绪/中期趋势/长期结构），不是无差别的数据采样。
-**复合基因**（占比 ≥ 50%）：包含 ≥2 个不同字段 或 ≥2 层算子嵌套。GP 自行发现这类结构的概率很低，是 LLM 基因提取的核心价值。
-- 示例：隔夜vs日内波动比、条件放量×价格位置、收益方向与量能共振
+1. 金融语义原子性：一个基因且仅刻画一种具体的交易行为或量价状态（如“高开阴线”、“极端放量”、“隔夜波动占比”）。不能把“高开后回落+放量”揉在一起，那是两个基因的协同工作。
+2. 表达式深度（Deep）≤ 5层：若基因本身深度已达6~7层，GP再往上叠加2~3层，总深度极易超过10层，该因子会出现“结构臃肿”。
+3. 可被LLM自然命名：研究员或LLM能用一个金融名词（如 bearish_reversal_flag）精准概括其含义，而非只能用公式描述。这确保了LLM在周期性注入时，能理解“用这个基因去组合什么”。
+4. 语法必须用 DEAP 前缀格式：算子用 Add, Sub, Mul, Div, Greater, Less, Power, Ref, EMA, Std, Corr, Cov 等名称，**严禁使用 +, -, *, /, <, > 等中缀符号**（解析器无法识别）。
+5. 量纲一致：加减两侧需同量纲（价格±价格、收益率±收益率），禁止 Add($close, $volume) 这类量纲不匹配。
+6. 算子参数约束：Power 指数必须是浮点字面量 0.5、2.0 或 3.0 之一（写整数 2 会被类型检查拒绝）；滚动窗口参数必须是 int 常量（建议 5-20）；除法分母可加 1e-12 防零除。
+7. 去冗余：确保基因之间信息有差异，避免重复提取语义相近的子表达式，避免生成与已经存在的基因重复。
+8. 英文命名。
 
 ## 建议覆盖的基因类别（尽量兼顾多类，勿集中在单一类）
 - 收益率类：日收益、隔夜收益、日内收益、收益波动
-- 量能变化类：超额放量、量比、天量异动（可用 Power 对超额部分非线性放大）
+- 量能变化类：超额放量、量比、天量异动
 - K线形态类：实体比例、上下影线、高开阴线
 - 价格位置类：收盘在区间位置、近期高低点相对位置
 - 波动率类：滚动标准差、隔夜/日内波动比、振幅
@@ -140,18 +132,11 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
 - 笛卡尔积枚举：对同一算子+字段枚举全部窗口（如 Mean($close,5), Mean($close,10), Mean($close,20), Mean($close,60) 不得同时出现）
 
 ## 参考基因示例（均为合法 DEAP 前缀格式）
-**简单基因示例：**
-- Mean($close, 20) —— 衡量价格相对 20 日均线的偏离
+- Mul(Greater(Sub(Div($open, Ref($close, 1)), 1), 0), Greater(Sub(Div($open, $close), 1), 0)) —— 高开阴线
+- Power(Greater(Sub(Div($volume, EMA($volume, 20)), 1.0), 0.0), 2.0) —— 极端放量
+- Div(Std(Sub(Div($open, Ref($close, 1)), 1), 20), Std(Sub(Div($close, $open), 1), 20)) —— 隔夜波动占比
 
-**复合基因示例：**
-- Div(Sub($close, $open), Add(Sub($high, $low), 1e-12)) —— K线实体占全日振幅比例
-- Power(Greater(Sub(Div($volume, EMA($volume, 20)), 1.0), 0.0), 2.0) —— 量比平方：非线性放大极端放量
-- Div(Std(Div($open, Ref($close, 1)), 20), Add(Std(Div($close, $open), 20), 1e-12)) —— 隔夜/日内波动比
-- Sub(Div(Sub($close, $open), Add($open, 1e-12)), Div(Sub($open, Ref($close, 1)), Add(Ref($close, 1), 1e-12))) —— 日内vs隔夜收益差：盘中走势是否消化或反转隔夜信息
-- Div(Cov(Div(Sub($close, Ref($close, 1)), Add(Ref($close, 1), 1e-12)), Div(Sub($volume, Ref($volume, 1)), Add(Ref($volume, 1), 1e-12)), 20), Add(Std(Div(Sub($close, Ref($close, 1)), Add(Ref($close, 1), 1e-12)), 20), 1e-12)) —— 标准化量价协方差：量价共振强度除以收益波动率
-- Mul(Greater(Sub(Div($open, Ref($close, 1)), 1.0), 0.0), Div(Sub($volume, Ref($volume, 1)), Add(Ref($volume, 1), 1e-12))) —— 高开放量共振：高开程度×量能放大，反映隔夜信息获得盘中资金确认程度
-
-## 参考因子
+## 参考价量因子
 {factors}
 
 ## 已经存在的基因
@@ -169,7 +154,7 @@ SUB_EXPR_PROMPT_TEMPLATE = """你是一位量化金融研究员，擅长从量�
   "volume_surge_squared": {{"expr": "Power(Greater(Sub(Div($volume, EMA($volume, 20)), 1), 0), 2.0)", "desc": "量能变化类-超额放量平方：仅对超出均量的部分做非线性放大，捕捉极端放量背后的交易拥挤与情绪集中释放", "role": "response_intensity"}}
 }}
 
-建议提取 {n_target} 个左右、覆盖上述多类别的基因，复合基因占比 ≥ 50%。{gap_hint}
+建议提取 {n_target} 个左右、覆盖上述多类别的基因。
 
 只返回 JSON，不要加其他文字说明。"""
 
@@ -283,7 +268,7 @@ class LLMInterface:
         template_factors: list[tuple[str, str]],
         exist_genes: list[str],
         n_target: int = 50,
-        gap_hint: str = "",
+        # gap_hint: str = "",
     ) -> dict[str, dict]:
         """从初始优质因子中提取子表达式基因。
 
@@ -307,14 +292,14 @@ class LLMInterface:
         genes_text = "\n".join(f"- `{gene}`" for gene in exist_genes)
 
         # 缺口提示：非空时追加换行，空时为空字符串
-        hint = f"\n## 补充要求\n{gap_hint}" if gap_hint else ""
+        # hint = f"\n## 补充要求\n{gap_hint}" if gap_hint else ""
 
         prompt = SUB_EXPR_PROMPT_TEMPLATE.format(
             operators_ref=QLIB_OPERATORS_REF,
             factors=factors_text,
             genes=genes_text,
             n_target=n_target,
-            gap_hint=hint,
+            # gap_hint=hint,
         )
         logger.info('\n{}\n{}'.format('-' * 30, prompt))
 
