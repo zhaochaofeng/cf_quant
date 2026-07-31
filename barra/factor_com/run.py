@@ -89,7 +89,7 @@ def flow(now_date: str=''):
         # CNE6 因子
         run_cne6(
             calc_date=now_date,
-            history_months=36,
+            history_months=24,
             output=output,
             n_jobs=n_jobs,
             extend_start=6
@@ -97,7 +97,7 @@ def flow(now_date: str=''):
         # Alpha 表达式因子
         run_alpha_expr(
             calc_date=now_date,
-            history_months=36,
+            history_months=24,
             output=output
         )
 
