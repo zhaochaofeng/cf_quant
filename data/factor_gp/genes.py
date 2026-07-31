@@ -67,6 +67,7 @@ def loop(args):
         dic = df.to_dict(orient='list')
     else:
         dic = {'name': [], 'expr': [], 'desc': [], 'role': []}
+    dic_res = {'name': [], 'expr': [], 'desc': [], 'role': []}
     logger.info(f'历史 dic len: {len(dic["name"])}')
 
     llm = LLMInterface()
@@ -118,18 +119,21 @@ def loop(args):
                 logger.info("不合法: {}, 理由：{}".format(expr, reason))
                 continue
 
-            dic['name'].append(name)
-            dic['expr'].append(expr)
-            dic['desc'].append(desc)
-            dic['role'].append(role)
+            dic_res['name'].append(name)
+            dic_res['expr'].append(expr)
+            dic_res['desc'].append(desc)
+            dic_res['role'].append(role)
             new_cnt += 1
 
-        logger.info(f'本轮新增 {new_cnt} 个，累计 {len(dic["name"])} 个')
+        logger.info(f'本轮新增 {new_cnt} 个，累计 {len(dic["name"]) + len(dic_res["name"])} 个')
+        for field in ['name', 'expr', 'desc', 'role']:
+            dic[field].extend(dic_res[field])
         _log_stats(dic, registry.pset_check, tag=f"loop{i+1}")
 
-    df = pd.DataFrame(dic)
+    df = pd.DataFrame(dic_res)
     df.sort_values(by=['desc'], ascending=False, inplace=True)
     DataFrameIO.write(df, args.output, type='csv', index=False)
+
 
 def main():
     parser = argparse.ArgumentParser(description="因子基因生成脚本")
@@ -141,6 +145,7 @@ def main():
     logger.info('args: {}'.format(args))
 
     loop(args)
+
 
 if __name__ == '__main__':
     main()
