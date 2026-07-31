@@ -51,7 +51,7 @@ def run(
     logger.info('{} \nstart_date: {}, calc_date: {}'.format( '-'*50, start_date, calc_date))
 
     # 加载 close 数据
-    instruments = data_loader.load_instruments(start_date, calc_date, as_list=True)
+    instruments = data_loader.load_instruments(start_date, calc_date)
     close_df = D.features(instruments, ["$close"], start_date, calc_date)
     close = close_df["$close"]  # Series
     close.name = 'close'
@@ -78,9 +78,11 @@ def run(
 
     # 加载 alpha 因子数据。
     # Fix: instrument, datetime 与 close 中存在差异
-    alpha_factors = data_loader.load_signal(start_date, calc_date)
-    alpha_factors.columns = ['alpha1']
-    alpha_factors.sort_index(inplace=True)
+    # alpha_factors = data_loader.load_signal(start_date, calc_date)
+    # alpha_factors.columns = ['alpha1']
+    # alpha_factors.sort_index(inplace=True)
+    path = 'barra/factor_com/data/latest/alpha_factors.parquet'
+    alpha_factors = DataFrameIO.read(path, "parquet")
 
     com_index = close.index.intersection(alpha_factors.index).intersection(risk_factors.index)
     close = close.loc[com_index]
