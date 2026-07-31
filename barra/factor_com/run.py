@@ -20,8 +20,11 @@ from utils import dt, get_trade_cal_inter, is_trade_day, email_send_message_flow
 from barra.factor_com.data_loader import DataLoader
 from barra.factor_com.exposure import CNE6IndExposure
 
+from data.factor import EXPRS
+from qlib.data import D
 
-def run(calc_date: str,
+
+def run_cne6(calc_date: str,
         history_months: int = 24,
         output: str = 'data',
         n_jobs: int = 4,
@@ -32,7 +35,7 @@ def run(calc_date: str,
     print(f'start_date: {start_date}, calc_date: {end_date}')
     data_loader = DataLoader(market='all')
     exp_builder = CNE6IndExposure()
-    instruments = data_loader.load_instruments(start_date, end_date)
+    instruments = data_loader.load_instruments(start_date, end_date, as_list=True)
     industry_df = data_loader.load_industry(instruments, start_date, end_date)
     market_cap_df = data_loader.load_market_cap(instruments, start_date, end_date)
     raw_data = data_loader.load_fields_data(instruments, start_date, calc_date,
@@ -40,6 +43,24 @@ def run(calc_date: str,
     com_date = get_trade_cal_inter(start_date, end_date)
     com_date = pd.to_datetime(com_date)
     exp_builder.build_exposure_matrix(raw_data, industry_df, market_cap_df, n_jobs, com_date, output)
+
+
+def run_alpha_expr(
+        calc_date: str,
+        history_months: int = 24,
+        output: str = 'data',
+        ):
+    start_date = dt.subtract_months(calc_date, history_months)
+    end_date = calc_date
+    print(f'start_date: {start_date}, calc_date: {end_date}')
+
+    expr_list = []
+    name_list = []
+    for name, expr in EXPRS.items():
+        expr_list.append(expr['expr'])
+        name_list.append(name)
+
+
 
 
 @flow(name='factors_exposure', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
@@ -51,13 +72,21 @@ def flow(now_date: str=''):
         return
 
     try:
-        init_qlib()
-        run(
+        n_jobs = max(min(10, os.cpu_count() - 2), 1)
+        init_qlib(kernels=n_jobs)
+        # CNE6 因子
+        run_cne6(
             calc_date=now_date,
             history_months=36,
             output=f'data/{now_date}',
-            n_jobs=min(4, os.cpu_count() - 2),
+            n_jobs=n_jobs,
             extend_start=6
+        )
+        # Alpha 表达式因子
+        run_alpha_expr(
+            calc_date=now_date,
+            history_months=36,
+            output=f'data/{now_date}'
         )
     except Exception as e:
         err_msg = 'factors_exposure_flow({}) 执行失败:\n{}'.format(now_date, traceback.format_exc())
@@ -85,11 +114,6 @@ if __name__ == '__main__':
             work_pool_name='cf_quant'
         )
     else:
-        init_qlib()
-        run(
-            calc_date=args.now_date,
-            history_months=args.history_months,
-            output=f'{args.output}/{args.now_date}',
-            n_jobs=args.n_jobs,
-            extend_start=args.extend_start,
+        flow(
+            now_date=args.now_date,
         )

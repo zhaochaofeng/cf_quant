@@ -51,7 +51,7 @@ def run(
     logger.info('{} \nstart_date: {}, calc_date: {}'.format( '-'*50, start_date, calc_date))
 
     # 加载 close 数据
-    instruments = data_loader.load_instruments(start_date, calc_date)
+    instruments = data_loader.load_instruments(start_date, calc_date, as_list=True)
     close_df = D.features(instruments, ["$close"], start_date, calc_date)
     close = close_df["$close"]  # Series
     close.name = 'close'

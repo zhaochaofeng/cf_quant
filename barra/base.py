@@ -22,7 +22,7 @@ class BaseDataLoader:
     def __init__(self, market: str = BENCHMARK_CONFIG['market']):
         self.market = market
 
-    def load_instruments(self, start_time: str, end_time: str) -> List[str]:
+    def load_instruments(self, start_time: str, end_time: str, as_list: bool = False) -> List[str]:
         """
         获取股票列表
 
@@ -38,7 +38,7 @@ class BaseDataLoader:
             instruments,
             start_time=start_time,
             end_time=end_time,
-            as_list=True
+            as_list=as_list
         )
         logger.info(f'市场: {self.market}, 开始时间: {start_time}, 结束时间: {end_time}, 股票数量: {len(instruments)}')
         return instruments
