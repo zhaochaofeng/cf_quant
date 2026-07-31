@@ -17,6 +17,7 @@ from prefect.logging import get_run_logger
 
 from utils import init_qlib
 from utils import dt, get_trade_cal_inter, is_trade_day, email_send_message_flow
+from utils import DataFrameIO
 from barra.factor_com.data_loader import DataLoader
 from barra.factor_com.exposure import CNE6IndExposure
 
@@ -54,13 +55,20 @@ def run_alpha_expr(
     end_date = calc_date
     print(f'start_date: {start_date}, calc_date: {end_date}')
 
+    data_loader = DataLoader(market='all')
+    instruments = data_loader.load_instruments(start_date, end_date)
+
     expr_list = []
     name_list = []
     for name, expr in EXPRS.items():
         expr_list.append(expr['expr'])
         name_list.append(name)
 
-
+    print('expr_list len: ', len(expr_list))
+    # 原始因子值，未做预处理
+    df = D.features(instruments, expr_list, start_date, end_date)
+    df.columns = name_list
+    DataFrameIO.write(df, f'{output}/alpha_exposure.parquet')
 
 
 @flow(name='factors_exposure', log_prints=True, retries=3, retry_delay_seconds=600, timeout_seconds=60 * 60 * 3)
