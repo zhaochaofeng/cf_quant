@@ -2,7 +2,7 @@
     因子表达式
 '''
 
-exprs = {
+EXPRS = {
     "LOWPOS_SHARPE_COV": {
         "expr": "Cov($low/$close, EMA($close/Ref($close,1)-1, 20)/Std($close/Ref($close,1)-1, 20), 20)",
         "desc": "平滑趋势中的质量动量：low/close（日内下探幅度）与风险调整动量（EMA(ret)/Std(ret)）的20日协方差。值高=趋势走强的同时路径平滑、下探不深，区分趋势质量与噪声型上涨"
