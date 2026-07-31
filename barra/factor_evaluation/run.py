@@ -81,7 +81,7 @@ def run(
     # alpha_factors = data_loader.load_signal(start_date, calc_date)
     # alpha_factors.columns = ['alpha1']
     # alpha_factors.sort_index(inplace=True)
-    path = 'barra/factor_com/data/latest/alpha_exposure.parquet'
+    path = project_root / 'barra/factor_com/data/latest/alpha_exposure.parquet'
     alpha_factors = DataFrameIO.read(path, "parquet")
 
     com_index = close.index.intersection(alpha_factors.index).intersection(risk_factors.index)
