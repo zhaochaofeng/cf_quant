@@ -69,14 +69,14 @@ EXTRA_TERMINALS = [
 # 单元素 算子（4个）"Not"
 ELEM_OPS = ["Abs", "Sign", "Log"]
 
-# 元素对 算子(15个)  'Gt', 'Ge', 'Lt', 'Le', 'Eq', 'Ne', 'And', 'Or'
+# 元素对 算子(15个)  'Ge', 'Le', 'Eq', 'Ne', 'And', 'Or'
 PIRE_OPS = ['Power', 'Add', 'Sub', 'Mul', 'Div',
-            'Greater', 'Less']
+            'Greater', 'Less', 'Gt', 'Lt']
 
-# 单元素 Rolling 算子 (22个) 'IdxMax', 'IdxMin'
+# 单元素 Rolling 算子 (22个)
 ELEM_ROLLING_OPS = ['Ref', 'Mean', 'Sum', 'Std', 'Var', 'Skew', 'Kurt',
                     'Max',  'Min', 'Quantile', 'Med', 'Mad',
-                    'Rank', 'Count', 'Delta', 'Slope', 'Rsquare','Resi', 'WMA', 'EMA']
+                    'Rank', 'Count', 'Delta', 'Slope', 'Rsquare','Resi', 'WMA', 'EMA', 'IdxMax', 'IdxMin']
 
 # 元素对 Rolling 算子（2个）
 PAIR_ROLLING_OPS = [

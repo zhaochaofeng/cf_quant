@@ -32,7 +32,6 @@ logger = LoggerFactory.get_logger(__name__)
 #   单目: Not                （bitwise_not，逻辑非，仅适用 bool）
 #   双目: Gt,Ge,Lt,Le,Eq,Ne  （比较返回 0/1，丢失偏离幅度，压低 IC）
 #         And,Or             （bitwise_and/or，多重布尔叠加=过拟合温床）
-#   滚动: IdxMax,IdxMin      （极值位置索引，经济学含义弱）
 #   三元: If                 （需 bool 条件；纯连续空间改用 Greater/Less/Sign 软条件）
 QLIB_OPERATORS_REF = """
 ## 可用算子
@@ -50,6 +49,8 @@ QLIB_OPERATORS_REF = """
 - Power(x, y): x 的 y 次幂
 - Greater(x, y): 取 x 和 y 中的较大值
 - Less(x, y): 取 x 和 y 中的较小值
+- Gt(x, y): x > y 比较，返回 1.0（真）或 0.0（假），布尔型 0/1 输出
+- Lt(x, y): x < y 比较，返回 1.0（真）或 0.0（假），布尔型 0/1 输出
 
 ### 滚动算子 (float, int → float)
 - Ref(x, d): d 日前的 x 值
@@ -60,7 +61,9 @@ QLIB_OPERATORS_REF = """
 - Skew(x, d): d 日滚动偏度
 - Kurt(x, d): d 日滚动峰度
 - Max(x, d): d 日滚动最大值
+- IdxMax(x, d): d 日内最大值出现的位置（1-based，最近=1），即 Aroon-Up 分量
 - Min(x, d): d 日滚动最小值
+- IdxMin(x, d): d 日内最小值出现的位置（1-based，最近=1），即 Aroon-Down 分量
 - Med(x, d): d 日滚动中位数
 - Mad(x, d): d 日滚动平均绝对偏差
 - Rank(x, d): d 日内 x 的排名百分位
