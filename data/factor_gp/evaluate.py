@@ -10,7 +10,7 @@ from qlib.data import D
 
 from utils import LoggerFactory
 from utils.multiprocess import multiprocessing_wrapper_same
-from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS
+from .conf import ELEM_OPS, PIRE_OPS, ELEM_ROLLING_OPS, PAIR_ROLLING_OPS, BASE_TERMINALS
 
 logger = LoggerFactory.get_logger(__name__)
 
@@ -431,10 +431,10 @@ class FactorEvaluator:
                     return pos, False, (
                         f"{name} 的feature_right是常量: {self._short(child)}")
 
-            # 规则4: Log: 为了保证元素值需要为正。需要配置 Abs 使用
+            # 规则4: Log: 为了保证元素值需要为正。除了量价字段，需要配置 Abs 使用
             if name == "Log":
                 child = tree[child_starts[0]]
-                if child.name != 'Abs':
+                if (child.name not in BASE_TERMINALS) and (child.name != 'Abs'):
                     return pos, False, (
                         f"{name} 的feature需要为正数(加 Abs): {self._short(child)}")
 
