@@ -135,52 +135,6 @@ class GPLlmPipeline:
         from data.factor_gp.llm import LLMInterface
         self.llm = LLMInterface()
 
-        '''
-        # 加载 Alpha158 因子作为种子
-        factor_exprs = self._load_alpha158()
-        if not factor_exprs:
-            logger.warning("未加载到 Alpha158 因子，跳过基因提取")
-            return
-
-        # LLM 提取子表达式基因
-        genes_ori = self.llm.extract_sub_expr_genes(factor_exprs)
-        if not genes_ori:
-            return
-
-        # 保存含经济学描述的基因到本地便于查看（须在下面转换前保存，否则 desc 丢失）
-        from utils import PickleIO
-        PickleIO.write(genes_ori, f'{self.config.output_dir}/llm_genes.pkl')
-
-        # 检查genes 合法性
-        from deap import gp
-        genes = {}
-        for alias, payload in genes_ori.items():
-            expr_str = payload["expr"]
-            try:
-                tree = gp.PrimitiveTree.from_string(expr_str, self.registry.pset)
-            except:
-                logger.info('不合法：{}, 理由: {}'.format(expr_str, '不符合 deap 语法格式'))
-                continue
-            ok, reason = self.evaluator._check_qlib_semantics(tree)
-            if not ok:
-                logger.info("不合法: {}, 理由：{}".format(expr_str, reason))
-                continue
-            else:
-                genes[alias]= expr_str
-
-        # genes = {
-        #     alias: payload["expr"]
-        #     for alias, payload in genes.items()
-        #     if isinstance(payload, dict)
-        #     and self.evaluator._passes_qlib_semantic(payload["expr"])
-        # }
-        # print(genes)
-
-        if not genes:
-            logger.warning("LLM 提取的因子 genes 不合法，跳过注册")
-            return
-        '''
-
         genes_df = DataFrameIO.read('./factor_genes.csv', type='csv')
         if genes_df.empty:
             raise Exception('未找到因子基因文件')
@@ -198,15 +152,6 @@ class GPLlmPipeline:
         for alias, expr in genes.items():
             logger.info('{} -> {}'.format(alias, expr))
 
-    def _load_alpha158(self) -> list[tuple[str, str]]:
-        """从 Alpha158 加载因子表达式。"""
-        try:
-            from qlib.contrib.data.loader import Alpha158DL
-            fields, names = Alpha158DL.get_feature_config()
-            return [(name, expr) for name, expr in zip(names, fields)]
-        except Exception as e:
-            logger.warning("Alpha158 加载失败: %s", e)
-            return []
 
     # ================================================================
     # Phase 2: 分岛进化
