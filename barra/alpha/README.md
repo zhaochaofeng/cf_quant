@@ -12,19 +12,19 @@
 |------|------|
 | N | 资产数量 |
 | K | 预测信号数量 |
-| g_n^{(k)}(t) | 资产 n 在交易日 t 的原始预测信号 k |
-| z_{CS,n}^{(k)}(t) | 信号 k 在交易日 t 的横截面标准分值 |
-| ω_n | 资产 n 的残差波动率 |
-| IC_k | 信号 k 的全局信息系数（历史日频相关系数） |
-| α_n^{(k)}(t) | 仅由信号 k 贡献的 Alpha 分量 |
-| α_n(t) | 最终合成的 Alpha 预测 |
-| T | 历史时间窗口长度（交易日数） |
+| $g_n^{(k)}(t)$ | 资产 $n$ 在交易日 $t$ 的原始预测信号 $k$ |
+| $z_{CS,n}^{(k)}(t)$ | 信号 $k$ 在交易日 $t$ 的横截面标准分值 |
+| $\omega_n$ | 资产 $n$ 的残差波动率 |
+| $IC_k$ | 信号 $k$ 的全局信息系数（历史日频相关系数） |
+| $\alpha_n^{(k)}(t)$ | 仅由信号 $k$ 贡献的 Alpha 分量 |
+| $\alpha_n(t)$ | 最终合成的 Alpha 预测 |
+| $T$ | 历史时间窗口长度（交易日数） |
 
 ---
 
 ## 3. 输入数据
 
-- 股票收盘价 close_n{t}，用于计算股票收益率 r(t) = close_n{t+2}/close_n{t+1}-1，进而计算 IC. 获取方式：
+- 股票收盘价 $close_n(t)$，用于计算股票收益率 $r(t) = close_n(t+2)/close_n(t+1)-1$，进而计算 IC。获取方式：
 ```python
 import qlib
 from qlib.data import D
@@ -32,7 +32,7 @@ qlib.init(provider_uri='~/.qlib/qlib_data/custom_data_hfq')
 df = D.features(['SZ000001'], fields=['$close'], start_time='2026-01-01', end_time='2026-01-31')
 ```
 
-- 股票的预测信号 {g_n^{(k)}(t)} (k=1,2,...,K)。获取方式：
+- 股票的预测信号 $\{g_n^{(k)}(t)\} \ (k=1,2,\dots,K)$。获取方式：
 ```python
 import pandas as pd
 from utils import sql_engine
@@ -44,7 +44,7 @@ where day>='2026-03-06' and day<='2026-03-06';
 df = pd.read_sql(sql, engine)
 df.set_index(['instrument', 'datetime'], inplace=True)
 ```
-- 每个资产 n 的残差收益率历史序列 {θ_n(t)}. 由风控模块 risk_control 模块预先计算，用于计算ω_n。获取方式：
+- 每个资产 $n$ 的残差收益率历史序列 $\{\theta_n(t)\}$。由风控模块 risk_control 模块预先计算，用于计算 $\omega_n$。获取方式：
 ```
 直接读取: barra/risk_control/output/{dt}/model/residuals.parquet
 数据格式：index ['instrument', 'datetime'], columns ['residual']
@@ -81,8 +81,8 @@ $$
 
 ### 4.2 情形判断
 
-根据信号历史数据判断其属于情形1或情形2。 通过 Std_TS(g) 与 omega_n 相关性程度判断
-Std_TS{g_n(t)} 的计算用过去 2 年的日频数据
+根据信号历史数据判断其属于情形1或情形2。通过 $\mathrm{Std}_{TS}(g)$ 与 $\omega_n$ 相关性程度判断。
+$\mathrm{Std}_{TS}\{g_n(t)\}$ 的计算用过去 2 年的日频数据。
 
 $$
 \mathrm{Std}_{TS}\{g_n^{(k)}\} = a + b \cdot \omega_n + \epsilon_n
@@ -91,7 +91,7 @@ $$
 其中，  $\mathrm{Std}_{TS}\{g_n^{(k)}\}$ 是资产 $n$ 的信号时间序列标准差。
 若 $R^2 > 0.2$且 $b$ 显著，则判定为情形2，否则为情形1。该判断可预先完成并作为配置参数，按日频重估。
 
-### 4.3 残差波动率 \omega_n 估计
+### 4.3 残差波动率 $\omega_n$ 估计
 
 - **老股票**：用过去2年的日频残差收益率计算历史标准差：
   $$
@@ -105,13 +105,13 @@ $$
 
 ### 4.4 全局IC估计
 
-对每个信号 $k$，用历史数据（所有资产、所有交易日）计算其横截面标准分值 $z_{CS}^{(k)}$ 与未来一期残差收益率 θ_n(t) 的日频相关系数：
+对每个信号 $k$，用历史数据（所有资产、所有交易日）计算其横截面标准分值 $z_{CS}^{(k)}$ 与未来一期残差收益率 $\theta_n(t)$ 的日频相关系数：
 
 $$
 IC_k = \mathrm{Corr}\left(z_{CS}^{(k)}(t), \theta_n(t)\right)
 $$
 
-使用过去2年日数据
+使用过去2年日频数据
 
 ### 4.5 单信号Alpha公式
 
@@ -158,7 +158,7 @@ $$
 
 ### 5.4 正交化变换
 
-对任意交易日（包括当前）的Alpha向量 $\boldsymbol{\alpha}$，计算正交化后的向量 $\mathbf{y}$：
+对任意交易日（包括当前）的Alpha向量 $\mathbf{\alpha}$，计算正交化后的向量 $\mathbf{y}$：
 $$
 \mathbf{y} = (H^T)^{-1} \left( \mathbf{\alpha} - \bar{\mathbf{\alpha}} \right)
 $$
