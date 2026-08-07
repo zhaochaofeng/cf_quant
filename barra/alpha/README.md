@@ -16,6 +16,7 @@
 | $z_{CS,n}^{(k)}(t)$ | 信号 $k$ 在交易日 $t$ 的横截面标准分值 |
 | $\omega_n$ | 资产 $n$ 的残差波动率 |
 | $IC_k$ | 信号 $k$ 的全局信息系数（历史日频相关系数） |
+| $c_g^{(k)}$ | 信号 $k$ 的情形2系数（式(11-13)），横截面分散度 ÷ 波动率归一化分散度，具有日收益率量纲 |
 | $\alpha_n^{(k)}(t)$ | 仅由信号 $k$ 贡献的 Alpha 分量 |
 | $\alpha_n(t)$ | 最终合成的 Alpha 预测 |
 | $T$ | 历史时间窗口长度（交易日数） |
@@ -35,15 +36,9 @@ df = D.features(['SZ000001'], fields=['$close'], start_time='2026-01-01', end_ti
 - 股票的预测信号 $\{g_n^{(k)}(t)\} \ (k=1,2,\dots,K)$。获取方式：
 ```python
 import pandas as pd
-from utils import sql_engine
-engine = sql_engine()
-sql = ''' 
-    select qlib_code as instrument, day as datetime, score as g from monitor_return_rate 
-where day>='2026-03-06' and day<='2026-03-06';
-'''
-df = pd.read_sql(sql, engine)
-df.set_index(['instrument', 'datetime'], inplace=True)
+df = pd.read_parquet('barra/factor_com/data/latest/alpha_exposure.parquet')
 ```
+数据格式：MultiIndex(instrument, datetime)，列 = 15 个因子表达式（`data/factor/factor_expr.py` 的 `EXPRS`），由 `barra/factor_com/run.py` 每日产出并同步至 `latest/`。
 - 每个资产 $n$ 的残差收益率历史序列 $\{\theta_n(t)\}$。由风控模块 risk_control 模块预先计算，用于计算 $\omega_n$。获取方式：
 ```
 直接读取: barra/risk_control/output/{dt}/model/residuals.parquet
@@ -113,19 +108,33 @@ $$
 
 使用过去2年日频数据
 
-### 4.5 单信号Alpha公式
+### 4.5 情形2系数 $c_g$ 估计
+
+当信号 $k$ 被判定为情形2（时间序列信号波动率与资产波动率成比例，式(11-8)），精炼预测需乘以系数 $c_g$（式(11-13)）：
+
+$$
+c_g^{(k)} = \frac{\text{Std}_{CS}\{g_n^{(k)}\}}{\text{Std}_{CS}\{g_n^{(k)} / \omega_n\}}
+$$
+
+逐日计算：对每个交易日 $t$，取当日横截面的 $g_n^{(k)}(t)$ 与 $\omega_n$，计算分子（信号横截面标准差）与分母（波动率归一化信号的横截面标准差），再对时间平均。$c_g$ 衡量信号横截面分散度在波动率归一化后的保留程度，具有日收益率量纲。
+
+### 4.6 单信号Alpha公式
 
 对每个交易日 $t$ 和每只资产 $n$，计算：
 
+**情形1**（信号波动率为常数，式(11-7)）：
+
 $$
-\alpha_n^{(k)}(t) = 
-\begin{cases}
-\omega_n \cdot IC_k \cdot z_{CS,n}^{(k)}(t), & \text{若信号 } k \text{ 属于情形1} \\
-IC_k \cdot z_{CS,n}^{(k)}(t), & \text{若信号 } k \text{ 属于情形2}
-\end{cases}
+\alpha_n^{(k)}(t) = \omega_n \cdot IC_k \cdot z_{CS,n}^{(k)}(t)
 $$
 
-此时 $\alpha_n^{(k)}(t)$ 已具有日收益率量纲。
+**情形2**（信号波动率与资产波动率成比例，式(11-14)）：
+
+$$
+\alpha_n^{(k)}(t) = IC_k \cdot c_g^{(k)} \cdot z_{CS,n}^{(k)}(t)
+$$
+
+此时 $\alpha_n^{(k)}(t)$ 已具有日收益率量纲。两种情形下 alpha 量级一致（$c_g^{(k)} \approx \bar{\omega}$），可直接合并。
 
 ---
 
@@ -190,7 +199,7 @@ $$
 ## 6. 新股处理
 
 - **情形1信号**：新股无法计算历史 $\omega_n$，采用行业+市值回归模型预测 $\hat{\omega}_n$ 替代。
-- **情形2信号**：新股无需 $\omega_n$，直接使用 $z_{CS,n}^{(k)}$。
+- **情形2信号**：新股无需历史 $\omega_n$ 即可计算 $z_{CS,n}^{(k)}$；系数 $c_g^{(k)}$ 为横截面常数，用当日全部股票（含老股票的 $\omega_n$）估计，新股沿用同一 $c_g^{(k)}$。
 - **正交化矩阵 $H$ 和 IC 参数 $\gamma_j$**：均使用老股票历史数据估计，新股不参与参数估计，新股沿用同一变换。
 
 ---
@@ -204,6 +213,7 @@ $$
 | $\omega_n$（老股票） | 每日   | 用过去3年日残差收益率滚动计算 |
 | $\omega_n$（新股） | 每日   | 用行业+市值回归模型预测，模型每日重估 |
 | $IC_k$ | 每日   | 用过去3年日数据滚动计算 |
+| $c_g^{(k)}$ | 每日   | 逐日横截面计算后对时间平均 |
 | $\Sigma_\alpha$、$H$、$\Gamma$ | 每日   | 用过去3年日数据滚动计算 |
 | 情形判断 | 每日   | 滚动窗口回归，每日判断 |
 
