@@ -155,7 +155,7 @@ class BaseDataLoader:
     @staticmethod
     def load_benchmark_ret(start_time: str, end_time: str,
                            benchmark: str = BENCHMARK_CONFIG['BENCHMARK'], k: int=1) -> pd.Series:
-        """从MySQL加载 基准收益率
+        """基准收益率
 
         Args:
             start_time: 开始日期，如 '2023-01-01'
