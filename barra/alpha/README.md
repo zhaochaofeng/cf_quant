@@ -22,7 +22,7 @@
 | $g_n^{(k)}(t)$ | 资产 $n$ 在交易日 $t$ 的原始预测信号 $k$ |
 | $z_{CS,n}^{(k)}(t)$ | 信号 $k$ 在交易日 $t$ 的横截面标准分值 |
 | $\omega_n$ | 资产 $n$ 的残差波动率 |
-| $IC_k$ | 信号 $k$ 的全局信息系数（历史日频相关系数） |
+| $IC_k$ | 信号 $k$ 的全局信息系数（日频截面相关序列经 EWMA 时间加权平均） |
 | $c_g^{(k)}$ | 信号 $k$ 的情形2系数（式(11-13)），横截面分散度 ÷ 波动率归一化分散度，具有日收益率量纲 |
 | $\alpha_n^{(k)}(t)$ | 仅由信号 $k$ 贡献的 Alpha 分量 |
 | $\alpha_n(t)$ | 最终合成的 Alpha 预测 |
@@ -45,7 +45,7 @@ df = D.features(['SZ000001'], fields=['$close'], start_time='2026-01-01', end_ti
 import pandas as pd
 df = pd.read_parquet('barra/factor_com/data/latest/alpha_exposure.parquet')
 ```
-数据格式：MultiIndex(instrument, datetime)，列 = 15 个因子表达式（`data/factor/factor_expr.py` 的 `EXPRS`），由 `barra/factor_com/run.py` 每日产出并同步至 `latest/`。
+数据格式：MultiIndex(instrument, datetime)，列 = K个因子表达式
 - 每个资产 $n$ 的残差收益率历史序列 $\{\theta_n(t)\}$。由风控模块 risk_control 模块预先计算，用于计算 $\omega_n$。获取方式：
 ```
 直接读取: barra/risk_control/output/{dt}/model/residuals.parquet
@@ -107,15 +107,53 @@ $$
 
 ### 4.4 全局IC估计
 
-对每个信号 $k$，用历史数据（所有资产、所有交易日）计算其横截面标准分值 $z_{CS}^{(k)}$ 与未来一期残差收益率 $\theta_n(t)$ 的日频相关系数：
+对每个信号 $k$，先对每个交易日 $t$ 计算横截面相关，得到**日频 IC 序列** $\{IC_k(t)\}$，再对时间做 **EWMA 指数加权平均**（半衰期约 60 交易日，权重 $w(t) = \lambda^{T-t}$）：
 
 $$
-IC_k = \mathrm{Corr}\left(z_{CS}^{(k)}(t), \theta_n(t)\right)
+IC_k = \frac{\sum_t w(t) \cdot \mathrm{Corr}_{CS}\left(z_{CS}^{(k)}(t),\ \theta_n(t)\right)}{\sum_t w(t)}, \quad w(t) = \lambda^{T-t}
 $$
 
-使用过去2年日频数据
+使用过去2年（500交易日）日数据，滚动窗口与 `config.py` 的 `ROLLING_WINDOW=500` 一致。日频序列 $\{IC_k(t)\}$ 同时是 4.5 节 IC 稳健性处理（ICIR、收缩）的输入。
 
-### 4.5 情形2系数 $c_g$ 估计
+
+### 4.5 IC 稳健性处理（时变性与变号）
+
+#### 4.5.1 问题
+
+IC 在历史上会漂移，甚至正负方向变动。直接以单标量 IC 作为权重会引入方向性噪声：变号因子在滚动窗口内被等权平均抹平，方向切换无法被及时跟踪。按 APM §11.7（IC 不确定性）对 IC 做稳健性处理，全部操作作用于 4.4 产出的日频 IC 序列 $\{IC_k(t)\}$。
+
+#### 4.5.2 贝叶斯收缩（式 11-32）
+
+$$
+IC_k^* = \frac{IC_k}{1 + \dfrac{1}{T \cdot IC_k^2}}
+$$
+
+$T$ 大或 $|IC_k|$ 高 → 收缩系数接近 1，保留原值；$T$ 小或 $|IC_k|$ 低 → $IC_k^* \to 0$，变号噪声被压向零。
+
+#### 4.5.3 ICIR 稳定性度量
+
+对 4.4 的日频 IC 序列计算稳定性指标：
+
+$$
+ICIR_k = \frac{\bar{IC}_k}{\sigma_{IC,k}}
+$$
+
+其中 $\bar{IC}_k$、$\sigma_{IC,k}$ 为日频序列的均值与标准差（非池化标量）。$ICIR_k < 0.3$ 视为不可靠 → 激进收缩（压向 0）。变号因子 $\sigma_{IC}$ 大、ICIR 低，权重自动降低。
+
+#### 4.5.4 方向一致性检验
+
+对日频 IC 序列做 t 检验（$H_0: IC=0$），不能显著区分于 0 时直接置 0（式 11-32 的极限情形）。
+
+#### 4.5.5 分情况处理
+
+| 情况 | 处理 |
+|---|---|
+| IC 围绕 0 噪声震荡（变号） | 贝叶斯收缩式 11-32 压向 0；ICIR 低 → 权重调低 |
+| IC 长期稳定但近期切换方向 | 4.4 的 EWMA 近期加权，快速跟踪 regime 切换 |
+| IC 长期为正/负但绝对值小 | 收缩系数 < 0.5，alpha 输出缩小 |
+| IC 显著且稳定 | 保留，收缩系数接近 1 |
+
+### 4.6 情形2系数 $c_g$ 估计
 
 当信号 $k$ 被判定为情形2（时间序列信号波动率与资产波动率成比例，式(11-8)），精炼预测需乘以系数 $c_g$（式(11-13)）：
 
