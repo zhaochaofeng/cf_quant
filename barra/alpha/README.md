@@ -222,20 +222,20 @@ $$
   如果 K==1，则直接使用 $\alpha_n^{(1)}(t)$ 作为最终Alpha。跳过步骤5
 ### 5.1 构建历史Alpha矩阵
 
-对历史每个交易日 $s$（$s=1,\dots,T$），构造向量：
+对历史每个交易日 $t$（$t=1,\dots,T$），构造向量：
 $$
-\mathbf{\alpha}(s) = \left(\alpha^{(1)}(s), \dots, \alpha^{(K)}(s)\right)^T
+\mathbf{\alpha}(t) = \left(\alpha^{(1)}(t), \dots, \alpha^{(K)}(t)\right)^T
 $$
-其中 $\alpha^{(k)}(s)$ 是长度为 $N$ 的向量（所有资产在该交易日的Alpha分量）。将所有历史资产-交易日点 $(n,s)$ 的 $K$ 维Alpha值视为独立样本，共 $N \times T$ 个观测。
+其中 $\alpha^{(k)}(t)$ 是长度为 $N$ 的向量（所有资产在该交易日的Alpha分量）。将所有历史资产-交易日点 $(n,s)$ 的 $K$ 维Alpha值视为独立样本，共 $N \times T$ 个观测。
 
 ### 5.2 估计Alpha协方差矩阵
 
 计算样本协方差矩阵 $\Sigma_\alpha \in \mathbb{R}^{K \times K}$：
 
 $$
-\Sigma_\alpha = \frac{1}{NT-1} \sum_{n=1}^{N} \sum_{s=1}^{T} \left( \mathbf{\alpha}_{n,s} - \bar{\mathbf{\alpha}} \right) \left( \mathbf{\alpha}_{n,s} - \bar{\mathbf{\alpha}} \right)^T
+\Sigma_\alpha = \frac{1}{NT-1} \sum_{n=1}^{N} \sum_{t=1}^{T} \left( \mathbf{\alpha}_{n,t} - \bar{\mathbf{\alpha}} \right) \left( \mathbf{\alpha}_{n,t} - \bar{\mathbf{\alpha}} \right)^T
 $$
-其中 $\mathbf{\alpha}_{n,s}$ 是资产 $n$ 在交易日 $s$ 的 $K$ 维Alpha向量，$\bar{\mathbf{\alpha}}$ 是整体均值向量。使用过去3年日数据
+其中 $\mathbf{\alpha}_{n,t}$ 是资产 $n$ 在交易日 $t$ 的 $K$ 维Alpha向量，$\bar{\mathbf{\alpha}}$ 是整体均值向量。使用过去2年日频数据
 
 ### 5.3 Cholesky分解
 
@@ -255,10 +255,10 @@ $$
 
 ### 5.5 计算正交化信号的IC
 
-用历史数据（过去3年日数据）估计每个正交化分量 $y_j$ 与未来t+2残差收益率 $\theta$ 的日频相关系数：
+用历史数据（过去3年日数据）估计每个正交化分量 $y_j$ 与残差收益率 $\theta$ 的日频相关系数：
 
 $$
-\gamma_j = \mathrm{Corr}\left( y_j(t), \theta(t+2) \right)
+\gamma_j = \mathrm{Corr}\left( y_j(t), \theta(t) \right)
 $$
 每日滚动更新。
 
